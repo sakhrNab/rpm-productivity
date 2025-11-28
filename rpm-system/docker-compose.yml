@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: rpm-postgres
+    environment:
+      POSTGRES_USER: rpm_user
+      POSTGRES_PASSWORD: rpm_secure_password_2024
+      POSTGRES_DB: rpm_database
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rpm_user -d rpm_database"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rpm-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rpm-backend
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://rpm_user:rpm_secure_password_2024@postgres:5432/rpm_database
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - rpm-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rpm-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - rpm-network
+
+volumes:
+  postgres_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+networks:
+  rpm-network:
+    driver: bridge
