@@ -109,7 +109,7 @@ app.put('/api/categories/:id', async (req, res) => {
     const { name, description, icon, color, cover_image } = req.body;
     const result = await pool.query(
       `UPDATE categories SET name = $1, description = $2, icon = $3, color = $4, cover_image = $5
-       WHERE id = $6 RETURNING *`,
+       WHERE id = $6::uuid RETURNING *`,
       [name, description, icon, color, cover_image, id]
     );
     res.json(result.rows[0]);
@@ -154,7 +154,7 @@ app.put('/api/categories/:id/details', async (req, res) => {
 app.delete('/api/categories/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('UPDATE categories SET is_active = false WHERE id = $1', [id]);
+    await pool.query('UPDATE categories SET is_active = false WHERE id = $1::uuid', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting category:', error);
@@ -245,7 +245,7 @@ app.post('/api/projects', async (req, res) => {
     const { category_id, name, ultimate_result, ultimate_purpose, description, cover_image, start_date, end_date } = req.body;
     const result = await pool.query(
       `INSERT INTO projects (category_id, name, ultimate_result, ultimate_purpose, description, cover_image, start_date, end_date, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM projects WHERE category_id = $1))
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM projects WHERE category_id = $1::uuid))
        RETURNING *`,
       [category_id, name, ultimate_result || '', ultimate_purpose || '', description || '', cover_image || '', start_date || null, end_date || null]
     );
@@ -272,7 +272,7 @@ app.put('/api/projects/:id', async (req, res) => {
         end_date = COALESCE($7, end_date),
         is_starred = COALESCE($8, is_starred),
         is_completed = COALESCE($9, is_completed)
-       WHERE id = $10 RETURNING *`,
+       WHERE id = $10::uuid RETURNING *`,
       [name, ultimate_result, ultimate_purpose, description, cover_image, start_date, end_date, is_starred, is_completed, id]
     );
     res.json(result.rows[0]);
@@ -286,7 +286,7 @@ app.put('/api/projects/:id', async (req, res) => {
 app.delete('/api/projects/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM projects WHERE id = $1', [id]);
+    await pool.query('DELETE FROM projects WHERE id = $1::uuid', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting project:', error);
@@ -362,17 +362,24 @@ app.post('/api/actions', async (req, res) => {
       scheduled_date, scheduled_time, end_date, is_starred, is_this_week
     } = req.body;
     
+    // Validate required fields
+    if (!title || title.trim() === '') {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+    
     const result = await pool.query(
       `INSERT INTO actions (
         category_id, project_id, block_id, leverage_person_id,
         title, notes, duration_hours, duration_minutes,
         scheduled_date, scheduled_time, end_date, is_starred, is_this_week, sort_order
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-        (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM actions WHERE COALESCE(block_id, project_id, category_id) = COALESCE($3, $2, $1))
+      ) VALUES (
+        $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+        (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM actions 
+         WHERE COALESCE(block_id, project_id, category_id) = COALESCE($3::uuid, $2::uuid, $1::uuid))
       ) RETURNING *`,
       [
         category_id || null, project_id || null, block_id || null, leverage_person_id || null,
-        title, notes || '', duration_hours || 0, duration_minutes || 5,
+        title.trim(), notes || '', duration_hours || 0, duration_minutes || 5,
         scheduled_date || null, scheduled_time || null, end_date || null,
         is_starred || false, is_this_week || false
       ]
@@ -380,7 +387,14 @@ app.post('/api/actions', async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error creating action:', error);
-    res.status(500).json({ error: 'Failed to create action' });
+    // Return more detailed error information in development
+    const errorMessage = process.env.NODE_ENV === 'production' 
+      ? 'Failed to create action' 
+      : error.message || 'Failed to create action';
+    res.status(500).json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+    });
   }
 });
 
@@ -402,9 +416,13 @@ app.put('/api/actions/:id', async (req, res) => {
       'is_starred', 'is_this_week', 'is_completed', 'is_cancelled', 'sort_order'
     ];
     
+    const uuidFields = ['category_id', 'project_id', 'block_id', 'leverage_person_id'];
+    
     for (const [key, value] of Object.entries(updates)) {
       if (allowedFields.includes(key)) {
-        fields.push(`${key} = $${paramCount}`);
+        // Cast UUID fields explicitly
+        const cast = uuidFields.includes(key) ? '::uuid' : '';
+        fields.push(`${key} = $${paramCount}${cast}`);
         values.push(value);
         paramCount++;
       }
@@ -420,7 +438,7 @@ app.put('/api/actions/:id', async (req, res) => {
     
     values.push(id);
     const result = await pool.query(
-      `UPDATE actions SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+      `UPDATE actions SET ${fields.join(', ')} WHERE id = $${paramCount}::uuid RETURNING *`,
       values
     );
     
@@ -441,7 +459,7 @@ app.post('/api/actions/:id/duplicate', async (req, res) => {
        SELECT category_id, project_id, block_id, leverage_person_id, title || ' (copy)', notes,
         duration_hours, duration_minutes, scheduled_date, scheduled_time, end_date, is_starred, is_this_week,
         (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM actions)
-       FROM actions WHERE id = $1 RETURNING *`,
+       FROM actions WHERE id = $1::uuid RETURNING *`,
       [id]
     );
     res.status(201).json(result.rows[0]);
@@ -455,7 +473,7 @@ app.post('/api/actions/:id/duplicate', async (req, res) => {
 app.delete('/api/actions/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM actions WHERE id = $1', [id]);
+    await pool.query('DELETE FROM actions WHERE id = $1::uuid', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting action:', error);
@@ -533,7 +551,8 @@ app.post('/api/blocks', async (req, res) => {
     
     const result = await pool.query(
       `INSERT INTO rpm_blocks (category_id, project_id, result_title, result_description, purpose, target_date, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM rpm_blocks WHERE COALESCE(project_id, category_id) = COALESCE($2, $1)))
+       VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, 
+         (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM rpm_blocks WHERE COALESCE(project_id, category_id) = COALESCE($2::uuid, $1::uuid)))
        RETURNING *`,
       [category_id || null, project_id || null, result_title, result_description || '', purpose || '', target_date || null]
     );
@@ -541,7 +560,7 @@ app.post('/api/blocks', async (req, res) => {
     // Link selected actions to this block
     if (action_ids && action_ids.length > 0) {
       await pool.query(
-        'UPDATE actions SET block_id = $1 WHERE id = ANY($2)',
+        'UPDATE actions SET block_id = $1::uuid WHERE id = ANY($2::uuid[])',
         [result.rows[0].id, action_ids]
       );
     }
@@ -567,7 +586,7 @@ app.put('/api/blocks/:id', async (req, res) => {
         target_date = COALESCE($4, target_date),
         is_completed = COALESCE($5, is_completed),
         is_in_progress = COALESCE($6, is_in_progress)
-       WHERE id = $7 RETURNING *`,
+       WHERE id = $7::uuid RETURNING *`,
       [result_title, result_description, purpose, target_date, is_completed, is_in_progress, id]
     );
     
@@ -583,8 +602,8 @@ app.delete('/api/blocks/:id', async (req, res) => {
   try {
     const { id } = req.params;
     // Unlink actions first
-    await pool.query('UPDATE actions SET block_id = NULL WHERE block_id = $1', [id]);
-    await pool.query('DELETE FROM rpm_blocks WHERE id = $1', [id]);
+    await pool.query('UPDATE actions SET block_id = NULL WHERE block_id = $1::uuid', [id]);
+    await pool.query('DELETE FROM rpm_blocks WHERE id = $1::uuid', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting block:', error);
@@ -617,7 +636,7 @@ app.post('/api/key-results', async (req, res) => {
     const { project_id, title, description, target_value, unit, target_date } = req.body;
     const result = await pool.query(
       `INSERT INTO key_results (project_id, title, description, target_value, unit, target_date, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM key_results WHERE project_id = $1))
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM key_results WHERE project_id = $1::uuid))
        RETURNING *`,
       [project_id, title, description || '', target_value || null, unit || '', target_date || null]
     );
@@ -644,7 +663,7 @@ app.put('/api/key-results/:id', async (req, res) => {
         target_date = COALESCE($6, target_date),
         is_starred = COALESCE($7, is_starred),
         is_completed = COALESCE($8, is_completed)
-       WHERE id = $9 RETURNING *`,
+       WHERE id = $9::uuid RETURNING *`,
       [title, description, target_value, current_value, unit, target_date, is_starred, is_completed, id]
     );
     
@@ -659,7 +678,7 @@ app.put('/api/key-results/:id', async (req, res) => {
 app.delete('/api/key-results/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM key_results WHERE id = $1', [id]);
+    await pool.query('DELETE FROM key_results WHERE id = $1::uuid', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting key result:', error);
@@ -698,7 +717,7 @@ app.post('/api/capture-items', async (req, res) => {
     const { project_id, title, notes } = req.body;
     const result = await pool.query(
       `INSERT INTO capture_items (project_id, title, notes, sort_order)
-       VALUES ($1, $2, $3, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM capture_items WHERE project_id = $1))
+       VALUES ($1::uuid, $2, $3, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM capture_items WHERE project_id = $1::uuid))
        RETURNING *`,
       [project_id || null, title, notes || '']
     );
@@ -721,7 +740,7 @@ app.put('/api/capture-items/:id', async (req, res) => {
         notes = COALESCE($2, notes),
         is_processed = COALESCE($3, is_processed),
         is_starred = COALESCE($4, is_starred)
-       WHERE id = $5 RETURNING *`,
+       WHERE id = $5::uuid RETURNING *`,
       [title, notes, is_processed, is_starred, id]
     );
     
@@ -736,7 +755,7 @@ app.put('/api/capture-items/:id', async (req, res) => {
 app.delete('/api/capture-items/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM capture_items WHERE id = $1', [id]);
+    await pool.query('DELETE FROM capture_items WHERE id = $1::uuid', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting capture item:', error);
@@ -787,7 +806,7 @@ app.put('/api/persons/:id', async (req, res) => {
         phone = COALESCE($3, phone),
         avatar = COALESCE($4, avatar),
         notes = COALESCE($5, notes)
-       WHERE id = $6 RETURNING *`,
+       WHERE id = $6::uuid RETURNING *`,
       [name, email, phone, avatar, notes, id]
     );
     
@@ -802,7 +821,7 @@ app.put('/api/persons/:id', async (req, res) => {
 app.delete('/api/persons/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM persons WHERE id = $1', [id]);
+    await pool.query('DELETE FROM persons WHERE id = $1::uuid', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting person:', error);
