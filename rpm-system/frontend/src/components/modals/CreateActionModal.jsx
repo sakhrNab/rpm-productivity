@@ -9,11 +9,13 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
     notes: initialData.notes || '',
     category_id: initialData.category_id || '',
     project_id: initialData.project_id || '',
+    block_id: initialData.block_id || '',
     leverage_person_id: initialData.leverage_person_id || '',
     duration_hours: initialData.duration_hours || 0,
     duration_minutes: initialData.duration_minutes || 5,
     scheduled_date: initialData.scheduled_date || '',
     is_starred: initialData.is_starred || false,
+    is_this_week: initialData.is_this_week || false,
   });
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
@@ -26,15 +28,28 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
 
     setLoading(true);
     try {
-      await api.createAction({
-        ...formData,
-        category_id: formData.category_id || null,
-        project_id: formData.project_id || null,
-        leverage_person_id: formData.leverage_person_id || null,
-      });
+      if (initialData.id) {
+        // Update existing action
+        await api.updateAction(initialData.id, {
+          ...formData,
+          category_id: formData.category_id || null,
+          project_id: formData.project_id || null,
+          block_id: formData.block_id || null,
+          leverage_person_id: formData.leverage_person_id || null,
+        });
+      } else {
+        // Create new action
+        await api.createAction({
+          ...formData,
+          category_id: formData.category_id || null,
+          project_id: formData.project_id || null,
+          block_id: formData.block_id || null,
+          leverage_person_id: formData.leverage_person_id || null,
+        });
+      }
       onSuccess();
     } catch (error) {
-      console.error('Failed to create action:', error);
+      console.error('Failed to save action:', error);
     } finally {
       setLoading(false);
     }
@@ -272,7 +287,7 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading || !formData.title.trim()}>
-              {loading ? 'Saving...' : 'Save Action'}
+              {loading ? 'Saving...' : initialData.id ? 'Update Action' : 'Save Action'}
             </button>
           </div>
         </form>

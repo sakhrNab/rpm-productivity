@@ -1,6 +1,7 @@
 import { useState, useContext, useEffect } from 'react';
 import { Check } from 'lucide-react';
 import { AppContext, api } from '../../App';
+import CreateActionModal from './CreateActionModal';
 
 function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) {
   const { projects } = useContext(AppContext);
@@ -15,13 +16,19 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
   const [selectedActions, setSelectedActions] = useState([]);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [showActionModal, setShowActionModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Load actions that don't belong to a block yet
   useEffect(() => {
     const loadActions = async () => {
       try {
-        const data = await api.getActions({ completed: 'false' });
+        // If category_id is provided, filter by it; otherwise get all
+        const params = { completed: 'false' };
+        if (formData.category_id) {
+          params.category_id = formData.category_id;
+        }
+        const data = await api.getActions(params);
         // Filter actions that don't have a block_id
         setActions(data.filter(a => !a.block_id));
       } catch (error) {
@@ -29,7 +36,7 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
       }
     };
     loadActions();
-  }, []);
+  }, [formData.category_id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -37,15 +44,25 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
 
     setLoading(true);
     try {
-      await api.createBlock({
-        ...formData,
-        category_id: formData.category_id || null,
-        project_id: formData.project_id || null,
-        action_ids: selectedActions,
-      });
+      if (initialData.id) {
+        // Update existing block
+        await api.updateBlock(initialData.id, {
+          ...formData,
+          category_id: formData.category_id || null,
+          project_id: formData.project_id || null,
+        });
+      } else {
+        // Create new block
+        await api.createBlock({
+          ...formData,
+          category_id: formData.category_id || null,
+          project_id: formData.project_id || null,
+          action_ids: selectedActions,
+        });
+      }
       onSuccess();
     } catch (error) {
-      console.error('Failed to create block:', error);
+      console.error('Failed to save block:', error);
     } finally {
       setLoading(false);
     }
@@ -67,6 +84,21 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
     }
   };
 
+  const handleActionCreated = async () => {
+    setShowActionModal(false);
+    // Reload actions list to include the newly created action
+    try {
+      const params = { completed: 'false' };
+      if (formData.category_id) {
+        params.category_id = formData.category_id;
+      }
+      const data = await api.getActions(params);
+      setActions(data.filter(a => !a.block_id));
+    } catch (error) {
+      console.error('Failed to reload actions:', error);
+    }
+  };
+
   const selectedCategory = categories.find(c => c.id === formData.category_id);
   const selectedProject = projects.find(p => p.id === formData.project_id);
 
@@ -78,7 +110,7 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
           justifyContent: 'space-between', 
           alignItems: 'center' 
         }}>
-          <h3 className="modal-title">Create a New Block</h3>
+          <h3 className="modal-title">{initialData.id ? 'Edit Block' : 'Create a New Block'}</h3>
           <div style={{ display: 'flex', gap: '8px' }}>
             {/* Category Dropdown */}
             <div className="dropdown" style={{ position: 'relative' }}>
@@ -212,6 +244,11 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
                   <button 
                     type="button" 
                     className="btn btn-secondary"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowActionModal(true);
+                    }}
                     style={{ fontSize: '0.8rem', padding: '4px 12px' }}
                   >
                     +
@@ -268,11 +305,24 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
               className="btn btn-primary" 
               disabled={loading || !formData.result_title.trim()}
             >
-              {loading ? 'Creating...' : 'Create block'}
+              {loading ? (initialData.id ? 'Updating...' : 'Creating...') : (initialData.id ? 'Update block' : 'Create block')}
             </button>
           </div>
         </form>
       </div>
+
+      {/* Create Action Modal */}
+      {showActionModal && categories && (
+        <CreateActionModal 
+          onClose={() => setShowActionModal(false)}
+          onSuccess={handleActionCreated}
+          categories={categories}
+          initialData={{ 
+            category_id: formData.category_id,
+            project_id: formData.project_id || null
+          }}
+        />
+      )}
     </div>
   );
 }

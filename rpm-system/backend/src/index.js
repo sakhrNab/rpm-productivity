@@ -215,6 +215,15 @@ app.get('/api/projects/:id', async (req, res) => {
       [id]
     );
     
+    // Get actions for each block
+    for (let block of blocksResult.rows) {
+      const blockActionsResult = await pool.query(
+        'SELECT * FROM v_actions_full WHERE block_id = $1 ORDER BY sort_order',
+        [block.id]
+      );
+      block.actions = blockActionsResult.rows;
+    }
+    
     const actionsResult = await pool.query(
       'SELECT * FROM v_actions_full WHERE project_id = $1 ORDER BY sort_order',
       [id]
@@ -653,24 +662,76 @@ app.put('/api/key-results/:id', async (req, res) => {
     const { id } = req.params;
     const { title, description, target_value, current_value, unit, target_date, is_starred, is_completed } = req.body;
     
+    // Build dynamic update query to handle undefined values properly
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+    
+    if (title !== undefined) {
+      fields.push(`title = $${paramCount}`);
+      values.push(title);
+      paramCount++;
+    }
+    if (description !== undefined) {
+      fields.push(`description = $${paramCount}`);
+      values.push(description);
+      paramCount++;
+    }
+    if (target_value !== undefined) {
+      fields.push(`target_value = $${paramCount}`);
+      values.push(target_value);
+      paramCount++;
+    }
+    if (current_value !== undefined) {
+      fields.push(`current_value = $${paramCount}`);
+      values.push(current_value);
+      paramCount++;
+    }
+    if (unit !== undefined) {
+      fields.push(`unit = $${paramCount}`);
+      values.push(unit);
+      paramCount++;
+    }
+    if (target_date !== undefined) {
+      fields.push(`target_date = $${paramCount}`);
+      values.push(target_date);
+      paramCount++;
+    }
+    if (is_starred !== undefined) {
+      fields.push(`is_starred = $${paramCount}`);
+      values.push(is_starred);
+      paramCount++;
+    }
+    if (is_completed !== undefined) {
+      fields.push(`is_completed = $${paramCount}`);
+      values.push(is_completed);
+      paramCount++;
+    }
+    
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    values.push(id);
     const result = await pool.query(
-      `UPDATE key_results SET 
-        title = COALESCE($1, title),
-        description = COALESCE($2, description),
-        target_value = COALESCE($3, target_value),
-        current_value = COALESCE($4, current_value),
-        unit = COALESCE($5, unit),
-        target_date = COALESCE($6, target_date),
-        is_starred = COALESCE($7, is_starred),
-        is_completed = COALESCE($8, is_completed)
-       WHERE id = $9::uuid RETURNING *`,
-      [title, description, target_value, current_value, unit, target_date, is_starred, is_completed, id]
+      `UPDATE key_results SET ${fields.join(', ')} WHERE id = $${paramCount}::uuid RETURNING *`,
+      values
     );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Key result not found' });
+    }
     
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating key result:', error);
-    res.status(500).json({ error: 'Failed to update key result' });
+    const errorMessage = process.env.NODE_ENV === 'production'
+      ? 'Failed to update key result'
+      : error.message || 'Failed to update key result';
+    res.status(500).json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+    });
   }
 });
 

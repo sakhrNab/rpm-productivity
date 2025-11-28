@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval, 
   isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek
 } from 'date-fns';
-import { api } from '../App';
+import { api, AppContext } from '../App';
+import CreateActionModal from '../components/modals/CreateActionModal';
 
 function CalendarPage() {
+  const { categories, refreshData } = useContext(AppContext);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [actions, setActions] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
+  const [showActionModal, setShowActionModal] = useState(false);
 
   useEffect(() => {
     loadActions();
@@ -40,7 +43,11 @@ function CalendarPage() {
     <div>
       <div className="page-header">
         <h1 className="page-title">Calendar</h1>
-        <button className="btn btn-primary">
+        <button 
+          type="button"
+          className="btn btn-primary"
+          onClick={() => setShowActionModal(true)}
+        >
           <Plus size={16} />
           Add Action
         </button>
@@ -95,7 +102,10 @@ function CalendarPage() {
             return (
               <div
                 key={day.toISOString()}
-                onClick={() => setSelectedDate(day)}
+                onClick={() => {
+                  setSelectedDate(day);
+                  setShowActionModal(true);
+                }}
                 style={{
                   minHeight: '100px',
                   padding: '8px',
@@ -138,6 +148,22 @@ function CalendarPage() {
           })}
         </div>
       </div>
+
+      {/* Create Action Modal */}
+      {showActionModal && categories && (
+        <CreateActionModal 
+          onClose={() => setShowActionModal(false)}
+          onSuccess={() => {
+            setShowActionModal(false);
+            loadActions();
+            if (refreshData) refreshData();
+          }}
+          categories={categories}
+          initialData={selectedDate ? { 
+            scheduled_date: format(selectedDate, 'yyyy-MM-dd')
+          } : {}}
+        />
+      )}
     </div>
   );
 }

@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { Plus, Star, Check, Clock, FolderOpen } from 'lucide-react';
 import { format } from 'date-fns';
-import { api } from '../App';
+import { api, AppContext } from '../App';
+import CreateActionModal from '../components/modals/CreateActionModal';
 
 function MyDayPage() {
+  const { categories, refreshData } = useContext(AppContext);
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showActionModal, setShowActionModal] = useState(false);
   const today = format(new Date(), 'yyyy-MM-dd');
 
   useEffect(() => {
@@ -43,7 +46,11 @@ function MyDayPage() {
           <h1 className="page-title">My Day</h1>
           <p style={{ color: 'var(--text-muted)' }}>{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
         </div>
-        <button className="btn btn-primary">
+        <button 
+          type="button"
+          className="btn btn-primary"
+          onClick={() => setShowActionModal(true)}
+        >
           <Plus size={16} />
           Add Action
         </button>
@@ -85,6 +92,23 @@ function MyDayPage() {
           ))
         )}
       </div>
+
+      {/* Create Action Modal */}
+      {showActionModal && categories && (
+        <CreateActionModal 
+          onClose={() => setShowActionModal(false)}
+          onSuccess={() => {
+            setShowActionModal(false);
+            loadActions();
+            if (refreshData) refreshData();
+          }}
+          categories={categories}
+          initialData={{ 
+            scheduled_date: today,
+            is_this_week: true
+          }}
+        />
+      )}
     </div>
   );
 }

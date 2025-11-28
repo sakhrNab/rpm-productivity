@@ -1,15 +1,21 @@
 import { useState } from 'react';
 import { api } from '../../App';
+import CreateCategoryModal from './CreateCategoryModal';
 
-function CreateProjectModal({ onClose, onSuccess, categories }) {
+function CreateProjectModal({ onClose, onSuccess, categories = [], initialData = {}, onCategoriesRefresh }) {
   const [formData, setFormData] = useState({
-    name: '',
-    ultimate_result: '',
-    ultimate_purpose: '',
-    category_id: '',
+    name: initialData.name || '',
+    ultimate_result: initialData.ultimate_result || '',
+    ultimate_purpose: initialData.ultimate_purpose || '',
+    category_id: initialData.category_id || '',
   });
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Debug: Log categories
+  console.log('CreateProjectModal - Categories received:', categories);
+  console.log('CreateProjectModal - Categories count:', categories?.length || 0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -17,10 +23,16 @@ function CreateProjectModal({ onClose, onSuccess, categories }) {
 
     setLoading(true);
     try {
-      await api.createProject(formData);
+      if (initialData.id) {
+        // Update existing project
+        await api.updateProject(initialData.id, formData);
+      } else {
+        // Create new project
+        await api.createProject(formData);
+      }
       onSuccess();
     } catch (error) {
-      console.error('Failed to create project:', error);
+      console.error('Failed to save project:', error);
     } finally {
       setLoading(false);
     }
@@ -28,11 +40,26 @@ function CreateProjectModal({ onClose, onSuccess, categories }) {
 
   const selectedCategory = categories.find(c => c.id === formData.category_id);
 
+  const handleCategoryCreated = async (newCategory) => {
+    // Close category modal first
+    setShowCategoryModal(false);
+    
+    // Refresh categories list and wait for it to complete
+    if (onCategoriesRefresh) {
+      await onCategoriesRefresh();
+    }
+    
+    // Select the newly created category
+    if (newCategory && newCategory.id) {
+      setFormData(prev => ({ ...prev, category_id: newCategory.id }));
+    }
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3 className="modal-title">Create a new Project</h3>
+          <h3 className="modal-title">{initialData.id ? 'Edit Project' : 'Create a new Project'}</h3>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -131,36 +158,49 @@ function CreateProjectModal({ onClose, onSuccess, categories }) {
                   <span>{selectedCategory?.name || 'Select Category'}</span>
                 </button>
                 {showCategoryDropdown && (
-                  <div className="dropdown-menu" style={{ minWidth: '250px' }}>
-                    {categories.map(cat => (
-                      <div
-                        key={cat.id}
-                        className="dropdown-item"
-                        onClick={() => {
-                          setFormData({ ...formData, category_id: cat.id });
-                          setShowCategoryDropdown(false);
-                        }}
-                      >
-                        <span style={{ 
-                          width: 16, 
-                          height: 16, 
-                          borderRadius: '4px', 
-                          background: cat.color,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '10px'
-                        }}>
-                          ≡
-                        </span>
-                        {cat.name}
+                  <div className="dropdown-menu" style={{ minWidth: '250px', maxHeight: '300px', overflowY: 'auto' }}>
+                    {categories && categories.length > 0 ? (
+                      categories.map(cat => (
+                        <div
+                          key={cat.id}
+                          className="dropdown-item"
+                          onClick={() => {
+                            console.log('Category selected:', cat.name);
+                            setFormData({ ...formData, category_id: cat.id });
+                            setShowCategoryDropdown(false);
+                          }}
+                        >
+                          <span style={{ 
+                            width: 16, 
+                            height: 16, 
+                            borderRadius: '4px', 
+                            background: cat.color,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '10px'
+                          }}>
+                            ≡
+                          </span>
+                          {cat.name}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="dropdown-item" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        No categories available
                       </div>
-                    ))}
+                    )}
                     <div 
                       className="dropdown-item" 
                       style={{ 
                         borderTop: '1px solid var(--border-primary)',
-                        color: 'var(--accent-pink)'
+                        color: 'var(--accent-pink)',
+                        cursor: 'pointer'
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowCategoryDropdown(false);
+                        setShowCategoryModal(true);
                       }}
                     >
                       + Create new category
@@ -180,11 +220,19 @@ function CreateProjectModal({ onClose, onSuccess, categories }) {
               className="btn btn-primary" 
               disabled={loading || !formData.name.trim() || !formData.category_id}
             >
-              {loading ? 'Creating...' : 'Create Project'}
+              {loading ? (initialData.id ? 'Updating...' : 'Creating...') : (initialData.id ? 'Update Project' : 'Create Project')}
             </button>
           </div>
         </form>
       </div>
+
+      {/* Create Category Modal */}
+      {showCategoryModal && (
+        <CreateCategoryModal 
+          onClose={() => setShowCategoryModal(false)}
+          onSuccess={handleCategoryCreated}
+        />
+      )}
     </div>
   );
 }

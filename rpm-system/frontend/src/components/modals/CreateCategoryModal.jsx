@@ -45,8 +45,8 @@ function CreateCategoryModal({ onClose, onSuccess }) {
 
     setLoading(true);
     try {
-      await api.createCategory(formData);
-      onSuccess();
+      const newCategory = await api.createCategory(formData);
+      onSuccess(newCategory);
     } catch (error) {
       console.error('Failed to create category:', error);
     } finally {
