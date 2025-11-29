@@ -8,7 +8,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- =====================================================
 -- USERS TABLE
 -- =====================================================
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255),
@@ -22,13 +22,13 @@ CREATE TABLE users (
 );
 
 -- Index for faster lookups
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_provider ON users(provider, provider_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider, provider_id);
 
 -- =====================================================
 -- REFRESH TOKENS TABLE (for JWT refresh)
 -- =====================================================
-CREATE TABLE refresh_tokens (
+CREATE TABLE IF NOT EXISTS refresh_tokens (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token VARCHAR(500) NOT NULL,
@@ -36,13 +36,13 @@ CREATE TABLE refresh_tokens (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
-CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
 
 -- =====================================================
 -- CATEGORIES TABLE
 -- =====================================================
-CREATE TABLE categories (
+CREATE TABLE IF NOT EXISTS categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(50) NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE categories (
 -- =====================================================
 -- CATEGORY DETAILS (Big Picture Content)
 -- =====================================================
-CREATE TABLE category_details (
+CREATE TABLE IF NOT EXISTS category_details (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
     ultimate_vision TEXT,
@@ -74,7 +74,7 @@ CREATE TABLE category_details (
 -- =====================================================
 -- PROJECTS TABLE
 -- =====================================================
-CREATE TABLE projects (
+CREATE TABLE IF NOT EXISTS projects (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
@@ -95,7 +95,7 @@ CREATE TABLE projects (
 -- =====================================================
 -- PERSONS TABLE (Accountability Partners)
 -- =====================================================
-CREATE TABLE persons (
+CREATE TABLE IF NOT EXISTS persons (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE persons (
 -- =====================================================
 -- ACTIONS TABLE
 -- =====================================================
-CREATE TABLE actions (
+CREATE TABLE IF NOT EXISTS actions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
@@ -137,7 +137,7 @@ CREATE TABLE actions (
 -- =====================================================
 -- RPM BLOCKS TABLE
 -- =====================================================
-CREATE TABLE rpm_blocks (
+CREATE TABLE IF NOT EXISTS rpm_blocks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
@@ -153,15 +153,23 @@ CREATE TABLE rpm_blocks (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add foreign key to actions table for block_id
-ALTER TABLE actions 
-ADD CONSTRAINT fk_actions_block 
-FOREIGN KEY (block_id) REFERENCES rpm_blocks(id) ON DELETE SET NULL;
+-- Add foreign key to actions table for block_id (only if constraint doesn't exist)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'fk_actions_block'
+    ) THEN
+        ALTER TABLE actions 
+        ADD CONSTRAINT fk_actions_block 
+        FOREIGN KEY (block_id) REFERENCES rpm_blocks(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- =====================================================
 -- KEY RESULTS TABLE
 -- =====================================================
-CREATE TABLE key_results (
+CREATE TABLE IF NOT EXISTS key_results (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     title VARCHAR(300) NOT NULL,
@@ -180,7 +188,7 @@ CREATE TABLE key_results (
 -- =====================================================
 -- CAPTURE LIST TABLE
 -- =====================================================
-CREATE TABLE capture_items (
+CREATE TABLE IF NOT EXISTS capture_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -196,7 +204,7 @@ CREATE TABLE capture_items (
 -- =====================================================
 -- INSPIRATION BOARD TABLE
 -- =====================================================
-CREATE TABLE inspiration_items (
+CREATE TABLE IF NOT EXISTS inspiration_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     title VARCHAR(200),
@@ -211,7 +219,7 @@ CREATE TABLE inspiration_items (
 -- =====================================================
 -- LEVERAGE REQUESTS TABLE
 -- =====================================================
-CREATE TABLE leverage_requests (
+CREATE TABLE IF NOT EXISTS leverage_requests (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     action_id UUID REFERENCES actions(id) ON DELETE CASCADE,
     person_id UUID NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
@@ -224,17 +232,17 @@ CREATE TABLE leverage_requests (
 -- =====================================================
 -- INDEXES FOR PERFORMANCE
 -- =====================================================
-CREATE INDEX idx_projects_category ON projects(category_id);
-CREATE INDEX idx_actions_category ON actions(category_id);
-CREATE INDEX idx_actions_project ON actions(project_id);
-CREATE INDEX idx_actions_block ON actions(block_id);
-CREATE INDEX idx_actions_scheduled ON actions(scheduled_date);
-CREATE INDEX idx_actions_starred ON actions(is_starred) WHERE is_starred = true;
-CREATE INDEX idx_actions_this_week ON actions(is_this_week) WHERE is_this_week = true;
-CREATE INDEX idx_rpm_blocks_category ON rpm_blocks(category_id);
-CREATE INDEX idx_rpm_blocks_project ON rpm_blocks(project_id);
-CREATE INDEX idx_key_results_project ON key_results(project_id);
-CREATE INDEX idx_capture_items_project ON capture_items(project_id);
+CREATE INDEX IF NOT EXISTS idx_projects_category ON projects(category_id);
+CREATE INDEX IF NOT EXISTS idx_actions_category ON actions(category_id);
+CREATE INDEX IF NOT EXISTS idx_actions_project ON actions(project_id);
+CREATE INDEX IF NOT EXISTS idx_actions_block ON actions(block_id);
+CREATE INDEX IF NOT EXISTS idx_actions_scheduled ON actions(scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_actions_starred ON actions(is_starred) WHERE is_starred = true;
+CREATE INDEX IF NOT EXISTS idx_actions_this_week ON actions(is_this_week) WHERE is_this_week = true;
+CREATE INDEX IF NOT EXISTS idx_rpm_blocks_category ON rpm_blocks(category_id);
+CREATE INDEX IF NOT EXISTS idx_rpm_blocks_project ON rpm_blocks(project_id);
+CREATE INDEX IF NOT EXISTS idx_key_results_project ON key_results(project_id);
+CREATE INDEX IF NOT EXISTS idx_capture_items_project ON capture_items(project_id);
 
 -- =====================================================
 -- UPDATE TIMESTAMP TRIGGER
@@ -247,16 +255,26 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Apply trigger to all tables
+-- Apply trigger to all tables (DROP IF EXISTS then CREATE to handle re-runs)
+DROP TRIGGER IF EXISTS update_categories_updated_at ON categories;
 CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_category_details_updated_at ON category_details;
 CREATE TRIGGER update_category_details_updated_at BEFORE UPDATE ON category_details FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_projects_updated_at ON projects;
 CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_persons_updated_at ON persons;
 CREATE TRIGGER update_persons_updated_at BEFORE UPDATE ON persons FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_actions_updated_at ON actions;
 CREATE TRIGGER update_actions_updated_at BEFORE UPDATE ON actions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_rpm_blocks_updated_at ON rpm_blocks;
 CREATE TRIGGER update_rpm_blocks_updated_at BEFORE UPDATE ON rpm_blocks FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_key_results_updated_at ON key_results;
 CREATE TRIGGER update_key_results_updated_at BEFORE UPDATE ON key_results FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_capture_items_updated_at ON capture_items;
 CREATE TRIGGER update_capture_items_updated_at BEFORE UPDATE ON capture_items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_inspiration_items_updated_at ON inspiration_items;
 CREATE TRIGGER update_inspiration_items_updated_at BEFORE UPDATE ON inspiration_items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_leverage_requests_updated_at ON leverage_requests;
 CREATE TRIGGER update_leverage_requests_updated_at BEFORE UPDATE ON leverage_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =====================================================
@@ -288,6 +306,7 @@ LEFT JOIN rpm_blocks b ON a.block_id = b.id
 LEFT JOIN persons per ON a.leverage_person_id = per.id;
 
 -- View for RPM blocks with completion stats
+DROP VIEW IF EXISTS v_rpm_blocks_stats;
 CREATE VIEW v_rpm_blocks_stats AS
 SELECT 
     b.*,
@@ -303,6 +322,7 @@ LEFT JOIN actions a ON a.block_id = b.id
 GROUP BY b.id, c.name, c.color, p.name;
 
 -- View for projects with stats
+DROP VIEW IF EXISTS v_projects_stats;
 CREATE VIEW v_projects_stats AS
 SELECT 
     p.*,
