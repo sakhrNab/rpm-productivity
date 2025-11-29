@@ -61,6 +61,11 @@
     COPY --from=builder --chown=nodeuser:nodejs /app/src ./src
     COPY --from=builder --chown=nodeuser:nodejs /app/package.json ./package.json
     
+    # Create uploads directory with proper permissions (before switching to non-root user)
+    RUN mkdir -p /app/uploads && \
+        chown -R nodeuser:nodejs /app/uploads && \
+        chmod -R 755 /app/uploads
+    
     USER nodeuser
     
     EXPOSE 3013
