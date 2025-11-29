@@ -27,11 +27,62 @@ const MICROSOFT_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3012';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3013';
 
+// Log CORS configuration on startup
+console.log('CORS Configuration:');
+console.log(`  FRONTEND_URL: ${FRONTEND_URL}`);
+console.log(`  BACKEND_URL: ${BACKEND_URL}`);
+console.log(`  NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+
 // Database connection
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Middleware
-app.use(cors({ origin: FRONTEND_URL, credentials: true }));
+// Enhanced CORS configuration with explicit OPTIONS handling
+// Allow multiple origins for flexibility (frontend domain variations)
+const allowedOrigins = [
+  FRONTEND_URL,
+  FRONTEND_URL.replace('https://', 'http://'), // Allow HTTP variant
+  FRONTEND_URL.replace('http://', 'https://'), // Allow HTTPS variant
+].filter((url, index, self) => self.indexOf(url) === index); // Remove duplicates
+
+app.use(cors({ 
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS: Blocked origin: ${origin}. Allowed: ${allowedOrigins.join(', ')}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+
+// Explicit OPTIONS handler for all routes (backup for CORS preflight)
+// This must be before any route handlers to catch OPTIONS requests early
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', FRONTEND_URL);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(204);
+});
+
+// Log all requests for debugging (can be removed in production)
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+    next();
+  });
+}
+
 app.use(express.json());
 app.use(passport.initialize());
 app.use('/uploads', express.static('uploads'));
