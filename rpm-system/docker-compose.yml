@@ -32,6 +32,8 @@ services:
       start_period: 10s
     labels:
       - coolify.managed=true
+      - traefik.http.services.frontend-rpm.loadbalancer.server.port=3012
+      - traefik.http.services.frontend-rpm.loadbalancer.server.scheme=http
 
   # =============================================================================
   # BACKEND - Node.js + Express API
