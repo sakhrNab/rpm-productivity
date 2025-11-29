@@ -16,12 +16,12 @@
     COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
     
     # Install ALL dependencies (including devDependencies for build)
-    RUN \
-      if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-      elif [ -f package-lock.json ]; then npm ci; \
-      elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm i --frozen-lockfile; \
-      else npm install; \
-      fi
+    # Check which package manager to use
+    RUN if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
+        elif [ -f package-lock.json ]; then npm ci; \
+        elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm i --frozen-lockfile; \
+        else npm install; \
+        fi
     
     # -----------------------------------------------------------------------------
     # Stage 2: Builder
@@ -58,15 +58,8 @@
     
     # Copy necessary files from builder
     COPY --from=builder --chown=nodeuser:nodejs /app/node_modules ./node_modules
-    COPY --from=builder --chown=nodeuser:nodejs /app/dist ./dist
+    COPY --from=builder --chown=nodeuser:nodejs /app/src ./src
     COPY --from=builder --chown=nodeuser:nodejs /app/package.json ./package.json
-    
-    # If not using TypeScript, copy src directly:
-    # COPY --from=builder --chown=nodeuser:nodejs /app/src ./src
-    
-    # Copy migration files if they exist
-    COPY --from=builder --chown=nodeuser:nodejs /app/migrations ./migrations 2>/dev/null || true
-    COPY --from=builder --chown=nodeuser:nodejs /app/prisma ./prisma 2>/dev/null || true
     
     USER nodeuser
     
@@ -80,5 +73,5 @@
     ENTRYPOINT ["dumb-init", "--"]
     
     # Start the application
-    CMD ["node", "dist/index.js"]
+    CMD ["node", "src/index.js"]
     

@@ -21,6 +21,10 @@
     # Copy source code
     COPY . .
     
+    # Copy nginx config files (needed for later stage)
+    COPY docker/nginx/nginx.conf /tmp/nginx.conf
+    COPY docker/nginx/default.conf /tmp/default.conf
+    
     # Build arguments for environment variables (injected at build time for Vite)
     ARG VITE_API_URL
     ENV VITE_API_URL=${VITE_API_URL}
@@ -38,6 +42,10 @@
     
     # Remove default nginx config
     RUN rm /etc/nginx/conf.d/default.conf
+    
+    # Copy custom nginx config from builder stage
+    COPY --from=builder /tmp/nginx.conf /etc/nginx/nginx.conf
+    COPY --from=builder /tmp/default.conf /etc/nginx/conf.d/default.conf
     
     # Copy built static files from Vite build
     COPY --from=builder /app/dist /usr/share/nginx/html
