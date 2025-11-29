@@ -38,26 +38,8 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Middleware
 // Enhanced CORS configuration with explicit OPTIONS handling
-// Allow multiple origins for flexibility (frontend domain variations)
-const allowedOrigins = [
-  FRONTEND_URL,
-  FRONTEND_URL.replace('https://', 'http://'), // Allow HTTP variant
-  FRONTEND_URL.replace('http://', 'https://'), // Allow HTTPS variant
-].filter((url, index, self) => self.indexOf(url) === index); // Remove duplicates
-
 app.use(cors({ 
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Check if origin is in allowed list
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS: Blocked origin: ${origin}. Allowed: ${allowedOrigins.join(', ')}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: FRONTEND_URL, // Use simple string origin for reliability
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -68,20 +50,13 @@ app.use(cors({
 // Explicit OPTIONS handler for all routes (backup for CORS preflight)
 // This must be before any route handlers to catch OPTIONS requests early
 app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', FRONTEND_URL);
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', FRONTEND_URL);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   res.sendStatus(204);
 });
-
-// Log all requests for debugging (can be removed in production)
-if (process.env.NODE_ENV !== 'production') {
-  app.use((req, res, next) => {
-    console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
-    next();
-  });
-}
 
 app.use(express.json());
 app.use(passport.initialize());
