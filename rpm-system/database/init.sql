@@ -3,12 +3,48 @@
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- =====================================================
+-- USERS TABLE
+-- =====================================================
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255),
+    name VARCHAR(100) NOT NULL,
+    avatar VARCHAR(500),
+    provider VARCHAR(20) DEFAULT 'local', -- local, google, microsoft
+    provider_id VARCHAR(255),
+    email_verified BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for faster lookups
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_provider ON users(provider, provider_id);
+
+-- =====================================================
+-- REFRESH TOKENS TABLE (for JWT refresh)
+-- =====================================================
+CREATE TABLE refresh_tokens (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(500) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
 
 -- =====================================================
 -- CATEGORIES TABLE
 -- =====================================================
 CREATE TABLE categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(50) NOT NULL,
     description TEXT,
     icon VARCHAR(50) DEFAULT 'target',
@@ -40,6 +76,7 @@ CREATE TABLE category_details (
 -- =====================================================
 CREATE TABLE projects (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
     name VARCHAR(200) NOT NULL,
     ultimate_result TEXT,
@@ -60,6 +97,7 @@ CREATE TABLE projects (
 -- =====================================================
 CREATE TABLE persons (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     email VARCHAR(255),
     phone VARCHAR(50),
@@ -74,6 +112,7 @@ CREATE TABLE persons (
 -- =====================================================
 CREATE TABLE actions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
     project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
     block_id UUID, -- Will be updated after blocks table is created
@@ -100,6 +139,7 @@ CREATE TABLE actions (
 -- =====================================================
 CREATE TABLE rpm_blocks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
     project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
     result_title VARCHAR(300) NOT NULL,
@@ -142,6 +182,7 @@ CREATE TABLE key_results (
 -- =====================================================
 CREATE TABLE capture_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
     title VARCHAR(300) NOT NULL,
     notes TEXT,
@@ -221,97 +262,10 @@ CREATE TRIGGER update_leverage_requests_updated_at BEFORE UPDATE ON leverage_req
 -- =====================================================
 -- SEED DATA - Default Categories
 -- =====================================================
-INSERT INTO categories (name, description, icon, color, cover_image, sort_order) VALUES
-('3 TO THRIVE', 'Design a life of meaning and growth by focusing on what matters', 'target', '#FF69B4', 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800', 1),
-('JUICE OF LIFE', 'Have great time and memories with friends and family', 'users', '#6B8DD6', 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800', 2),
-('UNFORGETTABLE ECSTATIC LIFE', 'Have a life full of enjoyment, memorable experiences', 'star', '#64B5F6', 'https://images.unsplash.com/photo-1475274047050-1d0c0975c63e?w=800', 3),
-('ABSOLUTE FINANCIAL FREEDOM', 'Living the life that I desire with all the leisures', 'dollar-sign', '#4DD0E1', 'https://images.unsplash.com/photo-1483728642387-6c3bdd6c93e5?w=800', 4),
-('THE ULTIMATE LOVER', 'Create an intimate relationship that fulfills me', 'heart', '#9575CD', 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800', 5),
-('WORLD CLASS WELL BEING', 'Be healthy and energetic with a great attractive body', 'activity', '#4DB6AC', 'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?w=800', 6),
-('ROOTS OF LIFE', 'To be connected and loving with everyone', 'home', '#7986CB', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800', 7),
-('RESULTS CREATING MACHINE', 'Support anyone to achieve any goal', 'zap', '#81C784', 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800', 8),
-('CAPTURE', 'Quick capture for ideas and tasks', 'inbox', '#FFB74D', 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800', 9);
+-- Seed initial categories are now handled by create_default_categories_for_user function on user registration
+-- This ensures each user gets their own set of default categories with proper user_id
+-- All 9 default categories (3 TO THRIVE, JUICE OF LIFE, etc.) are created automatically when a user registers
 
--- Create category details for each category
-INSERT INTO category_details (category_id, ultimate_vision, roles, ultimate_purpose, one_year_goals, ninety_day_goals)
-SELECT id, 
-    'Design a life of meaning and growth by focusing on what matters',
-    'Tony Robbins Results Master, Creating Machine, Laser Focus, Energy Dynamo, Results Creating Machine, Life Creator, Financial Wise, Money Magnet, Genius Investor',
-    'Create the life I want. Grow and support others. Have the life I want to inspire others. Enjoy life on another level.',
-    'Financial Independence: Get 5k euro monthly as passive income. Renowned speaker in the Arabic World: Have a talk every week in an Arabic country for 5k dollars each. Create a passionate trustful loving relationship: Marry the partner with whom I can start this a relationship and have children.',
-    'Reach 85k Financially. Collect 400k For RTI: Invest 30k and save 5k. Find a solution for mom and Tota.'
-FROM categories WHERE name = '3 TO THRIVE';
-
--- Insert sample project
-INSERT INTO projects (category_id, name, ultimate_result, ultimate_purpose, cover_image)
-SELECT c.id, 'SUPPORT THE ROOTS', 'Make sure that my family are have extraordinary life', 'I need to take care of my family', 'https://images.unsplash.com/photo-1475274047050-1d0c0975c63e?w=800'
-FROM categories c WHERE c.name = 'ROOTS OF LIFE';
-
--- Insert sample key results
-INSERT INTO key_results (project_id, title, target_date, sort_order)
-SELECT p.id, 'Radically fix this is a problem', NULL, 1
-FROM projects p WHERE p.name = 'SUPPORT THE ROOTS';
-
-INSERT INTO key_results (project_id, title, target_date, sort_order)
-SELECT p.id, 'Have a Living paid', NULL, 2
-FROM projects p WHERE p.name = 'SUPPORT THE ROOTS';
-
-INSERT INTO key_results (project_id, title, target_date, sort_order)
-SELECT p.id, 'Support her to make her', NULL, 3
-FROM projects p WHERE p.name = 'SUPPORT THE ROOTS';
-
--- Insert sample capture items
-INSERT INTO capture_items (project_id, title, sort_order)
-SELECT p.id, 'future piece her', 1
-FROM projects p WHERE p.name = 'SUPPORT THE ROOTS';
-
-INSERT INTO capture_items (project_id, title, sort_order)
-SELECT p.id, 'Take her to the doctors', 2
-FROM projects p WHERE p.name = 'SUPPORT THE ROOTS';
-
-INSERT INTO capture_items (project_id, title, sort_order)
-SELECT p.id, 'Perform her how important is the operation', 3
-FROM projects p WHERE p.name = 'SUPPORT THE ROOTS';
-
-INSERT INTO capture_items (project_id, title, sort_order)
-SELECT p.id, 'be with her', 4
-FROM projects p WHERE p.name = 'SUPPORT THE ROOTS';
-
--- Insert sample RPM block
-INSERT INTO rpm_blocks (category_id, project_id, result_title, purpose, sort_order)
-SELECT c.id, p.id, 'Have 10 options for Tota and Mama', 
-    'My mom is getting older, I need to find a solution for her otherwise it will be too late. Tota is 26 if she does not change now when would she. She needs to see her life and enjoy it!',
-    1
-FROM categories c, projects p WHERE c.name = '3 TO THRIVE' AND p.name = 'SUPPORT THE ROOTS';
-
--- Insert sample actions for the RPM block
-INSERT INTO actions (category_id, project_id, block_id, title, duration_hours, duration_minutes, sort_order)
-SELECT c.id, p.id, b.id, 'Discuss those 3 with Abadi', 0, 30, 1
-FROM categories c, projects p, rpm_blocks b 
-WHERE c.name = '3 TO THRIVE' AND p.name = 'SUPPORT THE ROOTS' AND b.result_title = 'Have 10 options for Tota and Mama';
-
-INSERT INTO actions (category_id, project_id, block_id, title, duration_hours, duration_minutes, sort_order)
-SELECT c.id, p.id, b.id, 'Shortlist them onto 3', 0, 45, 2
-FROM categories c, projects p, rpm_blocks b 
-WHERE c.name = '3 TO THRIVE' AND p.name = 'SUPPORT THE ROOTS' AND b.result_title = 'Have 10 options for Tota and Mama';
-
-INSERT INTO actions (category_id, project_id, block_id, title, duration_hours, duration_minutes, sort_order)
-SELECT c.id, p.id, b.id, 'Find 10 options', 1, 0, 3
-FROM categories c, projects p, rpm_blocks b 
-WHERE c.name = '3 TO THRIVE' AND p.name = 'SUPPORT THE ROOTS' AND b.result_title = 'Have 10 options for Tota and Mama';
-
--- Insert more sample projects
-INSERT INTO projects (category_id, name, ultimate_result, ultimate_purpose, cover_image)
-SELECT c.id, 'CREATE 65.5K/ 85K € UNTIL 31.12', 'Be free and spontaneous with power: Travel spontaneously where I want, buy what I want, give my...', 'Achieve financial freedom milestone', 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800'
-FROM categories c WHERE c.name = 'ABSOLUTE FINANCIAL FREEDOM';
-
-INSERT INTO projects (category_id, name, ultimate_result, ultimate_purpose, cover_image)
-SELECT c.id, 'CASH COLLECT 312K/400K', 'Learn the best techniques and skills need to be a mentor. Get the title of being a m...', 'Build wealth systematically', 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800'
-FROM categories c WHERE c.name = 'ABSOLUTE FINANCIAL FREEDOM';
-
-INSERT INTO projects (category_id, name, ultimate_result, ultimate_purpose, cover_image)
-SELECT c.id, 'URGENT RPMS', 'Keep growing beside the 3 major goals', 'Stay focused on priorities', 'https://images.unsplash.com/photo-1475274047050-1d0c0975c63e?w=800'
-FROM categories c WHERE c.name = '3 TO THRIVE';
 
 -- =====================================================
 -- VIEWS FOR COMMON QUERIES
@@ -367,6 +321,7 @@ LEFT JOIN key_results kr ON kr.project_id = p.id
 LEFT JOIN rpm_blocks rb ON rb.project_id = p.id
 GROUP BY p.id, c.name, c.color, c.icon;
 
+COMMENT ON TABLE users IS 'Users table for authentication';
 COMMENT ON TABLE categories IS 'Main life categories for organizing goals and actions';
 COMMENT ON TABLE projects IS 'Projects belonging to categories with specific outcomes';
 COMMENT ON TABLE actions IS 'Individual tasks and actions to be completed';
@@ -374,3 +329,67 @@ COMMENT ON TABLE rpm_blocks IS 'RPM planning blocks with Result, Purpose, Massiv
 COMMENT ON TABLE key_results IS 'Measurable key results for projects';
 COMMENT ON TABLE capture_items IS 'Quick capture list items for processing';
 COMMENT ON TABLE persons IS 'Accountability partners and leverage persons';
+
+-- =====================================================
+-- FUNCTION TO CREATE DEFAULT CATEGORIES FOR NEW USERS
+-- =====================================================
+CREATE OR REPLACE FUNCTION create_default_categories_for_user(p_user_id UUID)
+RETURNS VOID AS $$
+DECLARE
+    cat_id UUID;
+BEGIN
+    -- 3 TO THRIVE
+    INSERT INTO categories (user_id, name, description, icon, color, cover_image, sort_order, is_active)
+    VALUES (p_user_id, '3 TO THRIVE', 'Design a life of meaning and growth by focusing on what matters', 'target', '#FF69B4', 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800', 1, true)
+    RETURNING id INTO cat_id;
+    INSERT INTO category_details (category_id) VALUES (cat_id);
+
+    -- JUICE OF LIFE
+    INSERT INTO categories (user_id, name, description, icon, color, cover_image, sort_order, is_active)
+    VALUES (p_user_id, 'JUICE OF LIFE', 'Have great time and memories with friends and family', 'users', '#6B8DD6', 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800', 2, true)
+    RETURNING id INTO cat_id;
+    INSERT INTO category_details (category_id) VALUES (cat_id);
+
+    -- UNFORGETTABLE ECSTATIC LIFE
+    INSERT INTO categories (user_id, name, description, icon, color, cover_image, sort_order, is_active)
+    VALUES (p_user_id, 'UNFORGETTABLE ECSTATIC LIFE', 'Have a life full of enjoyment, memorable experiences', 'star', '#64B5F6', 'https://images.unsplash.com/photo-1475274047050-1d0c0975c63e?w=800', 3, true)
+    RETURNING id INTO cat_id;
+    INSERT INTO category_details (category_id) VALUES (cat_id);
+
+    -- ABSOLUTE FINANCIAL FREEDOM
+    INSERT INTO categories (user_id, name, description, icon, color, cover_image, sort_order, is_active)
+    VALUES (p_user_id, 'ABSOLUTE FINANCIAL FREEDOM', 'Living the life that I desire with all the leisures', 'dollar-sign', '#4DD0E1', 'https://images.unsplash.com/photo-1483728642387-6c3bdd6c93e5?w=800', 4, true)
+    RETURNING id INTO cat_id;
+    INSERT INTO category_details (category_id) VALUES (cat_id);
+
+    -- THE ULTIMATE LOVER
+    INSERT INTO categories (user_id, name, description, icon, color, cover_image, sort_order, is_active)
+    VALUES (p_user_id, 'THE ULTIMATE LOVER', 'Create an intimate relationship that fulfills me', 'heart', '#9575CD', 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800', 5, true)
+    RETURNING id INTO cat_id;
+    INSERT INTO category_details (category_id) VALUES (cat_id);
+
+    -- WORLD CLASS WELL BEING
+    INSERT INTO categories (user_id, name, description, icon, color, cover_image, sort_order, is_active)
+    VALUES (p_user_id, 'WORLD CLASS WELL BEING', 'Be healthy and energetic with a great attractive body', 'activity', '#4DB6AC', 'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?w=800', 6, true)
+    RETURNING id INTO cat_id;
+    INSERT INTO category_details (category_id) VALUES (cat_id);
+
+    -- ROOTS OF LIFE
+    INSERT INTO categories (user_id, name, description, icon, color, cover_image, sort_order, is_active)
+    VALUES (p_user_id, 'ROOTS OF LIFE', 'To be connected and loving with everyone', 'home', '#7986CB', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800', 7, true)
+    RETURNING id INTO cat_id;
+    INSERT INTO category_details (category_id) VALUES (cat_id);
+
+    -- RESULTS CREATING MACHINE
+    INSERT INTO categories (user_id, name, description, icon, color, cover_image, sort_order, is_active)
+    VALUES (p_user_id, 'RESULTS CREATING MACHINE', 'Support anyone to achieve any goal', 'zap', '#81C784', 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800', 8, true)
+    RETURNING id INTO cat_id;
+    INSERT INTO category_details (category_id) VALUES (cat_id);
+
+    -- CAPTURE
+    INSERT INTO categories (user_id, name, description, icon, color, cover_image, sort_order, is_active)
+    VALUES (p_user_id, 'CAPTURE', 'Quick capture for ideas and tasks', 'inbox', '#FFB74D', 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800', 9, true)
+    RETURNING id INTO cat_id;
+    INSERT INTO category_details (category_id) VALUES (cat_id);
+END;
+$$ LANGUAGE plpgsql;
