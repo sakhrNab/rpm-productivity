@@ -20,6 +20,9 @@ FROM nginx:alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html
 
+# Verify build output exists
+RUN ls -la /usr/share/nginx/html/ || echo "ERROR: Build output not found!"
+
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
