@@ -14,10 +14,10 @@ import RegisterPage from './pages/RegisterPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 
 // API Configuration
-// In Coolify, use the backend URL from environment variable
+// In Coolify, use the backend URL from environment variable (should include /api)
 // In local dev, use /api which proxies to backend
 const API_BASE = import.meta.env.VITE_API_URL 
-  ? `${import.meta.env.VITE_API_URL}/api`
+  ? import.meta.env.VITE_API_URL
   : '/api';
 // Auth Context
 export const AuthContext = createContext(null);

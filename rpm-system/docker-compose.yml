@@ -14,7 +14,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=${VITE_API_URL:-https://api.rpm.aiwaverider.com}
+        - VITE_API_URL=${VITE_API_URL:-https://api.rpm.aiwaverider.com/api}
     container_name: rpm-frontend
     restart: unless-stopped
     expose:
