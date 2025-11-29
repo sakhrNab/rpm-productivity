@@ -12,8 +12,8 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-
+const PORT = process.env.PORT || 3013;
+app.set('trust proxy', 1);
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'rpm-system-jwt-secret-key-change-in-production-2024';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'rpm-system-refresh-secret-key-2024';
@@ -24,8 +24,8 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const MICROSOFT_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID || '';
 const MICROSOFT_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET || '';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3012';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3013';
 
 // Database connection
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });

@@ -16,8 +16,9 @@ import AuthCallbackPage from './pages/AuthCallbackPage';
 // API Configuration
 // In Coolify, use the backend URL from environment variable
 // In local dev, use /api which proxies to backend
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
-
+const API_BASE = import.meta.env.VITE_API_URL 
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api';
 // Auth Context
 export const AuthContext = createContext(null);
 
