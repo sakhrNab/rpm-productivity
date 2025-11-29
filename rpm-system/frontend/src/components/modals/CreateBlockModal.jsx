@@ -1,10 +1,11 @@
 import { useState, useContext, useEffect } from 'react';
 import { Check } from 'lucide-react';
-import { AppContext, api } from '../../App';
+import { AppContext, AuthContext } from '../../App';
 import CreateActionModal from './CreateActionModal';
 
 function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) {
   const { projects } = useContext(AppContext);
+  const { api } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     result_title: initialData.result_title || '',
     purpose: initialData.purpose || '',

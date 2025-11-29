@@ -4,11 +4,12 @@ import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, 
   isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek
 } from 'date-fns';
-import { api, AppContext } from '../App';
+import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 
 function CalendarPage() {
   const { categories, refreshData } = useContext(AppContext);
+  const { api } = useContext(AuthContext);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [actions, setActions] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);

@@ -30,6 +30,14 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://rpm_user:rpm_secure_password_2024@postgres:5432/rpm_database
       PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:-rpm-system-jwt-secret-change-me-in-production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-rpm-system-refresh-secret-change-me}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:3001}
     ports:
       - "3001:3001"
     depends_on:

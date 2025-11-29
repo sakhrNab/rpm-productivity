@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { api } from '../../App';
+import { useState, useContext } from 'react';
+import { AuthContext } from '../../App';
 import { 
   Target, Heart, DollarSign, Users, Activity, Home, Zap, Inbox,
   Star, Briefcase, Book, Music, Camera, Plane, Coffee, Gift
@@ -31,6 +31,7 @@ const ICONS = [
 ];
 
 function CreateCategoryModal({ onClose, onSuccess }) {
+  const { api } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     name: '',
     description: '',

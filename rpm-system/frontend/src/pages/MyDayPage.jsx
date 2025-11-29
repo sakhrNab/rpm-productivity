@@ -1,11 +1,12 @@
 import { useState, useEffect, useContext } from 'react';
 import { Plus, Star, Check, Clock, FolderOpen } from 'lucide-react';
 import { format } from 'date-fns';
-import { api, AppContext } from '../App';
+import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 
 function MyDayPage() {
   const { categories, refreshData } = useContext(AppContext);
+  const { api } = useContext(AuthContext);
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showActionModal, setShowActionModal] = useState(false);

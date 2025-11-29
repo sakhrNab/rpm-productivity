@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { X } from 'lucide-react';
-import { api } from '../../App';
+import { AuthContext } from '../../App';
 
 function CreateCaptureItemModal({ onClose, onSuccess, projectId, initialData = {} }) {
+  const { api } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     title: initialData.title || '',
     notes: initialData.notes || '',

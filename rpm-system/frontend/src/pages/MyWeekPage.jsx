@@ -1,10 +1,11 @@
 import { useState, useEffect, useContext } from 'react';
 import { Plus, Star, Check, Clock, FolderOpen } from 'lucide-react';
-import { api, AppContext } from '../App';
+import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 
 function MyWeekPage() {
   const { categories, refreshData } = useContext(AppContext);
+  const { api } = useContext(AuthContext);
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showActionModal, setShowActionModal] = useState(false);

@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { api } from '../../App';
+import { useState, useContext } from 'react';
+import { AuthContext } from '../../App';
 
 function CreatePersonModal({ onClose, onSuccess }) {
+  const { api } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     name: '',
     email: '',

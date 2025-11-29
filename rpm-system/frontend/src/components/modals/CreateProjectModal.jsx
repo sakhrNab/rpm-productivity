@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { api } from '../../App';
+import { useState, useContext } from 'react';
+import { AuthContext } from '../../App';
 import CreateCategoryModal from './CreateCategoryModal';
 
 function CreateProjectModal({ onClose, onSuccess, categories = [], initialData = {}, onCategoriesRefresh }) {
+  const { api } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     name: initialData.name || '',
     ultimate_result: initialData.ultimate_result || '',

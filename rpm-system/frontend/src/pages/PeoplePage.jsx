@@ -1,10 +1,11 @@
 import { useContext, useState } from 'react';
 import { Plus, Mail, Phone, MoreVertical, User } from 'lucide-react';
-import { AppContext, api } from '../App';
+import { AppContext, AuthContext } from '../App';
 import CreatePersonModal from '../components/modals/CreatePersonModal';
 
 function PeoplePage() {
   const { persons, refreshData } = useContext(AppContext);
+  const { api } = useContext(AuthContext);
   const [showModal, setShowModal] = useState(false);
 
   const handleDelete = async (id) => {

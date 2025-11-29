@@ -1,9 +1,10 @@
 import { useState, useContext, useEffect } from 'react';
 import { X, Clock, Star, Calendar, FolderOpen, User } from 'lucide-react';
-import { AppContext, api } from '../../App';
+import { AppContext, AuthContext } from '../../App';
 
 function CreateActionModal({ onClose, onSuccess, categories, initialData = {} }) {
   const { projects, persons } = useContext(AppContext);
+  const { api } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     title: initialData.title || '',
     notes: initialData.notes || '',

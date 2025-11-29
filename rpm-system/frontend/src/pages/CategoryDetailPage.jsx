@@ -5,7 +5,7 @@ import {
   FolderOpen, Calendar, Check, Hourglass, Edit, Copy, X, Trash2,
   Move, Download, ChevronUp, ChevronDown
 } from 'lucide-react';
-import { AppContext, api } from '../App';
+import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import CreateBlockModal from '../components/modals/CreateBlockModal';
 import CreateProjectModal from '../components/modals/CreateProjectModal';
@@ -14,6 +14,7 @@ function CategoryDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { categories, refreshData } = useContext(AppContext);
+  const { api } = useContext(AuthContext);
   const [category, setCategory] = useState(null);
   const [activeTab, setActiveTab] = useState('big-picture');
   const [actions, setActions] = useState([]);

@@ -12,4 +12,4 @@ build
 .env.development
 .env.test
 .env.production
-rpm-system-auth
+rpm-system-auth/

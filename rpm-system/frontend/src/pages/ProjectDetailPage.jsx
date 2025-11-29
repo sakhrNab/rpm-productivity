@@ -5,7 +5,7 @@ import {
   Check, Clock, Hourglass, Calendar as CalendarIcon, Edit, Trash2, X,
   Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen
 } from 'lucide-react';
-import { AppContext, api } from '../App';
+import { AppContext, AuthContext } from '../App';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks } from 'date-fns';
 import CreateProjectModal from '../components/modals/CreateProjectModal';
 import CreateKeyResultModal from '../components/modals/CreateKeyResultModal';
@@ -17,6 +17,7 @@ function ProjectDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { categories, refreshData } = useContext(AppContext);
+  const { api } = useContext(AuthContext);
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('starred');
