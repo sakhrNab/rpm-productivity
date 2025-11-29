@@ -13,15 +13,10 @@
     RUN apk add --no-cache libc6-compat
     
     # Copy package files
-    COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
+    COPY package.json package-lock.json ./
     
-    # Install dependencies
-    RUN \
-      if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-      elif [ -f package-lock.json ]; then npm ci; \
-      elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm i --frozen-lockfile; \
-      else npm install; \
-      fi
+    # Install dependencies (including devDependencies for build)
+    RUN npm ci
     
     # Copy source code
     COPY . .
@@ -43,10 +38,6 @@
     
     # Remove default nginx config
     RUN rm /etc/nginx/conf.d/default.conf
-    
-    # Copy custom nginx config
-    COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
-    COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
     
     # Copy built static files from Vite build
     COPY --from=builder /app/dist /usr/share/nginx/html
