@@ -23,7 +23,7 @@ services:
       dockerfile: Dockerfile
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-rpm_user}:${POSTGRES_PASSWORD:-rpm_secure_password_2024}@postgres:5432/${POSTGRES_DB:-rpm_database}}
+      DATABASE_URL: ${DATABASE_URL}
       PORT: ${PORT:-3001}
       JWT_SECRET: ${JWT_SECRET:-rpm-system-jwt-secret-change-me-in-production}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-rpm-system-refresh-secret-change-me}
