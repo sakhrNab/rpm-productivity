@@ -70,9 +70,9 @@
     
     EXPOSE 3015
     
-    # Health check
+    # Health check - use actual GET request instead of spider mode for API endpoints
     HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-      CMD wget --no-verbose --tries=1 --spider http://localhost:3015/api/health || exit 1
+      CMD wget -qO- http://127.0.0.1:3015/api/health || exit 1
     
     # Use dumb-init to handle PID 1 properly
     ENTRYPOINT ["dumb-init", "--"]
