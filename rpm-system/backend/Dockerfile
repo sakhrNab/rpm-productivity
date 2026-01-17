@@ -47,7 +47,7 @@
     
     # Set production environment
     ENV NODE_ENV=production
-    ENV PORT=3013
+    ENV PORT=3015
     
     # Install only runtime dependencies
     RUN apk add --no-cache dumb-init wget
@@ -68,11 +68,11 @@
     
     USER nodeuser
     
-    EXPOSE 3013
+    EXPOSE 3015
     
     # Health check
     HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-      CMD wget --no-verbose --tries=1 --spider http://localhost:3013/api/health || exit 1
+      CMD wget --no-verbose --tries=1 --spider http://localhost:3015/api/health || exit 1
     
     # Use dumb-init to handle PID 1 properly
     ENTRYPOINT ["dumb-init", "--"]
