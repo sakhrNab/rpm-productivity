@@ -696,4 +696,4 @@ app.get('/api/health', async (req, res) => {
   catch (error) { res.status(500).json({ status: 'unhealthy', database: 'disconnected' }); }
 });
 
-app.listen(PORT, () => console.log(`RPM Backend running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`RPM Backend running on port ${PORT}`));
