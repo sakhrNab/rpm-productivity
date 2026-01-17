@@ -49,7 +49,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3015
-      - DATABASE_URL=${DATABASE_URL:-postgresql://rpm_user:rpm_password@postgres:5432/rpm_db}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://rpm_user:rpm_password@rpm-postgres:5432/rpm_db}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-https://rpm.aiwaverider.com}
@@ -59,7 +59,7 @@ services:
       - coolify
       - rpm-internal
     depends_on:
-      postgres:
+      rpm-postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3015/api/health || exit 1"]
@@ -73,7 +73,7 @@ services:
   # =============================================================================
   # POSTGRESQL - Primary Database
   # =============================================================================
-  postgres:
+  rpm-postgres:
     image: postgres:16-alpine
     container_name: rpm-postgres
     restart: unless-stopped
