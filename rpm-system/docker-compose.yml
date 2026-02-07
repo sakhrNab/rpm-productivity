@@ -10,6 +10,7 @@ services:
   # FRONTEND - React + Vite (served via Nginx)
   # =============================================================================
   frontend:
+    init: true
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -39,6 +40,7 @@ services:
   # BACKEND - Node.js + Express API
   # =============================================================================
   backend:
+    init: true
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -75,6 +77,7 @@ services:
   # =============================================================================
   rpm-postgres:
     image: postgres:16-alpine
+    init: true
     container_name: rpm-postgres
     restart: unless-stopped
     environment:
