@@ -3,6 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
+    init: true
     container_name: rpm-postgres
     environment:
       POSTGRES_USER: rpm_user
@@ -22,6 +23,7 @@ services:
       - rpm-network
 
   backend:
+    init: true
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -41,6 +43,7 @@ services:
       - rpm-network
 
   frontend:
+    init: true
     build:
       context: ./frontend
       dockerfile: Dockerfile
