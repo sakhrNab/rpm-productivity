@@ -78,10 +78,12 @@ function CalendarPage() {
           </button>
         </div>
 
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(7, 1fr)',
+        <div className="calendar-scroll" style={{ overflowX: 'auto' }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, minmax(96px, 1fr))',
           gap: '1px',
+          minWidth: '672px',
           background: 'var(--border-primary)',
           borderRadius: 'var(--radius-lg)',
           overflow: 'hidden'
@@ -165,6 +167,7 @@ function CalendarPage() {
               </div>
             );
           })}
+        </div>
         </div>
       </div>
 

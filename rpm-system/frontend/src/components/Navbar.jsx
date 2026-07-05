@@ -1,9 +1,9 @@
 import { useState, useContext, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
+import {
   Target, Calendar, CalendarDays, Sun, Users, FolderKanban, Grid3X3,
   Plus, Zap, Blocks, FolderPlus, Tag, UserPlus, ChevronDown,
-  LogOut
+  LogOut, Menu, X
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from './modals/CreateActionModal';
@@ -19,9 +19,15 @@ function Navbar() {
   const { user, logout } = useContext(AuthContext);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const createMenuRef = useRef(null);
   const userMenuRef = useRef(null);
+
+  // Close the mobile drawer whenever the route changes
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -82,23 +88,35 @@ function Navbar() {
   return (
     <>
       <nav className="navbar">
+        <button
+          className="navbar-toggle"
+          aria-label="Toggle navigation menu"
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen(v => !v)}
+        >
+          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+
         <Link to="/" className="navbar-brand">
           <Target size={24} />
           <span>RPM</span>
         </Link>
 
-        <div className="navbar-nav">
+        <div className={`navbar-nav ${mobileOpen ? 'open' : ''}`}>
           {navItems.map(item => (
             <Link
               key={item.path}
               to={item.path}
               className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
+              onClick={() => setMobileOpen(false)}
             >
               <item.icon size={16} />
               <span>{item.label}</span>
             </Link>
           ))}
         </div>
+
+        {mobileOpen && <div className="navbar-backdrop" onClick={() => setMobileOpen(false)} />}
 
         <div className="navbar-actions">
           <div className="create-menu" ref={createMenuRef}>

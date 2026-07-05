@@ -520,7 +520,7 @@ function CategoryDetailPage() {
           </div>
 
           {/* Goals Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginBottom: '24px' }}>
             {/* One Year Goals */}
             <div className="big-picture-section" style={{ marginBottom: 0 }}>
               <div className="big-picture-header">
