@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ChevronLeft, Image, Star, MoreVertical, Plus, Clock,
   FolderOpen, Calendar, Check, Hourglass, Edit, Copy, X, Trash2,
-  Move, Download, ChevronUp, ChevronDown
+  Move, Download, ChevronUp, ChevronDown, Archive, ArchiveRestore
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
@@ -29,6 +29,9 @@ function CategoryDetailPage() {
   const [showActionModal, setShowActionModal] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [dragProjectId, setDragProjectId] = useState(null);
+  const [dropZone, setDropZone] = useState(null); // 'active' | 'archived' | null
   const [editingAction, setEditingAction] = useState(null);
   const [openActionMenu, setOpenActionMenu] = useState(null);
   const [editingBlock, setEditingBlock] = useState(null);
@@ -266,6 +269,33 @@ function CategoryDetailPage() {
         console.error('Failed to delete action:', error);
       }
     }
+  };
+
+  const handleArchiveProject = async (project, archived) => {
+    // Optimistic: flip the flag locally so the card moves between sections instantly.
+    setCategory(prev => prev ? {
+      ...prev,
+      projects: (prev.projects || []).map(p =>
+        p.id === project.id ? { ...p, is_archived: archived } : p
+      )
+    } : prev);
+    if (archived) setArchivedOpen(true);
+    try {
+      await api.updateProject(project.id, { is_archived: archived });
+    } catch (error) {
+      console.error('Failed to archive project:', error);
+      await loadCategory(); // revert to server truth on failure
+    }
+  };
+
+  const handleProjectDrop = (targetArchived) => {
+    setDropZone(null);
+    const id = dragProjectId;
+    setDragProjectId(null);
+    if (!id) return;
+    const project = (category?.projects || []).find(p => p.id === id);
+    if (!project || !!project.is_archived === targetArchived) return;
+    handleArchiveProject(project, targetArchived);
   };
 
   const handleRemoveFromBlock = async (action) => {
@@ -593,26 +623,38 @@ function CategoryDetailPage() {
               <span className="big-picture-label">MY PROJECTS</span>
             </div>
             
-            <div className="projects-grid">
-              {category.projects?.map(project => (
-                <div 
+            {(() => {
+              const allProjects = category.projects || [];
+              const activeProjects = allProjects.filter(p => !p.is_archived);
+              const archivedProjects = allProjects.filter(p => p.is_archived);
+
+              const renderCard = (project, archived) => (
+                <div
                   key={project.id}
-                  className="project-card"
+                  className={`project-card${archived ? ' project-card-archived' : ''}${dragProjectId === project.id ? ' cd-dragging' : ''}`}
+                  draggable
+                  onDragStart={(e) => { setDragProjectId(project.id); e.dataTransfer.effectAllowed = 'move'; }}
+                  onDragEnd={() => { setDragProjectId(null); setDropZone(null); }}
                   onClick={() => navigate(`/projects/${project.id}`)}
                 >
-                  <div 
+                  <div
                     className="project-card-bg"
-                    style={{ 
-                      backgroundImage: project.cover_image 
-                        ? `url(${project.cover_image})` 
+                    style={{
+                      backgroundImage: project.cover_image
+                        ? `url(${project.cover_image})`
                         : 'linear-gradient(135deg, #1a2d4a 0%, #0d1d35 100%)'
                     }}
                   />
+                  <button
+                    type="button"
+                    className="project-card-archive"
+                    title={archived ? 'Restore to active' : 'Archive project'}
+                    onClick={(e) => { e.stopPropagation(); handleArchiveProject(project, !archived); }}
+                  >
+                    {archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+                  </button>
                   <div className="project-card-content">
-                    <div 
-                      className="project-card-badge"
-                      style={{ color: category.color }}
-                    >
+                    <div className="project-card-badge" style={{ color: category.color }}>
                       <span className="cd-color-dot" style={{ background: category.color }} />
                       {category.name}
                     </div>
@@ -622,17 +664,59 @@ function CategoryDetailPage() {
                     </p>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
 
-            <button 
-              type="button"
-              className="btn btn-secondary cd-mt-16"
-              onClick={() => setShowProjectModal(true)}
-            >
-              <Plus size={16} />
-              Create New Project
-            </button>
+              return (
+                <>
+                  <div
+                    className={`projects-grid cd-dropzone${dropZone === 'active' ? ' cd-dropzone-over' : ''}`}
+                    onDragOver={(e) => { if (dragProjectId) { e.preventDefault(); setDropZone('active'); } }}
+                    onDragLeave={() => setDropZone(z => (z === 'active' ? null : z))}
+                    onDrop={(e) => { e.preventDefault(); handleProjectDrop(false); }}
+                  >
+                    {activeProjects.map(project => renderCard(project, false))}
+                    {activeProjects.length === 0 && (
+                      <div className="cd-projects-empty">
+                        {archivedProjects.length ? 'No active projects — drop one here to restore it, or create a new one.' : 'No projects yet.'}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary cd-mt-16"
+                    onClick={() => setShowProjectModal(true)}
+                  >
+                    <Plus size={16} />
+                    Create New Project
+                  </button>
+
+                  {archivedProjects.length > 0 && (
+                    <div className="cd-archived">
+                      <button
+                        type="button"
+                        className={`cd-archived-toggle${dropZone === 'archived' ? ' cd-dropzone-over' : ''}`}
+                        onClick={() => setArchivedOpen(o => !o)}
+                        onDragOver={(e) => { if (dragProjectId) { e.preventDefault(); setDropZone('archived'); } }}
+                        onDragLeave={() => setDropZone(z => (z === 'archived' ? null : z))}
+                        onDrop={(e) => { e.preventDefault(); handleProjectDrop(true); }}
+                      >
+                        {archivedOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        <Archive size={15} />
+                        <span>Archived</span>
+                        <span className="cd-archived-count">{archivedProjects.length}</span>
+                        <span className="cd-archived-hint">drag a project here to archive</span>
+                      </button>
+                      {archivedOpen && (
+                        <div className="cd-archived-grid">
+                          {archivedProjects.map(project => renderCard(project, true))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       ) : (

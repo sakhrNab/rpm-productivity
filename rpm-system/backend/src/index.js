@@ -364,11 +364,15 @@ app.delete('/api/categories/:id', authenticateToken, async (req, res) => {
 // PROJECTS
 app.get('/api/projects', authenticateToken, async (req, res) => {
   try {
-    const { category_id, starred } = req.query;
+    const { category_id, starred, archived, include_archived } = req.query;
     let query = 'SELECT * FROM v_projects_stats WHERE user_id = $1';
     const params = [req.userId];
     if (category_id) { params.push(category_id); query += ` AND category_id = $${params.length}`; }
     if (starred === 'true') query += ' AND is_starred = true';
+    // Archived projects are hidden by default. Pass ?archived=true for only archived,
+    // or ?include_archived=true to return both active and archived together.
+    if (archived === 'true') query += ' AND is_archived = true';
+    else if (include_archived !== 'true') query += ' AND is_archived = false';
     query += ' ORDER BY sort_order';
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -406,10 +410,10 @@ app.post('/api/projects', authenticateToken, async (req, res) => {
 app.put('/api/projects/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, ultimate_result, ultimate_purpose, description, cover_image, start_date, end_date, is_starred, is_completed } = req.body;
+    const { name, ultimate_result, ultimate_purpose, description, cover_image, start_date, end_date, is_starred, is_completed, is_archived } = req.body;
     const result = await pool.query(
-      `UPDATE projects SET name = COALESCE($1, name), ultimate_result = COALESCE($2, ultimate_result), ultimate_purpose = COALESCE($3, ultimate_purpose), description = COALESCE($4, description), cover_image = COALESCE($5, cover_image), start_date = COALESCE($6, start_date), end_date = COALESCE($7, end_date), is_starred = COALESCE($8, is_starred), is_completed = COALESCE($9, is_completed) WHERE id = $10 AND user_id = $11 RETURNING *`,
-      [name, ultimate_result, ultimate_purpose, description, cover_image, start_date, end_date, is_starred, is_completed, id, req.userId]
+      `UPDATE projects SET name = COALESCE($1, name), ultimate_result = COALESCE($2, ultimate_result), ultimate_purpose = COALESCE($3, ultimate_purpose), description = COALESCE($4, description), cover_image = COALESCE($5, cover_image), start_date = COALESCE($6, start_date), end_date = COALESCE($7, end_date), is_starred = COALESCE($8, is_starred), is_completed = COALESCE($9, is_completed), is_archived = COALESCE($10, is_archived) WHERE id = $11 AND user_id = $12 RETURNING *`,
+      [name, ultimate_result, ultimate_purpose, description, cover_image, start_date, end_date, is_starred, is_completed, is_archived, id, req.userId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
     res.json(result.rows[0]);
