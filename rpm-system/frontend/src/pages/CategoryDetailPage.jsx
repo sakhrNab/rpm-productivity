@@ -10,6 +10,8 @@ import CreateActionModal from '../components/modals/CreateActionModal';
 import CreateBlockModal from '../components/modals/CreateBlockModal';
 import CreateProjectModal from '../components/modals/CreateProjectModal';
 import CreateCategoryModal from '../components/modals/CreateCategoryModal';
+import { fileToCompressedDataURL } from '../utils/image';
+import { useToast } from '../components/ToastProvider';
 import './CategoryDetailPage.css';
 
 function CategoryDetailPage() {
@@ -17,6 +19,7 @@ function CategoryDetailPage() {
   const navigate = useNavigate();
   const { categories, refreshData } = useContext(AppContext);
   const { api } = useContext(AuthContext);
+  const { showToast } = useToast();
   const [category, setCategory] = useState(null);
   const [activeTab, setActiveTab] = useState('big-picture');
   const [actions, setActions] = useState([]);
@@ -134,19 +137,23 @@ function CategoryDetailPage() {
     if (refreshData) refreshData();
   };
 
+  const [coverUploading, setCoverUploading] = useState(false);
   const handleCoverUpload = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    setCoverUploading(true);
     try {
-      const { url } = await api.uploadImage(file);
-      if (!url) throw new Error('Upload failed');
-      await api.updateCategory(id, { cover_image: url });
+      const dataUrl = await fileToCompressedDataURL(file);
+      await api.updateCategory(id, { cover_image: dataUrl });
       await loadCategory();
       if (refreshData) refreshData();
+      showToast('Cover image updated.', 'success');
     } catch (error) {
       console.error('Failed to upload cover image:', error);
-      alert('Failed to upload cover image. Please try again.');
+      showToast(error?.message || 'Failed to update the cover image. Please try again.', 'error');
+    } finally {
+      setCoverUploading(false);
     }
   };
 
@@ -431,9 +438,10 @@ function CategoryDetailPage() {
             <button
               className="btn btn-secondary cd-btn-sm"
               onClick={() => coverInputRef.current?.click()}
+              disabled={coverUploading}
             >
               <Image size={14} />
-              Change Cover Image
+              {coverUploading ? 'Uploading…' : 'Change Cover Image'}
             </button>
           </div>
           <input

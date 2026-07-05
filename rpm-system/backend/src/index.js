@@ -58,7 +58,9 @@ app.options('*', (req, res) => {
   res.sendStatus(204);
 });
 
-app.use(express.json());
+// Raised from the 100kb default: cover/inspiration images are stored as base64
+// data URIs in JSON bodies (client-compressed to ~500kb, 2mb gives headroom).
+app.use(express.json({ limit: '2mb' }));
 app.use(passport.initialize());
 app.use('/uploads', express.static('uploads'));
 

@@ -15,6 +15,8 @@ import CreateActionModal from '../components/modals/CreateActionModal';
 import CreateInspirationModal from '../components/modals/CreateInspirationModal';
 import InspirationPreviewModal from '../components/modals/InspirationPreviewModal';
 import BlockPreviewModal from '../components/modals/BlockPreviewModal';
+import { fileToCompressedDataURL } from '../utils/image';
+import { useToast } from '../components/ToastProvider';
 import './ProjectDetailPage.css';
 
 // Format an API date (a full ISO timestamp for a DATE column) as a friendly
@@ -31,6 +33,7 @@ function ProjectDetailPage() {
   const navigate = useNavigate();
   const { categories, refreshData } = useContext(AppContext);
   const { api } = useContext(AuthContext);
+  const { showToast } = useToast();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('starred');
@@ -64,19 +67,23 @@ function ProjectDetailPage() {
     loadProject();
   }, [id]);
 
+  const [coverUploading, setCoverUploading] = useState(false);
   const handleCoverUpload = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    setCoverUploading(true);
     try {
-      const { url } = await api.uploadImage(file);
-      if (!url) throw new Error('Upload failed');
-      await api.updateProject(id, { cover_image: url });
+      const dataUrl = await fileToCompressedDataURL(file);
+      await api.updateProject(id, { cover_image: dataUrl });
       await loadProject();
       if (refreshData) refreshData();
+      showToast('Cover image updated.', 'success');
     } catch (error) {
       console.error('Failed to upload cover image:', error);
-      alert('Failed to upload cover image. Please try again.');
+      showToast(error?.message || 'Failed to update the cover image. Please try again.', 'error');
+    } finally {
+      setCoverUploading(false);
     }
   };
 
@@ -526,9 +533,10 @@ function ProjectDetailPage() {
               type="button"
               className="btn btn-secondary"
               onClick={() => coverInputRef.current?.click()}
+              disabled={coverUploading}
             >
               <Image size={14} />
-              Change Cover Image
+              {coverUploading ? 'Uploading…' : 'Change Cover Image'}
             </button>
           </div>
           <input

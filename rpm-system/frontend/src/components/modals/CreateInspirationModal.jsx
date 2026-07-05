@@ -1,10 +1,13 @@
 import { useState, useContext, useRef } from 'react';
 import { X, Upload, Link as LinkIcon, ImagePlus } from 'lucide-react';
 import { AuthContext } from '../../App';
+import { fileToCompressedDataURL } from '../../utils/image';
+import { useToast } from '../ToastProvider';
 import './CreateInspirationModal.css';
 
 function CreateInspirationModal({ onClose, onSuccess, projectId, initialData = {} }) {
   const { api } = useContext(AuthContext);
+  const { showToast } = useToast();
   const isEditing = Boolean(initialData.id);
   const [formData, setFormData] = useState({
     title: initialData.title || '',
@@ -22,10 +25,11 @@ function CreateInspirationModal({ onClose, onSuccess, projectId, initialData = {
     if (!file) return;
     setUploading(true);
     try {
-      const { url } = await api.uploadImage(file);
-      if (url) setFormData(f => ({ ...f, image_url: url }));
+      const dataUrl = await fileToCompressedDataURL(file);
+      setFormData(f => ({ ...f, image_url: dataUrl }));
     } catch (err) {
-      console.error('Failed to upload image:', err);
+      console.error('Failed to process image:', err);
+      showToast(err?.message || 'Could not process that image. Please try another.', 'error');
     } finally {
       setUploading(false);
     }
@@ -37,9 +41,11 @@ function CreateInspirationModal({ onClose, onSuccess, projectId, initialData = {
     try {
       if (isEditing) await api.updateInspirationItem(initialData.id, formData);
       else await api.createInspirationItem({ ...formData, project_id: projectId });
+      showToast(isEditing ? 'Inspiration updated.' : 'Added to the board.', 'success');
       onSuccess();
     } catch (err) {
       console.error('Failed to save inspiration item:', err);
+      showToast('Could not save this inspiration. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
