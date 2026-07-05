@@ -1,6 +1,7 @@
 import { useState, useContext } from 'react';
 import { AuthContext } from '../../App';
 import CreateCategoryModal from './CreateCategoryModal';
+import './CreateProjectModal.css';
 
 function CreateProjectModal({ onClose, onSuccess, categories = [], initialData = {}, onCategoriesRefresh }) {
   const { api } = useContext(AuthContext);
@@ -70,19 +71,11 @@ function CreateProjectModal({ onClose, onSuccess, categories = [], initialData =
               <label className="form-label">NAME</label>
               <input
                 type="text"
-                className="form-input"
+                className="form-input cpm-name-input"
                 placeholder="Name of Project"
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                 autoFocus
-                style={{ 
-                  fontSize: '1.25rem',
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: '1px solid var(--accent-cyan)',
-                  borderRadius: 0,
-                  padding: '12px 0'
-                }}
               />
             </div>
 
@@ -91,19 +84,10 @@ function CreateProjectModal({ onClose, onSuccess, categories = [], initialData =
               <label className="form-label">ULTIMATE RESULT</label>
               <input
                 type="text"
-                className="form-input"
+                className="form-input cpm-sub-input"
                 placeholder="What you'll gain from completing this Project"
                 value={formData.ultimate_result}
                 onChange={e => setFormData({ ...formData, ultimate_result: e.target.value })}
-                style={{ 
-                  fontSize: '1rem',
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: '1px solid var(--border-primary)',
-                  borderRadius: 0,
-                  padding: '12px 0',
-                  color: 'var(--text-secondary)'
-                }}
               />
             </div>
 
@@ -112,26 +96,17 @@ function CreateProjectModal({ onClose, onSuccess, categories = [], initialData =
               <label className="form-label">ULTIMATE PURPOSE</label>
               <input
                 type="text"
-                className="form-input"
+                className="form-input cpm-sub-input"
                 placeholder="Ultimate purpose for completing this Project"
                 value={formData.ultimate_purpose}
                 onChange={e => setFormData({ ...formData, ultimate_purpose: e.target.value })}
-                style={{ 
-                  fontSize: '1rem',
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: '1px solid var(--border-primary)',
-                  borderRadius: 0,
-                  padding: '12px 0',
-                  color: 'var(--text-secondary)'
-                }}
               />
             </div>
 
             {/* Category */}
             <div className="form-group">
               <label className="form-label">CHOOSE CATEGORY</label>
-              <div className="dropdown" style={{ position: 'relative' }}>
+              <div className="dropdown cpm-relative">
                 <button
                   type="button"
                   className="dropdown-trigger"
@@ -159,7 +134,7 @@ function CreateProjectModal({ onClose, onSuccess, categories = [], initialData =
                   <span>{selectedCategory?.name || 'Select Category'}</span>
                 </button>
                 {showCategoryDropdown && (
-                  <div className="dropdown-menu" style={{ minWidth: '250px', maxHeight: '300px', overflowY: 'auto' }}>
+                  <div className="dropdown-menu cpm-menu">
                     {categories && categories.length > 0 ? (
                       categories.map(cat => (
                         <div
@@ -187,17 +162,12 @@ function CreateProjectModal({ onClose, onSuccess, categories = [], initialData =
                         </div>
                       ))
                     ) : (
-                      <div className="dropdown-item" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      <div className="dropdown-item cpm-empty-item">
                         No categories available
                       </div>
                     )}
-                    <div 
-                      className="dropdown-item" 
-                      style={{ 
-                        borderTop: '1px solid var(--border-primary)',
-                        color: 'var(--accent-pink)',
-                        cursor: 'pointer'
-                      }}
+                    <div
+                      className="dropdown-item cpm-create-item"
                       onClick={(e) => {
                         e.stopPropagation();
                         setShowCategoryDropdown(false);

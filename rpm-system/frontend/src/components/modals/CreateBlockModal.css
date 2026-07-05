@@ -1,0 +1,67 @@
+.cbm-modal {
+  max-width: 700px;
+}
+
+.cbm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cbm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cbm-relative {
+  position: relative;
+}
+
+.cbm-label-pink {
+  color: var(--accent-pink);
+}
+
+.cbm-result-input {
+  font-size: 1.25rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-primary);
+  border-radius: 0;
+  padding: 12px 0;
+}
+
+.cbm-purpose-input {
+  font-size: 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-primary);
+  border-radius: 0;
+  padding: 12px 0;
+  color: var(--text-secondary);
+}
+
+.cbm-actions-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.cbm-label-flush {
+  margin-bottom: 0;
+}
+
+.cbm-small-btn {
+  font-size: 0.8rem;
+  padding: 4px 12px;
+}
+
+.cbm-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.cbm-flex-1 {
+  flex: 1;
+}

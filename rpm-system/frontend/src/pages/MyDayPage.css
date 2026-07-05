@@ -1,0 +1,7 @@
+.md-date {
+  color: var(--text-muted);
+}
+
+.md-actions-list {
+  max-width: 800px;
+}

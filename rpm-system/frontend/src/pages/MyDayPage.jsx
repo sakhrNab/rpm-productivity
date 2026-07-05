@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import ActionRow from '../components/ActionRow';
+import './MyDayPage.css';
 
 function MyDayPage() {
   const { categories, refreshData } = useContext(AppContext);
@@ -85,7 +86,7 @@ function MyDayPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">My Day</h1>
-          <p style={{ color: 'var(--text-muted)' }}>{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
+          <p className="md-date">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
         </div>
         <button 
           type="button"
@@ -97,7 +98,7 @@ function MyDayPage() {
         </button>
       </div>
 
-      <div className="actions-list" style={{ maxWidth: '800px' }}>
+      <div className="actions-list md-actions-list">
         <div className="actions-header">
           <h3>Today's Actions</h3>
           <span className="list-count">{actions.length} actions</span>

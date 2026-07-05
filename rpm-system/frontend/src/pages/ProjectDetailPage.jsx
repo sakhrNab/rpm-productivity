@@ -12,6 +12,7 @@ import CreateKeyResultModal from '../components/modals/CreateKeyResultModal';
 import CreateCaptureItemModal from '../components/modals/CreateCaptureItemModal';
 import CreateBlockModal from '../components/modals/CreateBlockModal';
 import CreateActionModal from '../components/modals/CreateActionModal';
+import './ProjectDetailPage.css';
 
 function ProjectDetailPage() {
   const { id } = useParams();
@@ -472,9 +473,9 @@ function ProjectDetailPage() {
       {/* Breadcrumb */}
       <div className="page-breadcrumb">
         <Link to="/categories">Categories</Link>
-        <ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />
+        <ChevronLeft size={14} className="pd-breadcrumb-chevron" />
         {category && <Link to={`/categories/${category.id}`}>{category.name}</Link>}
-        <ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />
+        <ChevronLeft size={14} className="pd-breadcrumb-chevron" />
         <span>{project.name}</span>
       </div>
 
@@ -490,7 +491,7 @@ function ProjectDetailPage() {
         />
         <div className="project-header-overlay" />
         <div className="project-header-content">
-          <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: '8px' }}>
+          <div className="pd-cover-actions">
             <button 
               type="button"
               className="btn btn-secondary"
@@ -512,7 +513,7 @@ function ProjectDetailPage() {
             ref={coverInputRef}
             type="file"
             accept="image/*"
-            style={{ display: 'none' }}
+            className="pd-hidden"
             onChange={handleCoverUpload}
           />
           
@@ -536,7 +537,7 @@ function ProjectDetailPage() {
             </div>
           )}
           
-          <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>
+          <h1 className="pd-title-heading">
             {editingField === 'name' ? (
               <input
                 type="text"
@@ -548,20 +549,12 @@ function ProjectDetailPage() {
                   if (e.key === 'Escape') setEditingField(null);
                 }}
                 autoFocus
-                style={{
-                  fontSize: '2rem',
-                  background: 'transparent',
-                  border: '1px solid var(--accent-cyan)',
-                  borderRadius: '4px',
-                  padding: '4px 8px',
-                  color: 'var(--text-primary)',
-                  width: '100%'
-                }}
+                className="pd-title-input"
               />
             ) : (
-              <span 
+              <span
                 onClick={() => handleFieldEdit('name', project.name)}
-                style={{ cursor: 'pointer' }}
+                className="pd-clickable"
               >
                 {project.name}
               </span>
@@ -571,17 +564,10 @@ function ProjectDetailPage() {
       </div>
 
       {/* Actions Tabs */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '16px', 
-        marginBottom: '24px',
-        borderBottom: '1px solid var(--border-primary)',
-        paddingBottom: '12px'
-      }}>
+      <div className="pd-tabs">
         <button 
-          className={`category-tab ${activeTab === 'starred' ? 'active' : ''}`}
+          className={`category-tab ${activeTab === 'starred' ? 'active' : ''} pd-flex-center-gap8`}
           onClick={() => setActiveTab('starred')}
-          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
         >
           <Star size={14} />
           Starred Actions
@@ -599,10 +585,10 @@ function ProjectDetailPage() {
         {/* Ultimate Result */}
         <div className="project-section">
           <div className="project-section-header">
-            <div className="project-section-icon" style={{ background: 'var(--accent-pink)' }}>
+            <div className="project-section-icon pd-section-icon-pink">
               🎯
             </div>
-            <span className="project-section-label" style={{ color: 'var(--accent-pink)' }}>
+            <span className="project-section-label pd-section-label-pink">
               ULTIMATE RESULT
             </span>
           </div>
@@ -615,20 +601,11 @@ function ProjectDetailPage() {
                 if (e.key === 'Escape') setEditingField(null);
               }}
               autoFocus
-              style={{
-                width: '100%',
-                minHeight: '60px',
-                background: 'transparent',
-                border: '1px solid var(--accent-pink)',
-                borderRadius: '4px',
-                padding: '8px',
-                color: 'var(--text-secondary)',
-                resize: 'vertical'
-              }}
+              className="pd-field-textarea"
             />
           ) : (
-            <p 
-              style={{ color: 'var(--text-secondary)', cursor: 'pointer', minHeight: '24px' }}
+            <p
+              className="pd-field-text"
               onClick={() => handleFieldEdit('ultimate_result', project.ultimate_result)}
             >
               {project.ultimate_result || 'Click to add ultimate result...'}
@@ -639,10 +616,10 @@ function ProjectDetailPage() {
         {/* Ultimate Purpose */}
         <div className="project-section">
           <div className="project-section-header">
-            <div className="project-section-icon" style={{ background: 'var(--accent-pink)' }}>
+            <div className="project-section-icon pd-section-icon-pink">
               💡
             </div>
-            <span className="project-section-label" style={{ color: 'var(--accent-pink)' }}>
+            <span className="project-section-label pd-section-label-pink">
               ULTIMATE PURPOSE
             </span>
           </div>
@@ -655,20 +632,11 @@ function ProjectDetailPage() {
                 if (e.key === 'Escape') setEditingField(null);
               }}
               autoFocus
-              style={{
-                width: '100%',
-                minHeight: '60px',
-                background: 'transparent',
-                border: '1px solid var(--accent-pink)',
-                borderRadius: '4px',
-                padding: '8px',
-                color: 'var(--text-secondary)',
-                resize: 'vertical'
-              }}
+              className="pd-field-textarea"
             />
           ) : (
-            <p 
-              style={{ color: 'var(--text-secondary)', cursor: 'pointer', minHeight: '24px' }}
+            <p
+              className="pd-field-text"
               onClick={() => handleFieldEdit('ultimate_purpose', project.ultimate_purpose)}
             >
               {project.ultimate_purpose || 'Click to add ultimate purpose...'}
@@ -682,16 +650,15 @@ function ProjectDetailPage() {
         {/* Key Results */}
         <div className="project-section">
           <div className="project-section-header">
-            <div className="project-section-icon" style={{ background: 'var(--accent-pink)' }}>
+            <div className="project-section-icon pd-section-icon-pink">
               📊
             </div>
-            <span className="project-section-label" style={{ color: 'var(--accent-pink)' }}>
+            <span className="project-section-label pd-section-label-pink">
               KEY RESULTS
             </span>
             <button 
               type="button"
-              className="btn btn-icon btn-ghost" 
-              style={{ marginLeft: 'auto' }}
+              className="btn btn-icon btn-ghost pd-ml-auto"
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingKeyResult(null);
@@ -703,7 +670,7 @@ function ProjectDetailPage() {
           </div>
           
           {project.key_results?.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>No key results yet</p>
+            <p className="pd-text-muted">No key results yet</p>
           ) : (
             project.key_results?.map((kr, idx) => (
               <div key={kr.id} className="key-result-item">
@@ -712,7 +679,7 @@ function ProjectDetailPage() {
                 {kr.target_date && (
                   <span className="key-result-date">{kr.target_date}</span>
                 )}
-                <div className="key-result-actions" style={{ position: 'relative', display: 'flex', gap: '4px' }}>
+                <div className="key-result-actions pd-item-actions">
                   <button 
                     type="button"
                     className="btn btn-icon btn-ghost"
@@ -727,30 +694,21 @@ function ProjectDetailPage() {
                   >
                     <Star size={12} fill={kr.is_starred ? 'currentColor' : 'none'} />
                   </button>
-                  <div style={{ position: 'relative' }}>
-                    <button 
+                  <div className="pd-relative">
+                    <button
                       type="button"
-                      className="btn btn-icon btn-ghost"
+                      className="btn btn-icon btn-ghost pd-icon-pad"
                       onClick={(e) => {
                         e.stopPropagation();
                         setOpenKeyResultMenu(openKeyResultMenu === kr.id ? null : kr.id);
                       }}
-                      style={{ padding: '2px' }}
                     >
                       <MoreVertical size={12} />
                     </button>
                     
                     {openKeyResultMenu === kr.id && (
-                      <div 
-                        className="dropdown-menu"
-                        style={{ 
-                          position: 'absolute',
-                          right: 0,
-                          top: '100%',
-                          marginTop: '4px',
-                          minWidth: '180px',
-                          zIndex: 1000
-                        }}
+                      <div
+                        className="dropdown-menu pd-dropdown-abs"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div 
@@ -761,9 +719,8 @@ function ProjectDetailPage() {
                           <span>Edit Key Result</span>
                         </div>
                         <div 
-                          className="dropdown-item"
+                          className="dropdown-item pd-text-red"
                           onClick={() => handleDeleteKeyResult(kr)}
-                          style={{ color: 'var(--accent-red)' }}
                         >
                           <Trash2 size={14} />
                           <span>Delete Key Result</span>
@@ -780,16 +737,15 @@ function ProjectDetailPage() {
         {/* Capture List */}
         <div className="project-section">
           <div className="project-section-header">
-            <div className="project-section-icon" style={{ background: 'var(--accent-cyan)' }}>
+            <div className="project-section-icon pd-section-icon-cyan">
               📝
             </div>
-            <span className="project-section-label" style={{ color: 'var(--accent-cyan)' }}>
+            <span className="project-section-label pd-section-label-cyan">
               CAPTURE LIST
             </span>
             <button 
               type="button"
-              className="btn btn-icon btn-ghost" 
-              style={{ marginLeft: 'auto' }}
+              className="btn btn-icon btn-ghost pd-ml-auto"
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingCaptureItem(null);
@@ -801,13 +757,13 @@ function ProjectDetailPage() {
           </div>
           
           {project.capture_items?.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>No capture items yet</p>
+            <p className="pd-text-muted">No capture items yet</p>
           ) : (
             project.capture_items?.map((item, idx) => (
               <div key={item.id} className="capture-item">
                 <span className="capture-number">{idx + 1}</span>
                 <span className="capture-title">{item.title}</span>
-                <div className="capture-actions" style={{ position: 'relative', display: 'flex', gap: '4px' }}>
+                <div className="capture-actions pd-item-actions">
                   <button 
                     type="button"
                     className="btn btn-icon btn-ghost"
@@ -822,30 +778,21 @@ function ProjectDetailPage() {
                   >
                     <Star size={12} fill={item.is_starred ? 'currentColor' : 'none'} />
                   </button>
-                  <div style={{ position: 'relative' }}>
-                    <button 
+                  <div className="pd-relative">
+                    <button
                       type="button"
-                      className="btn btn-icon btn-ghost"
+                      className="btn btn-icon btn-ghost pd-icon-pad"
                       onClick={(e) => {
                         e.stopPropagation();
                         setOpenCaptureItemMenu(openCaptureItemMenu === item.id ? null : item.id);
                       }}
-                      style={{ padding: '2px' }}
                     >
                       <MoreVertical size={12} />
                     </button>
                     
                     {openCaptureItemMenu === item.id && (
-                      <div 
-                        className="dropdown-menu"
-                        style={{ 
-                          position: 'absolute',
-                          right: 0,
-                          top: '100%',
-                          marginTop: '4px',
-                          minWidth: '180px',
-                          zIndex: 1000
-                        }}
+                      <div
+                        className="dropdown-menu pd-dropdown-abs"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div 
@@ -856,9 +803,8 @@ function ProjectDetailPage() {
                           <span>Edit Capture Item</span>
                         </div>
                         <div 
-                          className="dropdown-item"
+                          className="dropdown-item pd-text-red"
                           onClick={() => handleDeleteCaptureItem(item)}
-                          style={{ color: 'var(--accent-red)' }}
                         >
                           <Trash2 size={14} />
                           <span>Delete Capture Item</span>
@@ -874,27 +820,26 @@ function ProjectDetailPage() {
       </div>
 
       {/* Inspiration Board */}
-      <div className="project-section" style={{ marginTop: '24px' }}>
+      <div className="project-section pd-mt-24">
         <div className="project-section-header">
           <span className="project-section-label">Inspiration Board</span>
           <button
             type="button"
-            className="btn btn-icon btn-ghost"
-            style={{ marginLeft: 'auto' }}
+            className="btn btn-icon btn-ghost pd-ml-auto"
             onClick={handleAddInspiration}
           >
             <Plus size={14} />
           </button>
         </div>
         {(!project.inspiration_items || project.inspiration_items.length === 0) ? (
-          <div className="empty-state" style={{ padding: '16px', color: 'var(--text-muted)' }}>
+          <div className="empty-state pd-empty-state">
             No inspiration yet. Add links, quotes, or references that fuel this project.
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '12px' }}>
+          <div className="pd-inspiration-grid">
             {project.inspiration_items.map(item => (
-              <div key={item.id} className="card" style={{ padding: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+              <div key={item.id} className="card pd-inspiration-card">
+                <div className="pd-flex-1-min0">
                   <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: item.link_url ? '4px' : 0 }}>
                     {item.title || 'Untitled'}
                   </div>
@@ -903,17 +848,16 @@ function ProjectDetailPage() {
                       href={item.link_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', wordBreak: 'break-all' }}
+                      className="pd-inspiration-link"
                     >
                       {item.link_url}
                     </a>
                   )}
                 </div>
                 <button
-                  className="btn btn-icon btn-ghost"
+                  className="btn btn-icon btn-ghost pd-text-red"
                   aria-label="Delete inspiration item"
                   onClick={() => handleDeleteInspiration(item)}
-                  style={{ color: 'var(--accent-red)' }}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -924,13 +868,12 @@ function ProjectDetailPage() {
       </div>
 
       {/* RPM Blocks Section */}
-      <div className="project-section" style={{ marginTop: '24px' }}>
+      <div className="project-section pd-mt-24">
         <div className="project-section-header">
           <span className="project-section-label">RPM Blocks</span>
           <button 
             type="button"
-            className="btn btn-icon btn-ghost" 
-            style={{ marginLeft: 'auto' }}
+            className="btn btn-icon btn-ghost pd-ml-auto"
             onClick={(e) => {
               e.stopPropagation();
               setEditingBlock(null);
@@ -941,7 +884,7 @@ function ProjectDetailPage() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '16px' }}>
+        <div className="pd-blocks-grid">
           {project.rpm_blocks?.map(block => {
             // Fallback: if block.actions is not populated, filter from project.actions
             const blockActions = block.actions && block.actions.length > 0 
@@ -980,9 +923,9 @@ function ProjectDetailPage() {
                     }} />
                     {category?.name || 'Category'}
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div className="pd-flex-center-gap8">
                     {/* Time Remaining (Left) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem' }}>
+                    <div className="pd-flex-center-gap4-sm">
                       <Clock size={14} />
                       <span>
                         {stats.remainingDuration.hours > 0 ? `${stats.remainingDuration.hours}h ` : ''}
@@ -990,7 +933,7 @@ function ProjectDetailPage() {
                       </span>
                     </div>
                     {/* Total Duration (Right) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem' }}>
+                    <div className="pd-flex-center-gap4-sm">
                       <Hourglass size={14} />
                       <span>
                         {stats.totalDuration.hours > 0 ? `${stats.totalDuration.hours}h ` : ''}
@@ -998,7 +941,7 @@ function ProjectDetailPage() {
                       </span>
                     </div>
                     {/* Block Menu */}
-                    <div style={{ position: 'relative', zIndex: 1000 }}>
+                    <div className="pd-relative-z1000">
                       <button 
                         type="button"
                         className="btn btn-icon btn-ghost"
@@ -1099,29 +1042,27 @@ function ProjectDetailPage() {
                     {activeActions.length > 0 && activeActions.map((action, idx) => {
                       const actionIndex = idx + 1;
                       return (
-                        <div key={action.id} className="rpm-block-action" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', borderRadius: '4px' }}>
-                          <span style={{ color: 'var(--text-muted)', minWidth: '20px' }}>{actionIndex}</span>
-                          <div 
-                            className={`action-checkbox ${action.is_completed ? 'completed' : ''}`}
+                        <div key={action.id} className="rpm-block-action pd-block-action-row">
+                          <span className="pd-action-index">{actionIndex}</span>
+                          <div
+                            className={`action-checkbox ${action.is_completed ? 'completed' : ''} pd-checkbox-sm`}
                             onClick={() => toggleActionComplete(action)}
-                            style={{ width: 16, height: 16, flexShrink: 0 }}
                           >
                             {action.is_completed && <Check size={10} />}
                           </div>
-                          <span style={{ flex: 1 }}>{action.title}</span>
-                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <span className="pd-flex-1">{action.title}</span>
+                          <div className="pd-flex-gap4-center">
                             {/* Project Icon */}
                             {action.project_name && (
                               <button 
                                 type="button"
-                                className="btn btn-icon btn-ghost"
+                                className="btn btn-icon btn-ghost pd-icon-pad"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (action.project_id) {
                                     navigate(`/projects/${action.project_id}`);
                                   }
                                 }}
-                                style={{ padding: '2px' }}
                                 title={action.project_name}
                               >
                                 <FolderOpen size={12} />
@@ -1131,12 +1072,11 @@ function ProjectDetailPage() {
                             {/* Duration Icon */}
                             <button 
                               type="button"
-                              className="btn btn-icon btn-ghost"
+                              className="btn btn-icon btn-ghost pd-icon-pad"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleEditAction(action);
                               }}
-                              style={{ padding: '2px' }}
                               title={`${action.duration_hours}h ${action.duration_minutes}m`}
                             >
                               <Clock size={12} />
@@ -1163,10 +1103,10 @@ function ProjectDetailPage() {
                             </button>
                             
                             {/* Action Menu */}
-                            <div style={{ position: 'relative', zIndex: 1000 }}>
+                            <div className="pd-relative-z1000">
                               <button 
                                 type="button"
-                                className="btn btn-icon btn-ghost"
+                                className="btn btn-icon btn-ghost pd-icon-pad"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   const rect = e.currentTarget.getBoundingClientRect();
@@ -1176,7 +1116,6 @@ function ProjectDetailPage() {
                                     right: window.innerWidth - rect.right
                                   });
                                 }}
-                                style={{ padding: '2px' }}
                               >
                                 <MoreVertical size={12} />
                               </button>
@@ -1228,9 +1167,8 @@ function ProjectDetailPage() {
                                     <span>Cancel Action</span>
                                   </div>
                                   <div 
-                                    className="dropdown-item"
+                                    className="dropdown-item pd-text-red"
                                     onClick={() => handleDeleteAction(action)}
-                                    style={{ color: 'var(--accent-red)' }}
                                   >
                                     <Trash2 size={14} />
                                     <span>Delete Action</span>
@@ -1246,7 +1184,7 @@ function ProjectDetailPage() {
                     {/* Add Action Button */}
                     <button 
                       type="button"
-                      className="btn btn-secondary"
+                      className="btn btn-secondary pd-add-action-btn"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1257,12 +1195,6 @@ function ProjectDetailPage() {
                         });
                         setShowActionModal(true);
                       }}
-                      style={{ 
-                        marginTop: '8px',
-                        width: '100%',
-                        justifyContent: 'center',
-                        cursor: 'pointer'
-                      }}
                     >
                       <Plus size={14} />
                       Add Massive Action Plan
@@ -1270,7 +1202,7 @@ function ProjectDetailPage() {
                   </div>
                   
                   {/* Completed Actions Section */}
-                  <div style={{ marginTop: '16px' }}>
+                  <div className="pd-mt-16">
                     <div 
                       style={{ 
                         display: 'flex', 
@@ -1284,7 +1216,7 @@ function ProjectDetailPage() {
                         [block.id]: !prev[block.id]
                       }))}
                     >
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      <span className="pd-count-label">
                         {stats.completedCount} COMPLETED ACTIONS
                       </span>
                       {completedActions.length > 0 && (
@@ -1296,24 +1228,18 @@ function ProjectDetailPage() {
                       )}
                     </div>
                     {expandedCompleted[block.id] && completedActions.length > 0 && completedActions.map((action, idx) => (
-                      <div key={action.id} className="rpm-block-action" style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '8px', 
-                        padding: '8px',
-                        opacity: 0.6
-                      }}>
-                        <span style={{ color: 'var(--text-muted)', minWidth: '20px' }}>{idx + 1}</span>
-                        <div className="action-checkbox completed" style={{ width: 16, height: 16 }}>
+                      <div key={action.id} className="rpm-block-action pd-block-action-done">
+                        <span className="pd-action-index">{idx + 1}</span>
+                        <div className="action-checkbox completed pd-checkbox-sm2">
                           <Check size={10} />
                         </div>
-                        <span style={{ flex: 1, textDecoration: 'line-through' }}>{action.title}</span>
+                        <span className="pd-strike-flex">{action.title}</span>
                       </div>
                     ))}
                   </div>
                   
                   {/* Cancelled Actions Section */}
-                  <div style={{ marginTop: '16px' }}>
+                  <div className="pd-mt-16">
                     <div 
                       style={{ 
                         display: 'flex', 
@@ -1327,7 +1253,7 @@ function ProjectDetailPage() {
                         [block.id]: !prev[block.id]
                       }))}
                     >
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      <span className="pd-count-label">
                         {stats.cancelledCount} CANCELED ACTIONS
                       </span>
                       {cancelledActions.length > 0 && (
@@ -1339,32 +1265,17 @@ function ProjectDetailPage() {
                       )}
                     </div>
                     {expandedCancelled[block.id] && cancelledActions.length > 0 && cancelledActions.map((action, idx) => (
-                      <div key={action.id} className="rpm-block-action" style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '8px', 
-                        padding: '8px',
-                        opacity: 0.6
-                      }}>
-                        <span style={{ color: 'var(--text-muted)', minWidth: '20px' }}>{idx + 1}</span>
-                        <X size={14} style={{ color: 'var(--accent-red)' }} />
-                        <span style={{ flex: 1, textDecoration: 'line-through' }}>{action.title}</span>
+                      <div key={action.id} className="rpm-block-action pd-block-action-done">
+                        <span className="pd-action-index">{idx + 1}</span>
+                        <X size={14} className="pd-text-red" />
+                        <span className="pd-strike-flex">{action.title}</span>
                       </div>
                     ))}
                   </div>
                 </div>
                 
                 {/* Block Footer */}
-                <div className="rpm-block-footer" style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  marginTop: '16px',
-                  paddingTop: '16px',
-                  borderTop: '1px solid var(--border-primary)',
-                  fontSize: '0.75rem',
-                  color: 'var(--text-muted)'
-                }}>
+                <div className="rpm-block-footer pd-block-footer">
                   <span>{stats.completedCount} COMPLETED ACTIONS</span>
                   <span>{stats.cancelledCount} CANCELED ACTIONS</span>
                 </div>
@@ -1440,12 +1351,7 @@ function ProjectDetailPage() {
                   {format(day, 'd')}
                 </div>
                 {dayActions.length > 0 && (
-                  <div style={{ 
-                    marginTop: '8px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px'
-                  }}>
+                  <div className="pd-day-actions">
                     {dayActions.slice(0, 3).map(action => (
                       <div
                         key={action.id}
@@ -1469,11 +1375,7 @@ function ProjectDetailPage() {
                       </div>
                     ))}
                     {dayActions.length > 3 && (
-                      <div style={{ 
-                        fontSize: '0.7rem', 
-                        color: 'var(--text-muted)',
-                        textAlign: 'center'
-                      }}>
+                      <div className="pd-day-more">
                         +{dayActions.length - 3} more
                       </div>
                     )}

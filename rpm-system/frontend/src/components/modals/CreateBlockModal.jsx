@@ -2,6 +2,7 @@ import { useState, useContext, useEffect } from 'react';
 import { Check } from 'lucide-react';
 import { AppContext, AuthContext } from '../../App';
 import CreateActionModal from './CreateActionModal';
+import './CreateBlockModal.css';
 
 function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) {
   const { projects } = useContext(AppContext);
@@ -106,16 +107,12 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
-        <div className="modal-header" style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center' 
-        }}>
+      <div className="modal cbm-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header cbm-header">
           <h3 className="modal-title">{initialData.id ? 'Edit Block' : 'Create a New Block'}</h3>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="cbm-actions">
             {/* Category Dropdown */}
-            <div className="dropdown" style={{ position: 'relative' }}>
+            <div className="dropdown cbm-relative">
               <button
                 type="button"
                 className="dropdown-trigger"
@@ -153,7 +150,7 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
             </div>
 
             {/* Project Dropdown */}
-            <div className="dropdown" style={{ position: 'relative' }}>
+            <div className="dropdown cbm-relative">
               <button
                 type="button"
                 className="dropdown-trigger"
@@ -194,72 +191,48 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
           <div className="modal-body">
             {/* Result */}
             <div className="form-group">
-              <label className="form-label" style={{ color: 'var(--accent-pink)' }}>RESULT</label>
+              <label className="form-label cbm-label-pink">RESULT</label>
               <input
                 type="text"
-                className="form-input"
+                className="form-input cbm-result-input"
                 placeholder="A specific, measurable outcome that you are committed to achieving"
                 value={formData.result_title}
                 onChange={e => setFormData({ ...formData, result_title: e.target.value })}
-                style={{ 
-                  fontSize: '1.25rem',
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: '1px solid var(--border-primary)',
-                  borderRadius: 0,
-                  padding: '12px 0'
-                }}
               />
             </div>
 
             {/* Purpose */}
             <div className="form-group">
-              <label className="form-label" style={{ color: 'var(--accent-pink)' }}>PURPOSE</label>
+              <label className="form-label cbm-label-pink">PURPOSE</label>
               <input
                 type="text"
-                className="form-input"
+                className="form-input cbm-purpose-input"
                 placeholder="The deeper, emotional reason behind why you want to achieve this result"
                 value={formData.purpose}
                 onChange={e => setFormData({ ...formData, purpose: e.target.value })}
-                style={{ 
-                  fontSize: '1rem',
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: '1px solid var(--border-primary)',
-                  borderRadius: 0,
-                  padding: '12px 0',
-                  color: 'var(--text-secondary)'
-                }}
               />
             </div>
 
             {/* Add Actions to Block */}
             <div className="form-group">
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                marginBottom: '12px'
-              }}>
-                <label className="form-label" style={{ marginBottom: 0 }}>ADD ACTIONS TO BLOCK</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary"
+              <div className="cbm-actions-head">
+                <label className="form-label cbm-label-flush">ADD ACTIONS TO BLOCK</label>
+                <div className="cbm-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary cbm-small-btn"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       setShowActionModal(true);
                     }}
-                    style={{ fontSize: '0.8rem', padding: '4px 12px' }}
                   >
                     +
                   </button>
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary"
+                  <button
+                    type="button"
+                    className="btn btn-secondary cbm-small-btn"
                     onClick={selectAll}
-                    style={{ fontSize: '0.8rem', padding: '4px 12px' }}
                   >
                     Select All
                   </button>
@@ -268,11 +241,7 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
 
               <div className="checkbox-list">
                 {actions.length === 0 ? (
-                  <div style={{ 
-                    padding: '24px', 
-                    textAlign: 'center', 
-                    color: 'var(--text-muted)' 
-                  }}>
+                  <div className="cbm-empty">
                     No available actions. Create actions first.
                   </div>
                 ) : (
@@ -284,7 +253,7 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
                       >
                         {selectedActions.includes(action.id) && <Check size={12} />}
                       </div>
-                      <span style={{ flex: 1 }}>{action.title}</span>
+                      <span className="cbm-flex-1">{action.title}</span>
                       <div 
                         className="checkbox-input"
                         style={{ 

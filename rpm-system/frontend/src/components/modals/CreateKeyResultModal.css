@@ -1,0 +1,9 @@
+.ckr-modal {
+  max-width: 500px;
+}
+
+.ckr-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}

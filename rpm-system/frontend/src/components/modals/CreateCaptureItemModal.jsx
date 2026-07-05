@@ -1,6 +1,7 @@
 import { useState, useContext } from 'react';
 import { X } from 'lucide-react';
 import { AuthContext } from '../../App';
+import './CreateCaptureItemModal.css';
 
 function CreateCaptureItemModal({ onClose, onSuccess, projectId, initialData = {} }) {
   const { api } = useContext(AuthContext);
@@ -37,7 +38,7 @@ function CreateCaptureItemModal({ onClose, onSuccess, projectId, initialData = {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+      <div className="modal cci-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">{initialData.id ? 'Edit Capture Item' : 'Add Capture Item'}</h3>
           <button type="button" className="btn btn-icon btn-ghost" onClick={onClose}>

@@ -1,6 +1,7 @@
 import { useState, useContext, useEffect } from 'react';
 import { X, Clock, Star, Calendar, FolderOpen, User } from 'lucide-react';
 import { AppContext, AuthContext } from '../../App';
+import './CreateActionModal.css';
 
 function CreateActionModal({ onClose, onSuccess, categories, initialData = {} }) {
   const { projects, persons } = useContext(AppContext);
@@ -70,39 +71,30 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <form onSubmit={handleSubmit}>
-          <div className="modal-body" style={{ padding: '24px' }}>
+          <div className="modal-body cam-modal-body">
             {/* Title */}
             <input
               type="text"
-              className="form-input"
+              className="form-input cam-title-input"
               placeholder="Title"
               value={formData.title}
               onChange={e => setFormData({ ...formData, title: e.target.value })}
               autoFocus
-              style={{ 
-                fontSize: '1.5rem', 
-                fontWeight: '600',
-                background: 'transparent',
-                border: 'none',
-                padding: '0',
-                marginBottom: '16px'
-              }}
             />
 
             {/* Notes */}
             <textarea
-              className="form-input"
+              className="form-input cam-mb-16"
               placeholder="Add notes"
               value={formData.notes}
               onChange={e => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              style={{ marginBottom: '16px' }}
             />
 
             {/* Quick Options Row */}
-            <div className="form-row" style={{ marginBottom: '20px', gap: '8px', flexWrap: 'wrap' }}>
+            <div className="form-row cam-quick-row">
               {/* Category Dropdown */}
-              <div className="dropdown" style={{ position: 'relative' }}>
+              <div className="dropdown cam-relative">
                 <button
                   type="button"
                   className="dropdown-trigger"
@@ -115,7 +107,7 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
                   <span>{selectedCategory?.name || 'CAPTURE'}</span>
                 </button>
                 {showCategoryDropdown && (
-                  <div className="dropdown-menu" style={{ minWidth: '200px' }}>
+                  <div className="dropdown-menu cam-menu-200">
                     {categories.map(cat => (
                       <div
                         key={cat.id}
@@ -142,7 +134,7 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
 
               {/* Duration */}
               <div className="duration-picker">
-                <Clock size={14} style={{ color: 'var(--text-muted)' }} />
+                <Clock size={14} className="cam-icon-muted" />
                 <input
                   type="number"
                   className="duration-input"
@@ -151,7 +143,7 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
                   min="0"
                   max="24"
                 />
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>h</span>
+                <span className="cam-unit">h</span>
                 <input
                   type="number"
                   className="duration-input"
@@ -160,7 +152,7 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
                   min="0"
                   max="59"
                 />
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>m</span>
+                <span className="cam-unit">m</span>
               </div>
 
               {/* Star */}
@@ -177,32 +169,26 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
 
               {/* Date */}
               <div className="duration-picker">
-                <Calendar size={14} style={{ color: 'var(--text-muted)' }} />
+                <Calendar size={14} className="cam-icon-muted" />
                 <input
                   type="date"
+                  className="cam-date-input"
                   value={formData.scheduled_date}
                   onChange={e => setFormData({ ...formData, scheduled_date: e.target.value })}
-                  style={{ 
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.85rem'
-                  }}
                 />
               </div>
             </div>
 
             {/* Project */}
-            <div className="form-row" style={{ marginBottom: '16px' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Project</span>
-              <div className="dropdown" style={{ position: 'relative', flex: 1 }}>
+            <div className="form-row cam-mb-16">
+              <span className="cam-field-label">Project</span>
+              <div className="dropdown cam-dropdown-flex">
                 <button
                   type="button"
-                  className="dropdown-trigger"
+                  className="dropdown-trigger cam-trigger-full"
                   onClick={() => setShowProjectDropdown(!showProjectDropdown)}
-                  style={{ width: '100%', justifyContent: 'flex-start' }}
                 >
-                  <FolderOpen size={16} style={{ color: 'var(--text-muted)' }} />
+                  <FolderOpen size={16} className="cam-icon-muted" />
                   <span>{selectedProject?.name || 'Choose Project'}</span>
                 </button>
                 {showProjectDropdown && (
@@ -234,9 +220,9 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
             </div>
 
             {/* Leverage Person */}
-            <div className="form-row" style={{ marginBottom: '16px' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Leverage/Commit</span>
-              <div className="dropdown" style={{ position: 'relative' }}>
+            <div className="form-row cam-mb-16">
+              <span className="cam-field-label">Leverage/Commit</span>
+              <div className="dropdown cam-relative">
                 <button
                   type="button"
                   className="btn btn-icon btn-secondary"
@@ -245,7 +231,7 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
                   <User size={16} />
                 </button>
                 {showPersonDropdown && (
-                  <div className="dropdown-menu" style={{ right: 0, left: 'auto' }}>
+                  <div className="dropdown-menu cam-menu-right">
                     <div
                       className="dropdown-item"
                       onClick={() => {
@@ -271,18 +257,11 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
                 )}
               </div>
               {selectedPerson && (
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                <span className="cam-unit">
                   {selectedPerson.name}
                 </span>
               )}
-              <label style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '8px',
-                marginLeft: 'auto',
-                color: 'var(--text-muted)',
-                fontSize: '0.85rem'
-              }}>
+              <label className="cam-leverage-label">
                 <input
                   type="checkbox"
                   checked={createLeverage}

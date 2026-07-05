@@ -4,6 +4,7 @@ import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import ActionRow from '../components/ActionRow';
+import './MyWeekPage.css';
 
 function MyWeekPage() {
   const { categories, refreshData } = useContext(AppContext);
@@ -96,7 +97,7 @@ function MyWeekPage() {
         </button>
       </div>
 
-      <div className="actions-list" style={{ maxWidth: '800px' }}>
+      <div className="actions-list mw-actions-list">
         <div className="actions-header">
           <h3>This Week's Actions</h3>
           <span className="list-count">{actions.length} actions</span>

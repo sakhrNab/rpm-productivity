@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Star, Check, Clock, FolderOpen, Calendar, MoreVertical, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import './ActionRow.css';
 
 // Reusable action row used by My Day / My Week.
 // Clicking the content opens the action for editing; the menu offers
@@ -28,8 +29,7 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete })
       </div>
 
       <div
-        className="action-content"
-        style={{ cursor: 'pointer' }}
+        className="action-content ar-content"
         onClick={() => onEdit(action)}
         title="Open action"
       >
@@ -40,7 +40,7 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete })
           {action.project_name && <span><FolderOpen size={12} /> {action.project_name}</span>}
           {action.scheduled_date
             ? <span><Calendar size={12} /> {action.scheduled_date}</span>
-            : <span style={{ color: 'var(--accent-orange)' }}><Calendar size={12} /> unscheduled</span>}
+            : <span className="ar-unscheduled"><Calendar size={12} /> unscheduled</span>}
           <span><Clock size={12} /> {action.duration_hours}h {action.duration_minutes}m</span>
         </div>
       </div>
@@ -54,7 +54,7 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete })
         <Star size={14} fill={action.is_starred ? 'currentColor' : 'none'} />
       </button>
 
-      <div className="dropdown action-actions" style={{ position: 'relative' }} ref={menuRef}>
+      <div className="dropdown action-actions ar-actions" ref={menuRef}>
         <button
           className="btn btn-icon btn-ghost"
           aria-label="Action options"
@@ -63,7 +63,7 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete })
           <MoreVertical size={16} />
         </button>
         {menuOpen && (
-          <div className="dropdown-menu" style={{ right: 0, left: 'auto', minWidth: 170 }}>
+          <div className="dropdown-menu ar-menu">
             <div className="dropdown-item" onClick={() => { setMenuOpen(false); onEdit(action); }}>
               <Pencil size={14} />
               Edit action
@@ -78,8 +78,7 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete })
               </div>
             )}
             <div
-              className="dropdown-item"
-              style={{ color: 'var(--accent-red)' }}
+              className="dropdown-item ar-delete-item"
               onClick={() => { setMenuOpen(false); onDelete(action); }}
             >
               <Trash2 size={14} />

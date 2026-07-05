@@ -1,0 +1,21 @@
+.pp-empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 48px;
+}
+
+.pp-empty-text {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  margin-bottom: 16px;
+}
+
+.pp-delete-item {
+  color: var(--accent-red);
+}
+
+.pp-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}

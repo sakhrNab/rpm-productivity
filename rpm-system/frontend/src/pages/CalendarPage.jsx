@@ -6,6 +6,7 @@ import {
 } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
+import './CalendarPage.css';
 
 function CalendarPage() {
   const { categories, refreshData } = useContext(AppContext);
@@ -61,7 +62,7 @@ function CalendarPage() {
         </button>
       </div>
 
-      <div className="project-planner" style={{ maxWidth: '1200px' }}>
+      <div className="project-planner cal-planner">
         <div className="planner-header">
           <button 
             className="btn btn-icon btn-secondary"
@@ -69,7 +70,7 @@ function CalendarPage() {
           >
             <ChevronLeft size={16} />
           </button>
-          <h2 style={{ margin: '0 24px' }}>{format(currentDate, 'MMMM yyyy')}</h2>
+          <h2 className="cal-month-title">{format(currentDate, 'MMMM yyyy')}</h2>
           <button 
             className="btn btn-icon btn-secondary"
             onClick={() => setCurrentDate(addMonths(currentDate, 1))}
@@ -78,27 +79,12 @@ function CalendarPage() {
           </button>
         </div>
 
-        <div className="calendar-scroll" style={{ overflowX: 'auto' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(7, minmax(96px, 1fr))',
-          gap: '1px',
-          minWidth: '672px',
-          background: 'var(--border-primary)',
-          borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden'
-        }}>
+        <div className="calendar-scroll cal-scroll">
+        <div className="cal-grid">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-            <div 
-              key={day} 
-              style={{ 
-                padding: '12px', 
-                textAlign: 'center',
-                background: 'var(--bg-secondary)',
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                color: 'var(--text-muted)'
-              }}
+            <div
+              key={day}
+              className="cal-day-header"
             >
               {day}
             </div>
@@ -160,7 +146,7 @@ function CalendarPage() {
                   </div>
                 ))}
                 {dayActions.length > 3 && (
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  <div className="cal-more">
                     +{dayActions.length - 3} more
                   </div>
                 )}

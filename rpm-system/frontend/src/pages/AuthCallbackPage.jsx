@@ -1,6 +1,7 @@
 import { useEffect, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../App';
+import './AuthCallbackPage.css';
 
 function AuthCallbackPage() {
   const { handleOAuthCallback } = useContext(AuthContext);
@@ -45,7 +46,7 @@ function AuthCallbackPage() {
           <h1>Completing Sign In...</h1>
           <p>Please wait while we complete your authentication.</p>
         </div>
-        <div className="loading" style={{ marginTop: '2rem' }}>
+        <div className="loading acb-loading">
           <div className="spinner"></div>
         </div>
       </div>

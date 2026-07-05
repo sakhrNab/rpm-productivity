@@ -10,6 +10,7 @@ import CreateActionModal from '../components/modals/CreateActionModal';
 import CreateBlockModal from '../components/modals/CreateBlockModal';
 import CreateProjectModal from '../components/modals/CreateProjectModal';
 import CreateCategoryModal from '../components/modals/CreateCategoryModal';
+import './CategoryDetailPage.css';
 
 function CategoryDetailPage() {
   const { id } = useParams();
@@ -373,7 +374,7 @@ function CategoryDetailPage() {
       {/* Breadcrumb */}
       <div className="page-breadcrumb">
         <Link to="/categories">Categories</Link>
-        <ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />
+        <ChevronLeft size={14} className="cd-breadcrumb-chevron" />
         <span style={{ color: category.color }}>{category.name}</span>
       </div>
 
@@ -389,18 +390,16 @@ function CategoryDetailPage() {
         />
         <div className="category-header-overlay" />
         <div className="category-header-content">
-          <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', gap: '8px' }}>
+          <div className="cd-header-actions">
             <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.85rem' }}
+              className="btn btn-secondary cd-btn-sm"
               onClick={() => setShowEditCategory(true)}
             >
               <Edit size={14} />
               Edit
             </button>
             <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.85rem' }}
+              className="btn btn-secondary cd-btn-sm"
               onClick={() => coverInputRef.current?.click()}
             >
               <Image size={14} />
@@ -411,7 +410,7 @@ function CategoryDetailPage() {
             ref={coverInputRef}
             type="file"
             accept="image/*"
-            style={{ display: 'none' }}
+            className="cd-hidden"
             onChange={handleCoverUpload}
           />
 
@@ -430,12 +429,7 @@ function CategoryDetailPage() {
             MY ULTIMATE VISION
           </div>
           
-          <h1 style={{ 
-            fontSize: '2.5rem', 
-            fontWeight: 300,
-            maxWidth: '700px',
-            lineHeight: 1.3
-          }}>
+          <h1 className="cd-vision-title">
             {details.ultimate_vision || category.description || 'Click to add your ultimate vision...'}
           </h1>
         </div>
@@ -476,16 +470,15 @@ function CategoryDetailPage() {
                   rows={3}
                   autoFocus
                 />
-                <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                <div className="cd-edit-actions">
                   <button className="btn btn-primary" onClick={handleFieldSave}>Save</button>
                   <button className="btn btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
                 </div>
               </div>
             ) : (
               <p 
-                className="big-picture-content"
+                className="big-picture-content cd-clickable"
                 onClick={() => handleFieldEdit('roles', details.roles)}
-                style={{ cursor: 'pointer' }}
               >
                 {details.roles || 'Click to add your roles...'}
               </p>
@@ -509,16 +502,15 @@ function CategoryDetailPage() {
                   rows={3}
                   autoFocus
                 />
-                <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                <div className="cd-edit-actions">
                   <button className="btn btn-primary" onClick={handleFieldSave}>Save</button>
                   <button className="btn btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
                 </div>
               </div>
             ) : (
               <p 
-                className="big-picture-content"
+                className="big-picture-content cd-clickable"
                 onClick={() => handleFieldEdit('ultimate_purpose', details.ultimate_purpose)}
-                style={{ cursor: 'pointer' }}
               >
                 {details.ultimate_purpose || 'Click to add your ultimate purpose...'}
               </p>
@@ -526,9 +518,9 @@ function CategoryDetailPage() {
           </div>
 
           {/* Goals Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+          <div className="cd-goals-row">
             {/* One Year Goals */}
-            <div className="big-picture-section" style={{ marginBottom: 0 }}>
+            <div className="big-picture-section cd-no-mb">
               <div className="big-picture-header">
                 <div className="big-picture-icon" style={{ background: category.color }}>
                   📅
@@ -544,16 +536,15 @@ function CategoryDetailPage() {
                     rows={4}
                     autoFocus
                   />
-                  <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                  <div className="cd-edit-actions">
                     <button className="btn btn-primary" onClick={handleFieldSave}>Save</button>
                     <button className="btn btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
                   </div>
                 </div>
               ) : (
                 <p 
-                  className="big-picture-content"
+                  className="big-picture-content cd-clickable-prewrap"
                   onClick={() => handleFieldEdit('one_year_goals', details.one_year_goals)}
-                  style={{ cursor: 'pointer', whiteSpace: 'pre-wrap' }}
                 >
                   {details.one_year_goals || 'Click to add your one year goals...'}
                 </p>
@@ -561,7 +552,7 @@ function CategoryDetailPage() {
             </div>
 
             {/* 90 Day Goals */}
-            <div className="big-picture-section" style={{ marginBottom: 0 }}>
+            <div className="big-picture-section cd-no-mb">
               <div className="big-picture-header">
                 <div className="big-picture-icon" style={{ background: category.color }}>
                   🚀
@@ -577,16 +568,15 @@ function CategoryDetailPage() {
                     rows={4}
                     autoFocus
                   />
-                  <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                  <div className="cd-edit-actions">
                     <button className="btn btn-primary" onClick={handleFieldSave}>Save</button>
                     <button className="btn btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
                   </div>
                 </div>
               ) : (
                 <p 
-                  className="big-picture-content"
+                  className="big-picture-content cd-clickable-prewrap"
                   onClick={() => handleFieldEdit('ninety_day_goals', details.ninety_day_goals)}
-                  style={{ cursor: 'pointer', whiteSpace: 'pre-wrap' }}
                 >
                   {details.ninety_day_goals || 'Click to add your 90 day goals...'}
                 </p>
@@ -623,12 +613,7 @@ function CategoryDetailPage() {
                       className="project-card-badge"
                       style={{ color: category.color }}
                     >
-                      <span style={{ 
-                        width: 8, 
-                        height: 8, 
-                        borderRadius: '50%', 
-                        background: category.color 
-                      }} />
+                      <span className="cd-color-dot" style={{ background: category.color }} />
                       {category.name}
                     </div>
                     <h3 className="project-card-title">{project.name}</h3>
@@ -642,8 +627,7 @@ function CategoryDetailPage() {
 
             <button 
               type="button"
-              className="btn btn-secondary" 
-              style={{ marginTop: '16px' }}
+              className="btn btn-secondary cd-mt-16"
               onClick={() => setShowProjectModal(true)}
             >
               <Plus size={16} />
@@ -657,11 +641,10 @@ function CategoryDetailPage() {
           {/* Actions List */}
           <div className="actions-list">
             <div className="actions-header">
-              <h3 style={{ fontSize: '1rem' }}>Actions</h3>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <select 
-                  className="form-input" 
-                  style={{ width: 'auto', padding: '4px 12px' }}
+              <h3 className="cd-heading-1rem">Actions</h3>
+              <div className="cd-flex-gap-8">
+                <select
+                  className="form-input cd-select-auto"
                   value={actionFilter}
                   onChange={(e) => setActionFilter(e.target.value)}
                 >
@@ -672,17 +655,11 @@ function CategoryDetailPage() {
                 </select>
                 <button 
                   type="button"
-                  className="btn btn-icon btn-secondary"
+                  className="btn btn-icon btn-secondary cd-add-btn"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setShowActionModal(true);
-                  }}
-                  style={{ 
-                    cursor: 'pointer',
-                    pointerEvents: 'auto',
-                    zIndex: 10,
-                    position: 'relative'
                   }}
                 >
                   <Plus size={16} />
@@ -708,7 +685,7 @@ function CategoryDetailPage() {
                       {action.title}
                     </div>
                   </div>
-                  <div className="action-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div className="action-actions cd-action-actions-row">
                     {/* Project Icon */}
                     {action.project_name && (
                       <button 
@@ -767,12 +744,12 @@ function CategoryDetailPage() {
                         border: action.is_this_week ? '1px solid var(--accent-cyan)' : '1px solid var(--border-primary)'
                       }}
                     >
-                      <Plus size={12} style={{ marginRight: '4px' }} />
+                      <Plus size={12} className="cd-mr-4" />
                       This week
                     </button>
                     
                     {/* More Options Menu */}
-                    <div style={{ position: 'relative' }}>
+                    <div className="cd-relative">
                       <button 
                         type="button"
                         className="btn btn-icon btn-ghost"
@@ -786,15 +763,7 @@ function CategoryDetailPage() {
                       
                       {openActionMenu === action.id && (
                         <div 
-                          className="dropdown-menu"
-                          style={{ 
-                            position: 'absolute',
-                            right: 0,
-                            top: '100%',
-                            marginTop: '4px',
-                            minWidth: '180px',
-                            zIndex: 1000
-                          }}
+                          className="dropdown-menu cd-dropdown-menu-pos"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <div 
@@ -825,9 +794,8 @@ function CategoryDetailPage() {
                             <span>Cancel Action</span>
                           </div>
                           <div 
-                            className="dropdown-item"
+                            className="dropdown-item cd-text-red"
                             onClick={() => handleDeleteAction(action)}
-                            style={{ color: 'var(--accent-red)' }}
                           >
                             <Trash2 size={14} />
                             <span>Delete Action</span>
@@ -844,20 +812,14 @@ function CategoryDetailPage() {
           {/* RPM Blocks */}
           <div className="rpm-blocks-container">
             <div className="rpm-blocks-header">
-              <h3 style={{ fontSize: '1rem' }}>RPM Blocks</h3>
+              <h3 className="cd-heading-1rem">RPM Blocks</h3>
               <button 
                 type="button"
-                className="btn btn-icon btn-secondary"
+                className="btn btn-icon btn-secondary cd-add-btn"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   setShowBlockModal(true);
-                }}
-                style={{ 
-                  cursor: 'pointer',
-                  pointerEvents: 'auto',
-                  zIndex: 10,
-                  position: 'relative'
                 }}
               >
                 <Plus size={16} />
@@ -880,25 +842,20 @@ function CategoryDetailPage() {
                   <div key={block.id} className="rpm-block">
                     <div className="rpm-block-header">
                       <div className="rpm-block-badge">
-                        <span style={{ 
-                          width: 8, 
-                          height: 8, 
-                          borderRadius: '50%', 
-                          background: category.color 
-                        }} />
+                        <span className="cd-color-dot" style={{ background: category.color }} />
                         {category.name}
                       </div>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <div className="cd-action-actions-row">
                         {/* Starred Actions Duration */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem' }}>
-                          <Star size={14} fill="currentColor" style={{ color: 'var(--accent-orange)' }} />
+                        <div className="cd-duration-stat">
+                          <Star size={14} fill="currentColor" className="cd-text-orange" />
                           <span>
                             {stats.starredDuration.hours > 0 ? `${stats.starredDuration.hours}h ` : ''}
                             {stats.starredDuration.minutes}m
                           </span>
                         </div>
                         {/* Total Duration */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem' }}>
+                        <div className="cd-duration-stat">
                           <Clock size={14} />
                           <span>
                             {stats.totalDuration.hours > 0 ? `${stats.totalDuration.hours}h ` : ''}
@@ -906,7 +863,7 @@ function CategoryDetailPage() {
                           </span>
                         </div>
                         {/* Block Menu */}
-                        <div style={{ position: 'relative' }}>
+                        <div className="cd-relative">
                           <button 
                             type="button"
                             className="btn btn-icon btn-ghost"
@@ -919,16 +876,8 @@ function CategoryDetailPage() {
                           </button>
                           
                           {openBlockMenu === block.id && (
-                            <div 
-                              className="dropdown-menu"
-                              style={{ 
-                                position: 'absolute',
-                                right: 0,
-                                top: '100%',
-                                marginTop: '4px',
-                                minWidth: '180px',
-                                zIndex: 1000
-                              }}
+                            <div
+                              className="dropdown-menu cd-dropdown-menu-pos"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <div 
@@ -987,26 +936,24 @@ function CategoryDetailPage() {
                         {activeActions.length > 0 && activeActions.map((action, idx) => {
                           const actionIndex = idx + 1;
                           return (
-                            <div key={action.id} className="rpm-block-action" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', borderRadius: '4px' }}>
-                              <span style={{ color: 'var(--text-muted)', minWidth: '20px' }}>{actionIndex}</span>
-                              <div 
-                                className={`action-checkbox ${action.is_completed ? 'completed' : ''}`}
+                            <div key={action.id} className="rpm-block-action cd-block-action-row">
+                              <span className="cd-action-index">{actionIndex}</span>
+                              <div
+                                className={`action-checkbox ${action.is_completed ? 'completed' : ''} cd-block-checkbox`}
                                 onClick={() => toggleActionComplete(action)}
-                                style={{ width: 16, height: 16, flexShrink: 0 }}
                               >
                                 {action.is_completed && <Check size={10} />}
                               </div>
-                              <span style={{ flex: 1 }}>{action.title}</span>
-                              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                              <span className="cd-flex-1">{action.title}</span>
+                              <div className="cd-action-icons">
                                 {/* Duration Icon */}
                                 <button 
                                   type="button"
-                                  className="btn btn-icon btn-ghost"
+                                  className="btn btn-icon btn-ghost cd-p-2"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleEditAction(action);
                                   }}
-                                  style={{ padding: '2px' }}
                                   title={`${action.duration_hours}h ${action.duration_minutes}m`}
                                 >
                                   <Clock size={12} />
@@ -1043,15 +990,15 @@ function CategoryDetailPage() {
                                     border: action.is_this_week ? '1px solid var(--accent-cyan)' : '1px solid var(--border-primary)'
                                   }}
                                 >
-                                  <Plus size={10} style={{ marginRight: '2px' }} />
+                                  <Plus size={10} className="cd-mr-2" />
                                   This week
                                 </button>
                                 
                                 {/* Action Menu */}
-                                <div style={{ position: 'relative', zIndex: 1000 }}>
-                                  <button 
+                                <div className="cd-relative-z">
+                                  <button
                                     type="button"
-                                    className="btn btn-icon btn-ghost"
+                                    className="btn btn-icon btn-ghost cd-p-2"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       const rect = e.currentTarget.getBoundingClientRect();
@@ -1061,7 +1008,6 @@ function CategoryDetailPage() {
                                         right: window.innerWidth - rect.right
                                       });
                                     }}
-                                    style={{ padding: '2px' }}
                                   >
                                     <MoreVertical size={12} />
                                   </button>
@@ -1112,10 +1058,9 @@ function CategoryDetailPage() {
                                         <X size={14} />
                                         <span>Cancel Action</span>
                                       </div>
-                                      <div 
-                                        className="dropdown-item"
+                                      <div
+                                        className="dropdown-item cd-text-red"
                                         onClick={() => handleDeleteAction(action)}
-                                        style={{ color: 'var(--accent-red)' }}
                                       >
                                         <Trash2 size={14} />
                                         <span>Delete Action</span>
@@ -1129,17 +1074,12 @@ function CategoryDetailPage() {
                         })}
                         
                         {/* Add Action Button */}
-                        <button 
+                        <button
                           type="button"
-                          className="btn btn-secondary"
+                          className="btn btn-secondary cd-add-action-btn"
                           onClick={() => {
                             setEditingAction({ block_id: block.id, category_id: block.category_id || id });
                             setShowActionModal(true);
-                          }}
-                          style={{ 
-                            marginTop: '8px',
-                            width: '100%',
-                            justifyContent: 'center'
                           }}
                         >
                           <Plus size={14} />
@@ -1148,7 +1088,7 @@ function CategoryDetailPage() {
                       </div>
                       
                       {/* Completed Actions Section */}
-                      <div style={{ marginTop: '16px' }}>
+                      <div className="cd-mt-16">
                         <div 
                           style={{ 
                             display: 'flex', 
@@ -1162,7 +1102,7 @@ function CategoryDetailPage() {
                             [block.id]: !prev[block.id]
                           }))}
                         >
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          <span className="cd-section-header-muted">
                             {stats.completedCount} COMPLETED ACTIONS
                           </span>
                           {completedActions.length > 0 && (
@@ -1174,24 +1114,18 @@ function CategoryDetailPage() {
                           )}
                         </div>
                         {expandedCompleted[block.id] && completedActions.length > 0 && completedActions.map((action, idx) => (
-                          <div key={action.id} className="rpm-block-action" style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '8px', 
-                            padding: '8px',
-                            opacity: 0.6
-                          }}>
-                            <span style={{ color: 'var(--text-muted)', minWidth: '20px' }}>{idx + 1}</span>
-                            <div className="action-checkbox completed" style={{ width: 16, height: 16 }}>
+                          <div key={action.id} className="rpm-block-action cd-done-action-row">
+                            <span className="cd-action-index">{idx + 1}</span>
+                            <div className="action-checkbox completed cd-completed-checkbox">
                               <Check size={10} />
                             </div>
-                            <span style={{ flex: 1, textDecoration: 'line-through' }}>{action.title}</span>
+                            <span className="cd-strike">{action.title}</span>
                           </div>
                         ))}
                       </div>
                       
                       {/* Cancelled Actions Section */}
-                      <div style={{ marginTop: '16px' }}>
+                      <div className="cd-mt-16">
                         <div 
                           style={{ 
                             display: 'flex', 
@@ -1205,7 +1139,7 @@ function CategoryDetailPage() {
                             [block.id]: !prev[block.id]
                           }))}
                         >
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          <span className="cd-section-header-muted">
                             {stats.cancelledCount} CANCELED ACTIONS
                           </span>
                           {cancelledActions.length > 0 && (
@@ -1217,32 +1151,17 @@ function CategoryDetailPage() {
                           )}
                         </div>
                         {expandedCancelled[block.id] && cancelledActions.length > 0 && cancelledActions.map((action, idx) => (
-                          <div key={action.id} className="rpm-block-action" style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '8px', 
-                            padding: '8px',
-                            opacity: 0.6
-                          }}>
-                            <span style={{ color: 'var(--text-muted)', minWidth: '20px' }}>{idx + 1}</span>
-                            <X size={14} style={{ color: 'var(--accent-red)' }} />
-                            <span style={{ flex: 1, textDecoration: 'line-through' }}>{action.title}</span>
+                          <div key={action.id} className="rpm-block-action cd-done-action-row">
+                            <span className="cd-action-index">{idx + 1}</span>
+                            <X size={14} className="cd-text-red" />
+                            <span className="cd-strike">{action.title}</span>
                           </div>
                         ))}
                       </div>
                     </div>
                     
                     {/* Block Footer */}
-                    <div className="rpm-block-footer" style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
-                      marginTop: '16px',
-                      paddingTop: '16px',
-                      borderTop: '1px solid var(--border-primary)',
-                      fontSize: '0.75rem',
-                      color: 'var(--text-muted)'
-                    }}>
+                    <div className="rpm-block-footer cd-block-footer">
                       <span>{stats.completedCount} COMPLETED ACTIONS</span>
                       <span>{stats.cancelledCount} CANCELED ACTIONS</span>
                     </div>

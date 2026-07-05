@@ -1,0 +1,39 @@
+.cpm-name-input {
+  font-size: 1.25rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--accent-cyan);
+  border-radius: 0;
+  padding: 12px 0;
+}
+
+.cpm-sub-input {
+  font-size: 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-primary);
+  border-radius: 0;
+  padding: 12px 0;
+  color: var(--text-secondary);
+}
+
+.cpm-relative {
+  position: relative;
+}
+
+.cpm-menu {
+  min-width: 250px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.cpm-empty-item {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.cpm-create-item {
+  border-top: 1px solid var(--border-primary);
+  color: var(--accent-pink);
+  cursor: pointer;
+}

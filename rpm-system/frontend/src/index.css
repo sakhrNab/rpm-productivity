@@ -2097,6 +2097,11 @@ select:focus-visible {
 /* Muted count text used in list headers (My Day / My Week, etc.) */
 .list-count { color: var(--text-muted); }
 
+/* Small shared utilities used across pages */
+.grid-col-full { grid-column: 1 / -1; }
+.person-menu { left: auto; right: 0; min-width: 140px; }
+.dropdown-item-danger { color: var(--accent-red); }
+
 /* Respect users who prefer less motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

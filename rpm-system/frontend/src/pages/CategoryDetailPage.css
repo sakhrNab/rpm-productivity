@@ -1,0 +1,207 @@
+/* Co-located styles for CategoryDetailPage.
+   Extracted from static inline styles (literal-constant values only).
+   Values are copied verbatim to preserve identical rendering. */
+
+.cd-breadcrumb-chevron {
+  transform: rotate(180deg);
+}
+
+.cd-header-actions {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.cd-btn-sm {
+  font-size: 0.85rem;
+}
+
+.cd-hidden {
+  display: none;
+}
+
+.cd-vision-title {
+  font-size: 2.5rem;
+  font-weight: 300;
+  max-width: 700px;
+  line-height: 1.3;
+}
+
+.cd-edit-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.cd-clickable {
+  cursor: pointer;
+}
+
+.cd-goals-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.cd-no-mb {
+  margin-bottom: 0;
+}
+
+.cd-clickable-prewrap {
+  cursor: pointer;
+  white-space: pre-wrap;
+}
+
+.cd-color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.cd-mt-16 {
+  margin-top: 16px;
+}
+
+.cd-heading-1rem {
+  font-size: 1rem;
+}
+
+.cd-flex-gap-8 {
+  display: flex;
+  gap: 8px;
+}
+
+.cd-select-auto {
+  width: auto;
+  padding: 4px 12px;
+}
+
+.cd-add-btn {
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 10;
+  position: relative;
+}
+
+.cd-action-actions-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cd-mr-4 {
+  margin-right: 4px;
+}
+
+.cd-relative {
+  position: relative;
+}
+
+.cd-dropdown-menu-pos {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  min-width: 180px;
+  z-index: 1000;
+}
+
+.cd-text-red {
+  color: var(--accent-red);
+}
+
+.cd-text-orange {
+  color: var(--accent-orange);
+}
+
+.cd-duration-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+}
+
+.cd-block-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.cd-action-index {
+  color: var(--text-muted);
+  min-width: 20px;
+}
+
+.cd-block-checkbox {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.cd-completed-checkbox {
+  width: 16px;
+  height: 16px;
+}
+
+.cd-flex-1 {
+  flex: 1;
+}
+
+.cd-action-icons {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.cd-p-2 {
+  padding: 2px;
+}
+
+.cd-mr-2 {
+  margin-right: 2px;
+}
+
+.cd-relative-z {
+  position: relative;
+  z-index: 1000;
+}
+
+.cd-add-action-btn {
+  margin-top: 8px;
+  width: 100%;
+  justify-content: center;
+}
+
+.cd-section-header-muted {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.cd-done-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  opacity: 0.6;
+}
+
+.cd-strike {
+  flex: 1;
+  text-decoration: line-through;
+}
+
+.cd-block-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-primary);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

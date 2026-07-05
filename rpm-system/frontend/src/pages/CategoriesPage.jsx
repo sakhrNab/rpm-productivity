@@ -2,6 +2,7 @@ import { useContext, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
 import CreateCategoryModal from '../components/modals/CreateCategoryModal';
+import './CategoriesPage.css';
 import {
   Target, Heart, DollarSign, Users, Activity, Home, Zap, Inbox, Star,
   MoreVertical, Trash2, Pencil
@@ -111,8 +112,7 @@ function CategoriesPage() {
                       Edit category
                     </div>
                     <div
-                      className="dropdown-item"
-                      style={{ color: 'var(--accent-red)' }}
+                      className="dropdown-item cp-delete-item"
                       onClick={() => handleDelete(category)}
                     >
                       <Trash2 size={14} />

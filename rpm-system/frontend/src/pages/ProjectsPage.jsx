@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
 import { Plus, MoreVertical, Trash2 } from 'lucide-react';
 import CreateProjectModal from '../components/modals/CreateProjectModal';
+import './ProjectsPage.css';
 
 function ProjectsPage() {
   const { projects, categories, refreshData, api } = useContext(AppContext);
@@ -62,8 +63,8 @@ function ProjectsPage() {
 
       <div className="projects-grid">
         {projects.length === 0 ? (
-          <div className="empty-state" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '48px' }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginBottom: '16px' }}>
+          <div className="empty-state pp-empty-state">
+            <p className="pp-empty-text">
               No projects yet. Create your first project to get started!
             </p>
           </div>
@@ -105,8 +106,7 @@ function ProjectsPage() {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div
-                      className="dropdown-item"
-                      style={{ color: 'var(--accent-red)' }}
+                      className="dropdown-item pp-delete-item"
                       onClick={() => handleDelete(project)}
                     >
                       <Trash2 size={14} />
@@ -122,12 +122,10 @@ function ProjectsPage() {
                     className="project-card-badge"
                     style={{ color: category.color }}
                   >
-                    <span style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: category.color
-                    }} />
+                    <span
+                      className="pp-badge-dot"
+                      style={{ background: category.color }}
+                    />
                     {category.name}
                   </div>
                 )}

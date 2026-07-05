@@ -54,7 +54,7 @@ function PeoplePage() {
 
       <div className="people-grid">
         {persons.length === 0 ? (
-          <div className="empty-state" style={{ gridColumn: '1 / -1' }}>
+          <div className="empty-state grid-col-full">
             <User size={48} />
             <p>No people added yet</p>
             <button className="btn btn-primary" onClick={() => { setEditingPerson(null); setShowModal(true); }}>
@@ -75,7 +75,6 @@ function PeoplePage() {
                   </div>
                   <div
                     className="dropdown"
-                    style={{ position: 'relative' }}
                     ref={openMenuId === person.id ? menuRef : null}
                   >
                     <button
@@ -86,14 +85,13 @@ function PeoplePage() {
                       <MoreVertical size={16} />
                     </button>
                     {openMenuId === person.id && (
-                      <div className="dropdown-menu" style={{ left: 'auto', right: 0, minWidth: 140 }}>
+                      <div className="dropdown-menu person-menu">
                         <div className="dropdown-item" onClick={() => handleEdit(person)}>
                           <Pencil size={14} />
                           Edit
                         </div>
                         <div
-                          className="dropdown-item"
-                          style={{ color: 'var(--accent-red)' }}
+                          className="dropdown-item dropdown-item-danger"
                           onClick={() => handleDelete(person.id)}
                         >
                           <Trash2 size={14} />

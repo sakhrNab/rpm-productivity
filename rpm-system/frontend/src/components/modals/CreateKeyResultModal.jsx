@@ -1,6 +1,7 @@
 import { useState, useContext } from 'react';
 import { X } from 'lucide-react';
 import { AuthContext } from '../../App';
+import './CreateKeyResultModal.css';
 
 function CreateKeyResultModal({ onClose, onSuccess, projectId, initialData = {} }) {
   const { api } = useContext(AuthContext);
@@ -40,7 +41,7 @@ function CreateKeyResultModal({ onClose, onSuccess, projectId, initialData = {} 
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+      <div className="modal ckr-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">{initialData.id ? 'Edit Key Result' : 'Add Key Result'}</h3>
           <button type="button" className="btn btn-icon btn-ghost" onClick={onClose}>
@@ -74,7 +75,7 @@ function CreateKeyResultModal({ onClose, onSuccess, projectId, initialData = {} 
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="ckr-grid">
               <div className="form-group">
                 <label className="form-label">Target Value (optional)</label>
                 <input

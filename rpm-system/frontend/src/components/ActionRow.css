@@ -1,0 +1,21 @@
+.ar-content {
+  cursor: pointer;
+}
+
+.ar-unscheduled {
+  color: var(--accent-orange);
+}
+
+.ar-actions {
+  position: relative;
+}
+
+.ar-menu {
+  right: 0;
+  left: auto;
+  min-width: 170px;
+}
+
+.ar-delete-item {
+  color: var(--accent-red);
+}

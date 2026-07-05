@@ -1,0 +1,35 @@
+.cal-planner {
+  max-width: 1200px;
+}
+
+.cal-month-title {
+  margin: 0 24px;
+}
+
+.cal-scroll {
+  overflow-x: auto;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(96px, 1fr));
+  gap: 1px;
+  min-width: 672px;
+  background: var(--border-primary);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.cal-day-header {
+  padding: 12px;
+  text-align: center;
+  background: var(--bg-secondary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.cal-more {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}

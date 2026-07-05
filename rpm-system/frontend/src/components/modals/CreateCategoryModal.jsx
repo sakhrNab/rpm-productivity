@@ -4,6 +4,7 @@ import {
   Target, Heart, DollarSign, Users, Activity, Home, Zap, Inbox,
   Star, Briefcase, Book, Music, Camera, Plane, Coffee, Gift
 } from 'lucide-react';
+import './CreateCategoryModal.css';
 
 const COLORS = [
   '#FF69B4', '#FF8CC8', '#9575CD', '#6B8DD6', '#64B5F6', '#4DD0E1',
@@ -72,15 +73,14 @@ function CreateCategoryModal({ onClose, onSuccess, initialData }) {
               <label className="form-label">NAME</label>
               <input
                 type="text"
-                className="form-input"
+                className="form-input ccm-name-input"
                 placeholder=""
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                 maxLength={50}
                 autoFocus
-                style={{ borderColor: 'var(--accent-cyan)' }}
               />
-              <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+              <small className="ccm-hint">
                 UP TO 50 CHARACTERS
               </small>
             </div>
