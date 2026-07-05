@@ -1050,6 +1050,22 @@ function ProjectDetailPage() {
                     </div>
                   </div>
                 </div>
+                {(() => {
+                  const total = blockActions.length;
+                  const denom = total - cancelledActions.length;
+                  const done = completedActions.length;
+                  const pct = denom > 0 ? Math.round((done / denom) * 100) : 0;
+                  if (total === 0) return null;
+                  return (
+                    <div className={`rpm-block-progress ${pct >= 100 ? 'is-done' : ''}`}>
+                      <div className="rpm-block-track"><span className="rpm-block-fill" style={{ width: `${pct}%` }} /></div>
+                      <div className="rpm-block-progress-meta">
+                        <span>{done}/{denom} done{cancelledActions.length ? ` · ${cancelledActions.length} cancelled` : ''}</span>
+                        <span className="rpm-block-pct">{pct}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="rpm-block-content">
                   <div className="rpm-block-section">
                     <div className="rpm-block-label">RESULT</div>

@@ -394,3 +394,42 @@
 .kr-pct { font-weight: 700; color: var(--accent-cyan); }
 .kr-card-done .kr-pct { color: var(--accent-green); }
 .kr-foot { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 0.75rem; color: var(--text-muted); }
+
+/* RPM block card polish + completion progress */
+.rpm-block {
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.rpm-block:hover { border-color: var(--border-accent); box-shadow: var(--shadow-md); }
+.rpm-block-title { font-size: 1.15rem; font-weight: 700; line-height: 1.35; }
+
+.rpm-block-progress {
+  padding: 12px var(--spacing-md);
+  border-bottom: 1px solid var(--border-primary);
+}
+.rpm-block-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+.rpm-block-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-pink), var(--accent-purple));
+  transition: width var(--transition-slow);
+}
+.rpm-block-progress.is-done .rpm-block-fill {
+  background: linear-gradient(90deg, var(--accent-green), #4db6ac);
+}
+.rpm-block-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.rpm-block-pct { font-weight: 700; color: var(--accent-pink); }
+.rpm-block-progress.is-done .rpm-block-pct { color: var(--accent-green); }
