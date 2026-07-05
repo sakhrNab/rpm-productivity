@@ -1,13 +1,15 @@
-import { useContext, useState } from 'react';
+import { useContext, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
-import { Plus } from 'lucide-react';
+import { Plus, MoreVertical, Trash2 } from 'lucide-react';
 import CreateProjectModal from '../components/modals/CreateProjectModal';
 
 function ProjectsPage() {
-  const { projects, categories, refreshData } = useContext(AppContext);
+  const { projects, categories, refreshData, api } = useContext(AppContext);
   const navigate = useNavigate();
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
 
   const getCategoryById = (id) => categories.find(c => c.id === id);
 
@@ -16,11 +18,39 @@ function ProjectsPage() {
     if (refreshData) refreshData();
   };
 
+  // Close the open menu when clicking anywhere outside of it
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    if (openMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openMenuId]);
+
+  const handleDelete = async (project) => {
+    setOpenMenuId(null);
+    const confirmed = window.confirm(
+      `Delete "${project.name}"?\n\nThis permanently removes the project and everything inside it — its key results, capture items, and actions. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    try {
+      await api.deleteProject(project.id);
+      if (refreshData) await refreshData();
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+      alert('Failed to delete project. Please try again.');
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
         <h1 className="page-title">Active Projects</h1>
-        <button 
+        <button
           type="button"
           className="btn btn-primary"
           onClick={() => setShowProjectModal(true)}
@@ -46,25 +76,57 @@ function ProjectsPage() {
               className="project-card"
               onClick={() => navigate(`/projects/${project.id}`)}
             >
-              <div 
+              <div
                 className="project-card-bg"
-                style={{ 
-                  backgroundImage: project.cover_image 
-                    ? `url(${project.cover_image})` 
+                style={{
+                  backgroundImage: project.cover_image
+                    ? `url(${project.cover_image})`
                     : 'linear-gradient(135deg, #1a2d4a 0%, #0d1d35 100%)'
                 }}
               />
+
+              <div
+                className="project-card-menu dropdown"
+                ref={openMenuId === project.id ? menuRef : null}
+              >
+                <button
+                  className="btn btn-icon btn-ghost"
+                  aria-label="Project options"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuId(openMenuId === project.id ? null : project.id);
+                  }}
+                >
+                  <MoreVertical size={16} color="white" />
+                </button>
+                {openMenuId === project.id && (
+                  <div
+                    className="dropdown-menu"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div
+                      className="dropdown-item"
+                      style={{ color: 'var(--accent-red)' }}
+                      onClick={() => handleDelete(project)}
+                    >
+                      <Trash2 size={14} />
+                      Delete project
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="project-card-content">
                 {category && (
-                  <div 
+                  <div
                     className="project-card-badge"
                     style={{ color: category.color }}
                   >
-                    <span style={{ 
-                      width: 8, 
-                      height: 8, 
-                      borderRadius: '50%', 
-                      background: category.color 
+                    <span style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: category.color
                     }} />
                     {category.name}
                   </div>
@@ -82,7 +144,7 @@ function ProjectsPage() {
 
       {/* Create Project Modal */}
       {showProjectModal && categories && (
-        <CreateProjectModal 
+        <CreateProjectModal
           onClose={() => setShowProjectModal(false)}
           onSuccess={handleProjectSuccess}
           categories={categories}

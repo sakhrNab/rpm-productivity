@@ -1,8 +1,9 @@
-import { useContext } from 'react';
+import { useContext, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
-import { 
-  Target, Heart, DollarSign, Users, Activity, Home, Zap, Inbox, Star
+import {
+  Target, Heart, DollarSign, Users, Activity, Home, Zap, Inbox, Star,
+  MoreVertical, Trash2
 } from 'lucide-react';
 
 const iconMap = {
@@ -18,8 +19,38 @@ const iconMap = {
 };
 
 function CategoriesPage() {
-  const { categories } = useContext(AppContext);
+  const { categories, refreshData, api } = useContext(AppContext);
   const navigate = useNavigate();
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
+
+  // Close the open menu when clicking anywhere outside of it
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    if (openMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openMenuId]);
+
+  const handleDelete = async (category) => {
+    setOpenMenuId(null);
+    const confirmed = window.confirm(
+      `Delete "${category.name}"?\n\nThis permanently removes the category and everything inside it — its projects, key results, capture items, and big-picture details. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    try {
+      await api.deleteCategory(category.id);
+      await refreshData();
+    } catch (error) {
+      console.error('Failed to delete category:', error);
+      alert('Failed to delete category. Please try again.');
+    }
+  };
 
   return (
     <div>
@@ -36,17 +67,49 @@ function CategoriesPage() {
               className="category-card"
               onClick={() => navigate(`/categories/${category.id}`)}
             >
-              <div 
+              <div
                 className="category-card-bg"
-                style={{ 
-                  backgroundImage: category.cover_image 
-                    ? `url(${category.cover_image})` 
+                style={{
+                  backgroundImage: category.cover_image
+                    ? `url(${category.cover_image})`
                     : 'linear-gradient(135deg, #1a2d4a 0%, #0d1d35 100%)'
                 }}
               />
               <div className="category-card-overlay" />
+
+              <div
+                className="category-card-menu dropdown"
+                ref={openMenuId === category.id ? menuRef : null}
+              >
+                <button
+                  className="btn btn-icon btn-ghost"
+                  aria-label="Category options"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuId(openMenuId === category.id ? null : category.id);
+                  }}
+                >
+                  <MoreVertical size={16} color="white" />
+                </button>
+                {openMenuId === category.id && (
+                  <div
+                    className="dropdown-menu"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div
+                      className="dropdown-item"
+                      style={{ color: 'var(--accent-red)' }}
+                      onClick={() => handleDelete(category)}
+                    >
+                      <Trash2 size={14} />
+                      Delete category
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="category-card-content">
-                <div 
+                <div
                   className="category-card-icon"
                   style={{ background: category.color }}
                 >

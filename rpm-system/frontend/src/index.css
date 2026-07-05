@@ -376,10 +376,12 @@ input::placeholder, textarea::placeholder {
   font-size: 1rem;
 }
 
-.category-card-menu {
+.category-card-menu,
+.project-card-menu {
   position: absolute;
   top: var(--spacing-sm);
   right: var(--spacing-sm);
+  z-index: 2;
 }
 
 /* Projects Grid */

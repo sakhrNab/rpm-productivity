@@ -348,7 +348,9 @@ app.put('/api/categories/:id/details', authenticateToken, async (req, res) => {
 
 app.delete('/api/categories/:id', authenticateToken, async (req, res) => {
   try {
-    await pool.query('UPDATE categories SET is_active = false WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    // Hard delete so ON DELETE CASCADE removes children (category_details,
+    // projects, key_results, capture_items, inspiration_items)
+    await pool.query('DELETE FROM categories WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Failed to delete category' }); }
 });
