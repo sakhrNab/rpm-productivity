@@ -67,7 +67,7 @@ function PeoplePage() {
           </div>
         ) : (
           persons.map(person => (
-            <div key={person.id} className="card" style={{ cursor: 'default' }}>
+            <div key={person.id} className={`card ${openMenuId === person.id ? 'menu-open' : ''}`} style={{ cursor: 'default' }}>
               <div className="card-body">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                   <div style={{

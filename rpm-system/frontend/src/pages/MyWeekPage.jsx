@@ -1,8 +1,9 @@
 import { useState, useEffect, useContext } from 'react';
-import { Plus, Star, Check, Clock, FolderOpen } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
+import ActionRow from '../components/ActionRow';
 
 function MyWeekPage() {
   const { categories, refreshData } = useContext(AppContext);
@@ -10,6 +11,7 @@ function MyWeekPage() {
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showActionModal, setShowActionModal] = useState(false);
+  const [editingAction, setEditingAction] = useState(null);
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
@@ -47,6 +49,27 @@ function MyWeekPage() {
     }
   };
 
+  const handleEdit = (action) => {
+    setEditingAction(action);
+    setShowActionModal(true);
+  };
+
+  const handleDelete = async (action) => {
+    if (!window.confirm(`Delete action "${action.title}"?`)) return;
+    try {
+      await api.deleteAction(action.id);
+      await loadActions();
+      if (refreshData) refreshData();
+    } catch (error) {
+      console.error('Failed to delete action:', error);
+    }
+  };
+
+  const closeModal = () => {
+    setShowActionModal(false);
+    setEditingAction(null);
+  };
+
   if (loading) {
     return <div className="loading"><div className="spinner"></div></div>;
   }
@@ -77,48 +100,29 @@ function MyWeekPage() {
           </div>
         ) : (
           actions.map(action => (
-            <div key={action.id} className="action-item">
-              <div 
-                className={`action-checkbox ${action.is_completed ? 'completed' : ''}`}
-                onClick={() => toggleComplete(action)}
-              >
-                {action.is_completed && <Check size={12} />}
-              </div>
-              <div className="action-content">
-                <div className={`action-title ${action.is_completed ? 'completed' : ''}`}>
-                  {action.title}
-                </div>
-                <div className="action-meta">
-                  {action.project_name && <span><FolderOpen size={12} /> {action.project_name}</span>}
-                  <span><Clock size={12} /> {action.duration_hours}h {action.duration_minutes}m</span>
-                </div>
-              </div>
-              <button
-                className="btn btn-icon btn-ghost"
-                aria-label="Toggle star"
-                onClick={() => toggleStar(action)}
-                style={{ color: action.is_starred ? 'var(--accent-orange)' : 'var(--text-muted)' }}
-              >
-                <Star size={14} fill={action.is_starred ? 'currentColor' : 'none'} />
-              </button>
-            </div>
+            <ActionRow
+              key={action.id}
+              action={action}
+              onToggleComplete={toggleComplete}
+              onToggleStar={toggleStar}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
           ))
         )}
       </div>
 
-      {/* Create Action Modal */}
+      {/* Create / Edit Action Modal */}
       {showActionModal && categories && (
-        <CreateActionModal 
-          onClose={() => setShowActionModal(false)}
+        <CreateActionModal
+          onClose={closeModal}
           onSuccess={() => {
-            setShowActionModal(false);
+            closeModal();
             loadActions();
             if (refreshData) refreshData();
           }}
           categories={categories}
-          initialData={{ 
-            is_this_week: true
-          }}
+          initialData={editingAction || { is_this_week: true }}
         />
       )}
     </div>

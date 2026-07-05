@@ -1912,6 +1912,34 @@ select:focus-visible {
   right: var(--spacing-sm);
 }
 
+/* Card action popover: give it a real width and right-align it so text isn't
+   cramped into the tiny button column. */
+.category-card-menu .dropdown-menu,
+.project-card-menu .dropdown-menu {
+  left: auto;
+  right: 0;
+  min-width: 170px;
+  width: max-content;
+}
+
+/* While a card's menu is open, lift the card out of its overflow:hidden clip so
+   the popover isn't cut off / hidden behind the card. Also freeze the hover
+   zoom + round the bg layers so nothing spills past the (now visible) corners. */
+.category-card.menu-open,
+.project-card.menu-open,
+.card.menu-open {
+  overflow: visible;
+  z-index: 6;
+}
+.category-card.menu-open .category-card-bg,
+.project-card.menu-open .project-card-bg {
+  transform: none;
+  border-radius: var(--radius-lg);
+}
+.category-card.menu-open .category-card-overlay {
+  border-radius: var(--radius-lg);
+}
+
 /* The three-dots menu only appears (nicely) when hovering a card, but stays usable on touch */
 .category-card-menu .btn-ghost,
 .project-card-menu .btn-ghost {

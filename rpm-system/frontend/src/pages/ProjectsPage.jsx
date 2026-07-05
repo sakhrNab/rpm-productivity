@@ -73,7 +73,7 @@ function ProjectsPage() {
           return (
             <div
               key={project.id}
-              className="project-card"
+              className={`project-card ${openMenuId === project.id ? 'menu-open' : ''}`}
               onClick={() => navigate(`/projects/${project.id}`)}
             >
               <div

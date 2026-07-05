@@ -71,7 +71,7 @@ function CategoriesPage() {
           return (
             <div
               key={category.id}
-              className="category-card"
+              className={`category-card ${openMenuId === category.id ? 'menu-open' : ''}`}
               onClick={() => navigate(`/categories/${category.id}`)}
             >
               <div
