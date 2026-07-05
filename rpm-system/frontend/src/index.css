@@ -2058,6 +2058,45 @@ select:focus-visible {
   }
 }
 
+/* People page — migrated off inline styles onto tokenized classes */
+.people-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--spacing-md);
+}
+.person-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+.person-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent-pink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.person-info { flex: 1; min-width: 0; }
+.person-name { font-size: 1rem; margin-bottom: 2px; }
+.person-note { font-size: 0.85rem; color: var(--text-muted); }
+.person-contacts { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.person-contact {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* Muted count text used in list headers (My Day / My Week, etc.) */
+.list-count { color: var(--text-muted); }
+
 /* Respect users who prefer less motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

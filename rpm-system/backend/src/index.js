@@ -377,10 +377,7 @@ app.get('/api/projects/:id', authenticateToken, async (req, res) => {
     const keyResultsResult = await pool.query('SELECT * FROM key_results WHERE project_id = $1 ORDER BY sort_order', [id]);
     const captureResult = await pool.query('SELECT * FROM capture_items WHERE project_id = $1 ORDER BY sort_order', [id]);
     const blocksResult = await pool.query('SELECT * FROM v_rpm_blocks_stats WHERE project_id = $1 ORDER BY sort_order', [id]);
-    for (let block of blocksResult.rows) {
-      const actionsResult = await pool.query('SELECT * FROM v_actions_full WHERE block_id = $1 ORDER BY sort_order', [block.id]);
-      block.actions = actionsResult.rows;
-    }
+    await attachActionsToBlocks(blocksResult.rows);
     const actionsResult = await pool.query('SELECT * FROM v_actions_full WHERE project_id = $1 ORDER BY sort_order', [id]);
     const inspirationResult = await pool.query('SELECT * FROM inspiration_items WHERE project_id = $1 ORDER BY sort_order', [id]);
     res.json({ ...projectResult.rows[0], key_results: keyResultsResult.rows, capture_items: captureResult.rows, rpm_blocks: blocksResult.rows, actions: actionsResult.rows, inspiration_items: inspirationResult.rows });
@@ -504,6 +501,20 @@ app.delete('/api/actions/:id', authenticateToken, async (req, res) => {
 });
 
 // BLOCKS
+// Attach each block's actions using a single batched query (avoids N+1).
+async function attachActionsToBlocks(blocks) {
+  if (!blocks.length) return blocks;
+  const ids = blocks.map(b => b.id);
+  const actions = await pool.query(
+    'SELECT * FROM v_actions_full WHERE block_id = ANY($1) ORDER BY sort_order',
+    [ids]
+  );
+  const byBlock = {};
+  for (const a of actions.rows) (byBlock[a.block_id] ||= []).push(a);
+  for (const b of blocks) b.actions = byBlock[b.id] || [];
+  return blocks;
+}
+
 app.get('/api/blocks', authenticateToken, async (req, res) => {
   try {
     const { category_id, project_id } = req.query;
@@ -513,10 +524,7 @@ app.get('/api/blocks', authenticateToken, async (req, res) => {
     if (project_id) { params.push(project_id); query += ` AND project_id = $${params.length}`; }
     query += ' ORDER BY sort_order';
     const result = await pool.query(query, params);
-    for (let block of result.rows) {
-      const actionsResult = await pool.query('SELECT * FROM v_actions_full WHERE block_id = $1 ORDER BY sort_order', [block.id]);
-      block.actions = actionsResult.rows;
-    }
+    await attachActionsToBlocks(result.rows);
     res.json(result.rows);
   } catch (error) { res.status(500).json({ error: 'Failed to fetch blocks' }); }
 });

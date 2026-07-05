@@ -191,23 +191,29 @@ function CategoryDetailPage() {
     setEditingField(null);
   };
 
-  const toggleActionComplete = async (action) => {
+  // Optimistic: an action may live in the flat `actions` list and inside a
+  // block's `actions`; patch both, persist in the background, resync on error.
+  const patchActionEverywhere = (id, patch) => {
+    const upd = a => (a.id === id ? { ...a, ...patch } : a);
+    setActions(prev => prev.map(upd));
+    setBlocks(prev => prev.map(b => ({ ...b, actions: (b.actions || []).map(upd) })));
+  };
+
+  const optimisticAction = async (action, patch) => {
+    patchActionEverywhere(action.id, patch);
     try {
-      await api.updateAction(action.id, { is_completed: !action.is_completed });
-      await loadCategory();
+      await api.updateAction(action.id, patch);
     } catch (error) {
       console.error('Failed to update action:', error);
+      await loadCategory();
     }
   };
 
-  const toggleActionStar = async (action) => {
-    try {
-      await api.updateAction(action.id, { is_starred: !action.is_starred });
-      await loadCategory();
-    } catch (error) {
-      console.error('Failed to update action:', error);
-    }
-  };
+  const toggleActionComplete = (action) =>
+    optimisticAction(action, { is_completed: !action.is_completed });
+
+  const toggleActionStar = (action) =>
+    optimisticAction(action, { is_starred: !action.is_starred });
 
   const toggleThisWeek = async (action) => {
     try {

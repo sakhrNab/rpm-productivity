@@ -29,21 +29,29 @@ function MyDayPage() {
     }
   };
 
+  // Optimistic: flip the field locally right away, then persist; revert on error.
+  const patchAction = (id, patch) =>
+    setActions(prev => prev.map(a => (a.id === id ? { ...a, ...patch } : a)));
+
   const toggleComplete = async (action) => {
+    const next = !action.is_completed;
+    patchAction(action.id, { is_completed: next });
     try {
-      await api.updateAction(action.id, { is_completed: !action.is_completed });
-      await loadActions();
+      await api.updateAction(action.id, { is_completed: next });
     } catch (error) {
       console.error('Failed to update action:', error);
+      patchAction(action.id, { is_completed: !next });
     }
   };
 
   const toggleStar = async (action) => {
+    const next = !action.is_starred;
+    patchAction(action.id, { is_starred: next });
     try {
-      await api.updateAction(action.id, { is_starred: !action.is_starred });
-      await loadActions();
+      await api.updateAction(action.id, { is_starred: next });
     } catch (error) {
       console.error('Failed to update action:', error);
+      patchAction(action.id, { is_starred: !next });
     }
   };
 
@@ -92,7 +100,7 @@ function MyDayPage() {
       <div className="actions-list" style={{ maxWidth: '800px' }}>
         <div className="actions-header">
           <h3>Today's Actions</h3>
-          <span style={{ color: 'var(--text-muted)' }}>{actions.length} actions</span>
+          <span className="list-count">{actions.length} actions</span>
         </div>
 
         {actions.length === 0 ? (

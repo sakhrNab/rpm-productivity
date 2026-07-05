@@ -52,11 +52,7 @@ function PeoplePage() {
         </button>
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-        gap: '16px'
-      }}>
+      <div className="people-grid">
         {persons.length === 0 ? (
           <div className="empty-state" style={{ gridColumn: '1 / -1' }}>
             <User size={48} />
@@ -67,27 +63,15 @@ function PeoplePage() {
           </div>
         ) : (
           persons.map(person => (
-            <div key={person.id} className={`card ${openMenuId === person.id ? 'menu-open' : ''}`} style={{ cursor: 'default' }}>
+            <div key={person.id} className={`card ${openMenuId === person.id ? 'menu-open' : ''}`}>
               <div className="card-body">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                  <div style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: '50%',
-                    background: 'var(--accent-pink)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '1.25rem',
-                    fontWeight: 600
-                  }}>
+                <div className="person-header">
+                  <div className="person-avatar">
                     {person.name.charAt(0).toUpperCase()}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: '1rem', marginBottom: '2px' }}>{person.name}</h3>
-                    {person.notes && (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{person.notes}</p>
-                    )}
+                  <div className="person-info">
+                    <h3 className="person-name">{person.name}</h3>
+                    {person.notes && <p className="person-note">{person.notes}</p>}
                   </div>
                   <div
                     className="dropdown"
@@ -120,33 +104,15 @@ function PeoplePage() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div className="person-contacts">
                   {person.email && (
-                    <a
-                      href={`mailto:${person.email}`}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.85rem'
-                      }}
-                    >
+                    <a href={`mailto:${person.email}`} className="person-contact">
                       <Mail size={14} />
                       {person.email}
                     </a>
                   )}
                   {person.phone && (
-                    <a
-                      href={`tel:${person.phone}`}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.85rem'
-                      }}
-                    >
+                    <a href={`tel:${person.phone}`} className="person-contact">
                       <Phone size={14} />
                       {person.phone}
                     </a>

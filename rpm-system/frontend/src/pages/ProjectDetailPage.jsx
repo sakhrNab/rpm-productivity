@@ -96,33 +96,38 @@ function ProjectDetailPage() {
     }
   };
 
-  const toggleActionComplete = async (action) => {
+  // Optimistic helpers: update the item in local state immediately (an action
+  // can live both in project.actions and inside a block's actions), persist in
+  // the background, and reload to resync if the request fails.
+  const patchActionEverywhere = (id, patch) =>
+    setProject(prev => {
+      if (!prev) return prev;
+      const upd = a => (a.id === id ? { ...a, ...patch } : a);
+      return {
+        ...prev,
+        actions: (prev.actions || []).map(upd),
+        rpm_blocks: (prev.rpm_blocks || []).map(b => ({ ...b, actions: (b.actions || []).map(upd) })),
+      };
+    });
+
+  const optimisticAction = async (action, patch) => {
+    patchActionEverywhere(action.id, patch);
     try {
-      await api.updateAction(action.id, { is_completed: !action.is_completed });
-      await loadProject();
+      await api.updateAction(action.id, patch);
     } catch (error) {
       console.error('Failed to update action:', error);
+      await loadProject();
     }
   };
 
-  const toggleActionStar = async (action) => {
-    try {
-      const newStarredValue = !(action.is_starred === true);
-      await api.updateAction(action.id, { is_starred: newStarredValue });
-      await loadProject();
-    } catch (error) {
-      console.error('Failed to update action:', error);
-    }
-  };
+  const toggleActionComplete = (action) =>
+    optimisticAction(action, { is_completed: !action.is_completed });
 
-  const toggleThisWeek = async (action) => {
-    try {
-      await api.updateAction(action.id, { is_this_week: !action.is_this_week });
-      await loadProject();
-    } catch (error) {
-      console.error('Failed to update action:', error);
-    }
-  };
+  const toggleActionStar = (action) =>
+    optimisticAction(action, { is_starred: !(action.is_starred === true) });
+
+  const toggleThisWeek = (action) =>
+    optimisticAction(action, { is_this_week: !action.is_this_week });
 
   const handleEditAction = (action) => {
     setEditingAction(action);
@@ -358,12 +363,17 @@ function ProjectDetailPage() {
     setDragOverBlock(null);
   };
 
+  const patchListItem = (listKey, id, patch) =>
+    setProject(prev => (prev ? { ...prev, [listKey]: (prev[listKey] || []).map(x => (x.id === id ? { ...x, ...patch } : x)) } : prev));
+
   const toggleKeyResultStar = async (keyResult) => {
+    const next = !keyResult.is_starred;
+    patchListItem('key_results', keyResult.id, { is_starred: next });
     try {
-      await api.updateKeyResult(keyResult.id, { is_starred: !keyResult.is_starred });
-      await loadProject();
+      await api.updateKeyResult(keyResult.id, { is_starred: next });
     } catch (error) {
       console.error('Failed to update key result:', error);
+      await loadProject();
     }
   };
 
@@ -386,11 +396,13 @@ function ProjectDetailPage() {
   };
 
   const toggleCaptureItemStar = async (captureItem) => {
+    const next = !captureItem.is_starred;
+    patchListItem('capture_items', captureItem.id, { is_starred: next });
     try {
-      await api.updateCaptureItem(captureItem.id, { is_starred: !captureItem.is_starred });
-      await loadProject();
+      await api.updateCaptureItem(captureItem.id, { is_starred: next });
     } catch (error) {
       console.error('Failed to update capture item:', error);
+      await loadProject();
     }
   };
 
