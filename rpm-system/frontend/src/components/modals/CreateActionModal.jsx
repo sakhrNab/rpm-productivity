@@ -21,6 +21,7 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [showPersonDropdown, setShowPersonDropdown] = useState(false);
+  const [createLeverage, setCreateLeverage] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -29,24 +30,29 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
 
     setLoading(true);
     try {
-      if (initialData.id) {
-        // Update existing action
-        await api.updateAction(initialData.id, {
-          ...formData,
-          category_id: formData.category_id || null,
-          project_id: formData.project_id || null,
-          block_id: formData.block_id || null,
-          leverage_person_id: formData.leverage_person_id || null,
-        });
-      } else {
-        // Create new action
-        await api.createAction({
-          ...formData,
-          category_id: formData.category_id || null,
-          project_id: formData.project_id || null,
-          block_id: formData.block_id || null,
-          leverage_person_id: formData.leverage_person_id || null,
-        });
+      const payload = {
+        ...formData,
+        category_id: formData.category_id || null,
+        project_id: formData.project_id || null,
+        block_id: formData.block_id || null,
+        leverage_person_id: formData.leverage_person_id || null,
+      };
+      const saved = initialData.id
+        ? await api.updateAction(initialData.id, payload)
+        : await api.createAction(payload);
+
+      // Optionally create an accountability request for the assigned person
+      const actionId = saved?.id || initialData.id;
+      if (createLeverage && formData.leverage_person_id && actionId) {
+        try {
+          await api.createLeverageRequest({
+            action_id: actionId,
+            person_id: formData.leverage_person_id,
+            message: formData.notes || '',
+          });
+        } catch (err) {
+          console.error('Failed to create leverage request:', err);
+        }
       }
       onSuccess();
     } catch (error) {
@@ -277,7 +283,12 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
                 color: 'var(--text-muted)',
                 fontSize: '0.85rem'
               }}>
-                <input type="checkbox" />
+                <input
+                  type="checkbox"
+                  checked={createLeverage}
+                  onChange={e => setCreateLeverage(e.target.checked)}
+                  disabled={!formData.leverage_person_id}
+                />
                 Create Leverage Request
               </label>
             </div>

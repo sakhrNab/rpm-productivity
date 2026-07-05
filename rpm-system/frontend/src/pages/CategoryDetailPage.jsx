@@ -1,7 +1,7 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { 
-  ChevronLeft, Image, Star, MoreVertical, Plus, Clock, 
+import {
+  ChevronLeft, Image, Star, MoreVertical, Plus, Clock,
   FolderOpen, Calendar, Check, Hourglass, Edit, Copy, X, Trash2,
   Move, Download, ChevronUp, ChevronDown
 } from 'lucide-react';
@@ -9,6 +9,7 @@ import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import CreateBlockModal from '../components/modals/CreateBlockModal';
 import CreateProjectModal from '../components/modals/CreateProjectModal';
+import CreateCategoryModal from '../components/modals/CreateCategoryModal';
 
 function CategoryDetailPage() {
   const { id } = useParams();
@@ -34,6 +35,8 @@ function CategoryDetailPage() {
   const [openBlockActionMenu, setOpenBlockActionMenu] = useState(null); // { actionId, top, right } or null
   const [expandedCompleted, setExpandedCompleted] = useState({});
   const [expandedCancelled, setExpandedCancelled] = useState({});
+  const [showEditCategory, setShowEditCategory] = useState(false);
+  const coverInputRef = useRef(null);
 
   useEffect(() => {
     loadCategory();
@@ -61,15 +64,6 @@ function CategoryDetailPage() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openActionMenu, openBlockMenu, openBlockActionMenu]);
-
-  // Debug: Log modal state changes
-  useEffect(() => {
-    console.log('Action modal state:', showActionModal);
-  }, [showActionModal]);
-
-  useEffect(() => {
-    console.log('Block modal state:', showBlockModal);
-  }, [showBlockModal]);
 
   const applyFilter = (actionsList, filter) => {
     let filtered = [...actionsList];
@@ -128,6 +122,53 @@ function CategoryDetailPage() {
     setShowProjectModal(false);
     loadCategory();
     if (refreshData) refreshData();
+  };
+
+  const handleCategorySuccess = () => {
+    setShowEditCategory(false);
+    loadCategory();
+    if (refreshData) refreshData();
+  };
+
+  const handleCoverUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const { url } = await api.uploadImage(file);
+      if (!url) throw new Error('Upload failed');
+      await api.updateCategory(id, { cover_image: url });
+      await loadCategory();
+      if (refreshData) refreshData();
+    } catch (error) {
+      console.error('Failed to upload cover image:', error);
+      alert('Failed to upload cover image. Please try again.');
+    }
+  };
+
+  const handleMoveBlock = (block) => {
+    setOpenBlockMenu(null);
+    // Reuse the block editor — it has category/project pickers to move the block
+    setEditingBlock(block);
+    setShowBlockModal(true);
+  };
+
+  const handleExportBlock = (block) => {
+    setOpenBlockMenu(null);
+    try {
+      const data = JSON.stringify(block, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `block-${(block.result_title || block.id).toString().replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export block:', error);
+    }
   };
 
   const handleFieldEdit = (field, value) => {
@@ -342,18 +383,31 @@ function CategoryDetailPage() {
         />
         <div className="category-header-overlay" />
         <div className="category-header-content">
-          <button 
-            className="btn btn-secondary"
-            style={{ 
-              position: 'absolute', 
-              top: '16px', 
-              right: '16px',
-              fontSize: '0.85rem'
-            }}
-          >
-            <Image size={14} />
-            Change Cover Image
-          </button>
+          <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', gap: '8px' }}>
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: '0.85rem' }}
+              onClick={() => setShowEditCategory(true)}
+            >
+              <Edit size={14} />
+              Edit
+            </button>
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: '0.85rem' }}
+              onClick={() => coverInputRef.current?.click()}
+            >
+              <Image size={14} />
+              Change Cover Image
+            </button>
+          </div>
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleCoverUpload}
+          />
 
           <div 
             style={{ 
@@ -616,9 +670,7 @@ function CategoryDetailPage() {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log('Action button clicked, current state:', showActionModal);
                     setShowActionModal(true);
-                    console.log('State set to true');
                   }}
                   style={{ 
                     cursor: 'pointer',
@@ -793,9 +845,7 @@ function CategoryDetailPage() {
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  console.log('Block button clicked, current state:', showBlockModal);
                   setShowBlockModal(true);
-                  console.log('State set to true');
                 }}
                 style={{ 
                   cursor: 'pointer',
@@ -889,16 +939,16 @@ function CategoryDetailPage() {
                                 <Copy size={14} />
                                 <span>Duplicate Block</span>
                               </div>
-                              <div 
+                              <div
                                 className="dropdown-item"
-                                onClick={() => {/* TODO: Implement move */}}
+                                onClick={() => handleMoveBlock(block)}
                               >
                                 <Move size={14} />
                                 <span>Move Block</span>
                               </div>
-                              <div 
+                              <div
                                 className="dropdown-item"
-                                onClick={() => {/* TODO: Implement export */}}
+                                onClick={() => handleExportBlock(block)}
                               >
                                 <Download size={14} />
                                 <span>Export Block</span>
@@ -1228,12 +1278,19 @@ function CategoryDetailPage() {
         />
       )}
       {showProjectModal && categories && (
-        <CreateProjectModal 
+        <CreateProjectModal
           onClose={() => setShowProjectModal(false)}
           onSuccess={handleProjectSuccess}
           categories={categories}
           initialData={{ category_id: id }}
           onCategoriesRefresh={refreshData}
+        />
+      )}
+      {showEditCategory && category && (
+        <CreateCategoryModal
+          initialData={category}
+          onClose={() => setShowEditCategory(false)}
+          onSuccess={handleCategorySuccess}
         />
       )}
     </div>

@@ -1,13 +1,14 @@
 import { useState, useContext } from 'react';
 import { AuthContext } from '../../App';
 
-function CreatePersonModal({ onClose, onSuccess }) {
+function CreatePersonModal({ onClose, onSuccess, initialData }) {
   const { api } = useContext(AuthContext);
+  const isEditing = Boolean(initialData?.id);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    notes: '',
+    name: initialData?.name || '',
+    email: initialData?.email || '',
+    phone: initialData?.phone || '',
+    notes: initialData?.notes || '',
   });
   const [loading, setLoading] = useState(false);
 
@@ -17,10 +18,11 @@ function CreatePersonModal({ onClose, onSuccess }) {
 
     setLoading(true);
     try {
-      await api.createPerson(formData);
+      if (isEditing) await api.updatePerson(initialData.id, formData);
+      else await api.createPerson(formData);
       onSuccess();
     } catch (error) {
-      console.error('Failed to create person:', error);
+      console.error('Failed to save person:', error);
     } finally {
       setLoading(false);
     }
@@ -30,7 +32,7 @@ function CreatePersonModal({ onClose, onSuccess }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3 className="modal-title">Add New Person</h3>
+          <h3 className="modal-title">{isEditing ? 'Edit Person' : 'Add New Person'}</h3>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -90,7 +92,7 @@ function CreatePersonModal({ onClose, onSuccess }) {
               className="btn btn-primary" 
               disabled={loading || !formData.name.trim()}
             >
-              {loading ? 'Adding...' : 'Add Person'}
+              {loading ? 'Saving...' : (isEditing ? 'Save changes' : 'Add Person')}
             </button>
           </div>
         </form>

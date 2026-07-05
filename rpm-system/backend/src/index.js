@@ -421,14 +421,26 @@ app.delete('/api/projects/:id', authenticateToken, async (req, res) => {
 // ACTIONS
 app.get('/api/actions', authenticateToken, async (req, res) => {
   try {
-    const { category_id, project_id, block_id, starred, this_week, completed } = req.query;
+    const { category_id, project_id, block_id, starred, this_week, completed, start_date, end_date } = req.query;
     let query = 'SELECT * FROM v_actions_full WHERE user_id = $1';
     const params = [req.userId];
     if (category_id) { params.push(category_id); query += ` AND category_id = $${params.length}`; }
     if (project_id) { params.push(project_id); query += ` AND project_id = $${params.length}`; }
     if (block_id) { params.push(block_id); query += ` AND block_id = $${params.length}`; }
     if (starred === 'true') query += ' AND is_starred = true';
-    if (this_week === 'true') query += ' AND is_this_week = true';
+    // Unified "this week" / date-range filter: an action counts as this week if
+    // it is flagged is_this_week OR scheduled within the given date range.
+    if (start_date && end_date) {
+      params.push(start_date); const s = params.length;
+      params.push(end_date); const e = params.length;
+      if (this_week === 'true') {
+        query += ` AND (is_this_week = true OR (scheduled_date >= $${s} AND scheduled_date <= $${e}))`;
+      } else {
+        query += ` AND scheduled_date >= $${s} AND scheduled_date <= $${e}`;
+      }
+    } else if (this_week === 'true') {
+      query += ' AND is_this_week = true';
+    }
     if (completed === 'true') query += ' AND is_completed = true';
     else if (completed === 'false') query += ' AND is_completed = false';
     query += ' ORDER BY sort_order';
@@ -532,19 +544,24 @@ app.post('/api/blocks', authenticateToken, async (req, res) => {
 
 app.put('/api/blocks/:id', authenticateToken, async (req, res) => {
   try {
-    const { result_title, result_description, purpose, target_date, is_completed, is_in_progress } = req.body;
+    const { category_id, project_id, result_title, result_description, purpose, target_date, is_completed, is_in_progress, action_ids } = req.body;
     const result = await pool.query(
-      `UPDATE rpm_blocks SET result_title = COALESCE($1, result_title), result_description = COALESCE($2, result_description), purpose = COALESCE($3, purpose), target_date = COALESCE($4, target_date), is_completed = COALESCE($5, is_completed), is_in_progress = COALESCE($6, is_in_progress) WHERE id = $7 AND user_id = $8 RETURNING *`,
-      [result_title, result_description, purpose, target_date, is_completed, is_in_progress, req.params.id, req.userId]
+      `UPDATE rpm_blocks SET category_id = COALESCE($1, category_id), project_id = COALESCE($2, project_id), result_title = COALESCE($3, result_title), result_description = COALESCE($4, result_description), purpose = COALESCE($5, purpose), target_date = COALESCE($6, target_date), is_completed = COALESCE($7, is_completed), is_in_progress = COALESCE($8, is_in_progress) WHERE id = $9 AND user_id = $10 RETURNING *`,
+      [category_id, project_id, result_title, result_description, purpose, target_date, is_completed, is_in_progress, req.params.id, req.userId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Block not found' });
+    // Re-sync which actions belong to this block when action_ids is provided.
+    if (Array.isArray(action_ids)) {
+      await pool.query('UPDATE actions SET block_id = NULL WHERE block_id = $1 AND user_id = $2', [req.params.id, req.userId]);
+      if (action_ids.length > 0) await pool.query('UPDATE actions SET block_id = $1 WHERE id = ANY($2) AND user_id = $3', [req.params.id, action_ids, req.userId]);
+    }
     res.json(result.rows[0]);
   } catch (error) { res.status(500).json({ error: 'Failed to update block' }); }
 });
 
 app.delete('/api/blocks/:id', authenticateToken, async (req, res) => {
   try {
-    await pool.query('UPDATE actions SET block_id = NULL WHERE block_id = $1', [req.params.id]);
+    await pool.query('UPDATE actions SET block_id = NULL WHERE block_id = $1 AND user_id = $2', [req.params.id, req.userId]);
     await pool.query('DELETE FROM rpm_blocks WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Failed to delete block' }); }
@@ -649,6 +666,113 @@ app.delete('/api/capture-items/:id', authenticateToken, async (req, res) => {
   catch (error) { res.status(500).json({ error: 'Failed to delete capture item' }); }
 });
 
+// INSPIRATION ITEMS (scoped via parent project ownership)
+async function userOwnsProject(projectId, userId) {
+  const r = await pool.query('SELECT id FROM projects WHERE id = $1 AND user_id = $2', [projectId, userId]);
+  return r.rows.length > 0;
+}
+
+app.get('/api/inspiration-items', authenticateToken, async (req, res) => {
+  try {
+    const { project_id } = req.query;
+    if (!project_id) return res.status(400).json({ error: 'project_id is required' });
+    if (!(await userOwnsProject(project_id, req.userId))) return res.status(404).json({ error: 'Project not found' });
+    const result = await pool.query('SELECT * FROM inspiration_items WHERE project_id = $1 ORDER BY sort_order', [project_id]);
+    res.json(result.rows);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch inspiration items' }); }
+});
+
+app.post('/api/inspiration-items', authenticateToken, async (req, res) => {
+  try {
+    const { project_id, title, description, image_url, link_url } = req.body;
+    if (!(await userOwnsProject(project_id, req.userId))) return res.status(400).json({ error: 'Invalid project' });
+    const result = await pool.query(
+      `INSERT INTO inspiration_items (project_id, title, description, image_url, link_url, sort_order) VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM inspiration_items WHERE project_id = $1)) RETURNING *`,
+      [project_id, title || '', description || '', image_url || '', link_url || '']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) { res.status(500).json({ error: 'Failed to create inspiration item' }); }
+});
+
+app.put('/api/inspiration-items/:id', authenticateToken, async (req, res) => {
+  try {
+    const { title, description, image_url, link_url } = req.body;
+    const result = await pool.query(
+      `UPDATE inspiration_items ii SET title = COALESCE($1, ii.title), description = COALESCE($2, ii.description), image_url = COALESCE($3, ii.image_url), link_url = COALESCE($4, ii.link_url)
+       FROM projects p WHERE ii.id = $5 AND ii.project_id = p.id AND p.user_id = $6 RETURNING ii.*`,
+      [title, description, image_url, link_url, req.params.id, req.userId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Inspiration item not found' });
+    res.json(result.rows[0]);
+  } catch (error) { res.status(500).json({ error: 'Failed to update inspiration item' }); }
+});
+
+app.delete('/api/inspiration-items/:id', authenticateToken, async (req, res) => {
+  try {
+    const check = await pool.query('SELECT ii.id FROM inspiration_items ii JOIN projects p ON ii.project_id = p.id WHERE ii.id = $1 AND p.user_id = $2', [req.params.id, req.userId]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Inspiration item not found' });
+    await pool.query('DELETE FROM inspiration_items WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: 'Failed to delete inspiration item' }); }
+});
+
+// LEVERAGE REQUESTS (accountability: ask a person to help with an action)
+app.get('/api/leverage-requests', authenticateToken, async (req, res) => {
+  try {
+    const { action_id, person_id } = req.query;
+    let query = `SELECT lr.*, p.name AS person_name, a.title AS action_title
+                 FROM leverage_requests lr
+                 JOIN persons p ON lr.person_id = p.id
+                 LEFT JOIN actions a ON lr.action_id = a.id
+                 WHERE p.user_id = $1`;
+    const params = [req.userId];
+    if (action_id) { params.push(action_id); query += ` AND lr.action_id = $${params.length}`; }
+    if (person_id) { params.push(person_id); query += ` AND lr.person_id = $${params.length}`; }
+    query += ' ORDER BY lr.created_at DESC';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch leverage requests' }); }
+});
+
+app.post('/api/leverage-requests', authenticateToken, async (req, res) => {
+  try {
+    const { action_id, person_id, message, status } = req.body;
+    const personCheck = await pool.query('SELECT id FROM persons WHERE id = $1 AND user_id = $2', [person_id, req.userId]);
+    if (personCheck.rows.length === 0) return res.status(400).json({ error: 'Invalid person' });
+    if (action_id) {
+      const actionCheck = await pool.query('SELECT id FROM actions WHERE id = $1 AND user_id = $2', [action_id, req.userId]);
+      if (actionCheck.rows.length === 0) return res.status(400).json({ error: 'Invalid action' });
+    }
+    const result = await pool.query(
+      'INSERT INTO leverage_requests (action_id, person_id, message, status) VALUES ($1, $2, $3, $4) RETURNING *',
+      [action_id || null, person_id, message || '', status || 'pending']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) { res.status(500).json({ error: 'Failed to create leverage request' }); }
+});
+
+app.put('/api/leverage-requests/:id', authenticateToken, async (req, res) => {
+  try {
+    const { message, status } = req.body;
+    const result = await pool.query(
+      `UPDATE leverage_requests lr SET message = COALESCE($1, lr.message), status = COALESCE($2, lr.status)
+       FROM persons p WHERE lr.id = $3 AND lr.person_id = p.id AND p.user_id = $4 RETURNING lr.*`,
+      [message, status, req.params.id, req.userId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Leverage request not found' });
+    res.json(result.rows[0]);
+  } catch (error) { res.status(500).json({ error: 'Failed to update leverage request' }); }
+});
+
+app.delete('/api/leverage-requests/:id', authenticateToken, async (req, res) => {
+  try {
+    const check = await pool.query('SELECT lr.id FROM leverage_requests lr JOIN persons p ON lr.person_id = p.id WHERE lr.id = $1 AND p.user_id = $2', [req.params.id, req.userId]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Leverage request not found' });
+    await pool.query('DELETE FROM leverage_requests WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: 'Failed to delete leverage request' }); }
+});
+
 // PERSONS
 app.get('/api/persons', authenticateToken, async (req, res) => {
   try { const result = await pool.query('SELECT * FROM persons WHERE user_id = $1 ORDER BY name', [req.userId]); res.json(result.rows); }
@@ -681,6 +805,7 @@ app.delete('/api/persons/:id', authenticateToken, async (req, res) => {
 app.get('/api/planner', authenticateToken, async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
+    if (!start_date || !end_date) return res.status(400).json({ error: 'start_date and end_date are required' });
     const result = await pool.query('SELECT * FROM v_actions_full WHERE user_id = $1 AND scheduled_date >= $2 AND scheduled_date <= $3 ORDER BY scheduled_date, scheduled_time', [req.userId, start_date, end_date]);
     res.json(result.rows);
   } catch (error) { res.status(500).json({ error: 'Failed to fetch planner data' }); }

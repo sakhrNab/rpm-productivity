@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, ChevronRight, Image, Plus, Star, MoreVertical, 
@@ -41,10 +41,49 @@ function ProjectDetailPage() {
   const [editingAction, setEditingAction] = useState(null);
   const [draggedBlock, setDraggedBlock] = useState(null);
   const [dragOverBlock, setDragOverBlock] = useState(null);
+  const coverInputRef = useRef(null);
 
   useEffect(() => {
     loadProject();
   }, [id]);
+
+  const handleCoverUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const { url } = await api.uploadImage(file);
+      if (!url) throw new Error('Upload failed');
+      await api.updateProject(id, { cover_image: url });
+      await loadProject();
+      if (refreshData) refreshData();
+    } catch (error) {
+      console.error('Failed to upload cover image:', error);
+      alert('Failed to upload cover image. Please try again.');
+    }
+  };
+
+  const handleAddInspiration = async () => {
+    const title = window.prompt('Inspiration title');
+    if (title === null) return;
+    const link_url = window.prompt('Link URL (optional)') || '';
+    try {
+      await api.createInspirationItem({ project_id: id, title: title.trim(), link_url });
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to add inspiration item:', error);
+    }
+  };
+
+  const handleDeleteInspiration = async (item) => {
+    if (!window.confirm('Delete this inspiration item?')) return;
+    try {
+      await api.deleteInspirationItem(item.id);
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to delete inspiration item:', error);
+    }
+  };
 
   const loadProject = async () => {
     try {
@@ -135,7 +174,6 @@ function ProjectDetailPage() {
   };
 
   const handleEditBlock = (block) => {
-    console.log('Edit block clicked:', block);
     setEditingBlock(block);
     setShowBlockModal(true);
     setOpenBlockMenu(null);
@@ -449,14 +487,22 @@ function ProjectDetailPage() {
               <Edit size={14} />
               Edit Project
             </button>
-            <button 
+            <button
               type="button"
               className="btn btn-secondary"
+              onClick={() => coverInputRef.current?.click()}
             >
               <Image size={14} />
               Change Cover Image
             </button>
           </div>
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleCoverUpload}
+          />
           
           {category && (
             <div style={{ 
@@ -815,6 +861,56 @@ function ProjectDetailPage() {
         </div>
       </div>
 
+      {/* Inspiration Board */}
+      <div className="project-section" style={{ marginTop: '24px' }}>
+        <div className="project-section-header">
+          <span className="project-section-label">Inspiration Board</span>
+          <button
+            type="button"
+            className="btn btn-icon btn-ghost"
+            style={{ marginLeft: 'auto' }}
+            onClick={handleAddInspiration}
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+        {(!project.inspiration_items || project.inspiration_items.length === 0) ? (
+          <div className="empty-state" style={{ padding: '16px', color: 'var(--text-muted)' }}>
+            No inspiration yet. Add links, quotes, or references that fuel this project.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '12px' }}>
+            {project.inspiration_items.map(item => (
+              <div key={item.id} className="card" style={{ padding: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: item.link_url ? '4px' : 0 }}>
+                    {item.title || 'Untitled'}
+                  </div>
+                  {item.link_url && (
+                    <a
+                      href={item.link_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', wordBreak: 'break-all' }}
+                    >
+                      {item.link_url}
+                    </a>
+                  )}
+                </div>
+                <button
+                  className="btn btn-icon btn-ghost"
+                  aria-label="Delete inspiration item"
+                  onClick={() => handleDeleteInspiration(item)}
+                  style={{ color: 'var(--accent-red)' }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* RPM Blocks Section */}
       <div className="project-section" style={{ marginTop: '24px' }}>
         <div className="project-section-header">
@@ -1142,14 +1238,12 @@ function ProjectDetailPage() {
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log('Add Action clicked for block:', block.id);
-                        setEditingAction({ 
-                          block_id: block.id, 
-                          category_id: block.category_id || project.category_id, 
-                          project_id: project.id 
+                        setEditingAction({
+                          block_id: block.id,
+                          category_id: block.category_id || project.category_id,
+                          project_id: project.id
                         });
                         setShowActionModal(true);
-                        console.log('Action modal should open');
                       }}
                       style={{ 
                         marginTop: '8px',

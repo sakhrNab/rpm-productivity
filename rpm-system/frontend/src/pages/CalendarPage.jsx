@@ -13,7 +13,14 @@ function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [actions, setActions] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
+  const [editingAction, setEditingAction] = useState(null);
   const [showActionModal, setShowActionModal] = useState(false);
+
+  const closeModal = () => {
+    setShowActionModal(false);
+    setSelectedDate(null);
+    setEditingAction(null);
+  };
 
   useEffect(() => {
     loadActions();
@@ -104,6 +111,7 @@ function CalendarPage() {
               <div
                 key={day.toISOString()}
                 onClick={() => {
+                  setEditingAction(null);
                   setSelectedDate(day);
                   setShowActionModal(true);
                 }}
@@ -125,6 +133,13 @@ function CalendarPage() {
                 {dayActions.slice(0, 3).map(action => (
                   <div
                     key={action.id}
+                    title="Click to edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedDate(null);
+                      setEditingAction(action);
+                      setShowActionModal(true);
+                    }}
                     style={{
                       fontSize: '0.75rem',
                       padding: '2px 4px',
@@ -133,7 +148,10 @@ function CalendarPage() {
                       marginBottom: '2px',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
-                      textOverflow: 'ellipsis'
+                      textOverflow: 'ellipsis',
+                      cursor: 'pointer',
+                      textDecoration: action.is_completed ? 'line-through' : 'none',
+                      opacity: action.is_completed ? 0.7 : 1
                     }}
                   >
                     {action.title}
@@ -150,19 +168,21 @@ function CalendarPage() {
         </div>
       </div>
 
-      {/* Create Action Modal */}
+      {/* Create / Edit Action Modal */}
       {showActionModal && categories && (
-        <CreateActionModal 
-          onClose={() => setShowActionModal(false)}
+        <CreateActionModal
+          onClose={closeModal}
           onSuccess={() => {
-            setShowActionModal(false);
+            closeModal();
             loadActions();
             if (refreshData) refreshData();
           }}
           categories={categories}
-          initialData={selectedDate ? { 
-            scheduled_date: format(selectedDate, 'yyyy-MM-dd')
-          } : {}}
+          initialData={
+            editingAction
+              ? editingAction
+              : (selectedDate ? { scheduled_date: format(selectedDate, 'yyyy-MM-dd') } : {})
+          }
         />
       )}
     </div>

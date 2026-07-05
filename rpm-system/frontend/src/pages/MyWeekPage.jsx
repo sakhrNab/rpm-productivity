@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import { Plus, Star, Check, Clock, FolderOpen } from 'lucide-react';
+import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 
@@ -9,6 +10,8 @@ function MyWeekPage() {
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showActionModal, setShowActionModal] = useState(false);
+  const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+  const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
   useEffect(() => {
     loadActions();
@@ -16,7 +19,8 @@ function MyWeekPage() {
 
   const loadActions = async () => {
     try {
-      const data = await api.getActions({ this_week: 'true' });
+      // Unified "this week": flagged is_this_week OR scheduled within the current week
+      const data = await api.getActions({ this_week: 'true', start_date: weekStart, end_date: weekEnd });
       setActions(data);
     } catch (error) {
       console.error('Failed to load actions:', error);
@@ -28,6 +32,15 @@ function MyWeekPage() {
   const toggleComplete = async (action) => {
     try {
       await api.updateAction(action.id, { is_completed: !action.is_completed });
+      await loadActions();
+    } catch (error) {
+      console.error('Failed to update action:', error);
+    }
+  };
+
+  const toggleStar = async (action) => {
+    try {
+      await api.updateAction(action.id, { is_starred: !action.is_starred });
       await loadActions();
     } catch (error) {
       console.error('Failed to update action:', error);
@@ -80,7 +93,12 @@ function MyWeekPage() {
                   <span><Clock size={12} /> {action.duration_hours}h {action.duration_minutes}m</span>
                 </div>
               </div>
-              <button className="btn btn-icon btn-ghost">
+              <button
+                className="btn btn-icon btn-ghost"
+                aria-label="Toggle star"
+                onClick={() => toggleStar(action)}
+                style={{ color: action.is_starred ? 'var(--accent-orange)' : 'var(--text-muted)' }}
+              >
                 <Star size={14} fill={action.is_starred ? 'currentColor' : 'none'} />
               </button>
             </div>

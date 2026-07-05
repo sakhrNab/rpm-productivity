@@ -14,7 +14,7 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
     target_date: initialData.target_date || '',
   });
   const [actions, setActions] = useState([]);
-  const [selectedActions, setSelectedActions] = useState([]);
+  const [selectedActions, setSelectedActions] = useState((initialData.actions || []).map(a => a.id));
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
@@ -30,8 +30,8 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
           params.category_id = formData.category_id;
         }
         const data = await api.getActions(params);
-        // Filter actions that don't have a block_id
-        setActions(data.filter(a => !a.block_id));
+        // Show unassigned actions plus any already belonging to this block (when editing)
+        setActions(data.filter(a => !a.block_id || a.block_id === initialData.id));
       } catch (error) {
         console.error('Failed to load actions:', error);
       }
@@ -46,11 +46,12 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
     setLoading(true);
     try {
       if (initialData.id) {
-        // Update existing block
+        // Update existing block (also re-sync which actions belong to it)
         await api.updateBlock(initialData.id, {
           ...formData,
           category_id: formData.category_id || null,
           project_id: formData.project_id || null,
+          action_ids: selectedActions,
         });
       } else {
         // Create new block

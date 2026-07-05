@@ -36,6 +36,15 @@ function MyDayPage() {
     }
   };
 
+  const toggleStar = async (action) => {
+    try {
+      await api.updateAction(action.id, { is_starred: !action.is_starred });
+      await loadActions();
+    } catch (error) {
+      console.error('Failed to update action:', error);
+    }
+  };
+
   if (loading) {
     return <div className="loading"><div className="spinner"></div></div>;
   }
@@ -86,7 +95,12 @@ function MyDayPage() {
                   {action.scheduled_time && <span>{action.scheduled_time}</span>}
                 </div>
               </div>
-              <button className="btn btn-icon btn-ghost">
+              <button
+                className="btn btn-icon btn-ghost"
+                aria-label="Toggle star"
+                onClick={() => toggleStar(action)}
+                style={{ color: action.is_starred ? 'var(--accent-orange)' : 'var(--text-muted)' }}
+              >
                 <Star size={14} fill={action.is_starred ? 'currentColor' : 'none'} />
               </button>
             </div>

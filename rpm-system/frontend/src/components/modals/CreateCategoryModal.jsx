@@ -30,13 +30,14 @@ const ICONS = [
   { id: 'gift', component: Gift },
 ];
 
-function CreateCategoryModal({ onClose, onSuccess }) {
+function CreateCategoryModal({ onClose, onSuccess, initialData }) {
   const { api } = useContext(AuthContext);
+  const isEditing = Boolean(initialData?.id);
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    color: '#FF69B4',
-    icon: 'target',
+    name: initialData?.name || '',
+    description: initialData?.description || '',
+    color: initialData?.color || '#FF69B4',
+    icon: initialData?.icon || 'target',
   });
   const [loading, setLoading] = useState(false);
 
@@ -46,10 +47,12 @@ function CreateCategoryModal({ onClose, onSuccess }) {
 
     setLoading(true);
     try {
-      const newCategory = await api.createCategory(formData);
-      onSuccess(newCategory);
+      const saved = isEditing
+        ? await api.updateCategory(initialData.id, formData)
+        : await api.createCategory(formData);
+      onSuccess(saved);
     } catch (error) {
-      console.error('Failed to create category:', error);
+      console.error('Failed to save category:', error);
     } finally {
       setLoading(false);
     }
@@ -59,7 +62,7 @@ function CreateCategoryModal({ onClose, onSuccess }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3 className="modal-title">Create a new category</h3>
+          <h3 className="modal-title">{isEditing ? 'Edit category' : 'Create a new category'}</h3>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -126,7 +129,7 @@ function CreateCategoryModal({ onClose, onSuccess }) {
               className="btn btn-primary" 
               disabled={loading || !formData.name.trim()}
             >
-              {loading ? 'Creating...' : 'Create category'}
+              {loading ? 'Saving...' : (isEditing ? 'Save changes' : 'Create category')}
             </button>
           </div>
         </form>

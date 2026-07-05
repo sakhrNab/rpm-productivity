@@ -1,9 +1,10 @@
 import { useContext, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
+import CreateCategoryModal from '../components/modals/CreateCategoryModal';
 import {
   Target, Heart, DollarSign, Users, Activity, Home, Zap, Inbox, Star,
-  MoreVertical, Trash2
+  MoreVertical, Trash2, Pencil
 } from 'lucide-react';
 
 const iconMap = {
@@ -22,6 +23,7 @@ function CategoriesPage() {
   const { categories, refreshData, api } = useContext(AppContext);
   const navigate = useNavigate();
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [editingCategory, setEditingCategory] = useState(null);
   const menuRef = useRef(null);
 
   // Close the open menu when clicking anywhere outside of it
@@ -36,6 +38,11 @@ function CategoriesPage() {
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openMenuId]);
+
+  const handleEdit = (category) => {
+    setOpenMenuId(null);
+    setEditingCategory(category);
+  };
 
   const handleDelete = async (category) => {
     setOpenMenuId(null);
@@ -98,6 +105,13 @@ function CategoriesPage() {
                   >
                     <div
                       className="dropdown-item"
+                      onClick={() => handleEdit(category)}
+                    >
+                      <Pencil size={14} />
+                      Edit category
+                    </div>
+                    <div
+                      className="dropdown-item"
                       style={{ color: 'var(--accent-red)' }}
                       onClick={() => handleDelete(category)}
                     >
@@ -122,6 +136,17 @@ function CategoriesPage() {
           );
         })}
       </div>
+
+      {editingCategory && (
+        <CreateCategoryModal
+          initialData={editingCategory}
+          onClose={() => setEditingCategory(null)}
+          onSuccess={() => {
+            setEditingCategory(null);
+            refreshData();
+          }}
+        />
+      )}
     </div>
   );
 }

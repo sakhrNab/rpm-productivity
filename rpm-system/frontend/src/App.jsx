@@ -202,6 +202,46 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     }).then(r => r.json()),
     deletePerson: (id) => authFetch(`${API_BASE}/persons/${id}`, { method: 'DELETE' }).then(r => r.json()),
 
+    // Inspiration Items
+    getInspirationItems: (projectId) => authFetch(`${API_BASE}/inspiration-items?project_id=${projectId}`).then(r => r.json()),
+    createInspirationItem: (data) => authFetch(`${API_BASE}/inspiration-items`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }).then(r => r.json()),
+    updateInspirationItem: (id, data) => authFetch(`${API_BASE}/inspiration-items/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    }).then(r => r.json()),
+    deleteInspirationItem: (id) => authFetch(`${API_BASE}/inspiration-items/${id}`, { method: 'DELETE' }).then(r => r.json()),
+
+    // Leverage Requests
+    getLeverageRequests: (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      return authFetch(`${API_BASE}/leverage-requests${query ? `?${query}` : ''}`).then(r => r.json());
+    },
+    createLeverageRequest: (data) => authFetch(`${API_BASE}/leverage-requests`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }).then(r => r.json()),
+    updateLeverageRequest: (id, data) => authFetch(`${API_BASE}/leverage-requests/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    }).then(r => r.json()),
+    deleteLeverageRequest: (id) => authFetch(`${API_BASE}/leverage-requests/${id}`, { method: 'DELETE' }).then(r => r.json()),
+
+    // Upload (multipart — do NOT use authFetch, which forces JSON content-type)
+    uploadImage: async (file) => {
+      const token = getToken();
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await fetch(`${API_BASE}/upload`, {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData
+      });
+      return res.json();
+    },
+
     // Planner
     getPlanner: (startDate, endDate) => authFetch(`${API_BASE}/planner?start_date=${startDate}&end_date=${endDate}`).then(r => r.json()),
   };
