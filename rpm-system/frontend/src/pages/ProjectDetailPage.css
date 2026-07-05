@@ -433,3 +433,45 @@
 }
 .rpm-block-pct { font-weight: 700; color: var(--accent-pink); }
 .rpm-block-progress.is-done .rpm-block-pct { color: var(--accent-green); }
+
+/* Ultimate Result / Purpose hero panels */
+.pd-hero {
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--border-primary);
+}
+.pd-hero-result {
+  background: radial-gradient(130% 130% at 0% 0%, rgba(255, 105, 180, 0.12), transparent 62%), var(--bg-card);
+}
+.pd-hero-purpose {
+  background: radial-gradient(130% 130% at 100% 0%, rgba(78, 205, 196, 0.12), transparent 62%), var(--bg-card);
+}
+.pd-hero .pd-field-text {
+  font-size: 1.08rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+.pd-hero-purpose .pd-section-label-pink { color: var(--accent-cyan); }
+.pd-hero-purpose .pd-section-icon-pink { background: var(--accent-cyan); }
+
+/* Capture list — light cleanup (keep it a fast inbox, don't gold-plate) */
+.capture-item {
+  border-bottom: none;
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  transition: background var(--transition-fast);
+}
+.capture-item:hover { background: rgba(255, 255, 255, 0.03); }
+.capture-number {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  background: rgba(78, 205, 196, 0.12);
+  flex-shrink: 0;
+}

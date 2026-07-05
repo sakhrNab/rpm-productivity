@@ -603,7 +603,7 @@ function ProjectDetailPage() {
       {/* Project Sections */}
       <div className="project-sections">
         {/* Ultimate Result */}
-        <div className="project-section">
+        <div className="project-section pd-hero pd-hero-result">
           <div className="project-section-header">
             <div className="project-section-icon pd-section-icon-pink">
               🎯
@@ -634,7 +634,7 @@ function ProjectDetailPage() {
         </div>
 
         {/* Ultimate Purpose */}
-        <div className="project-section">
+        <div className="project-section pd-hero pd-hero-purpose">
           <div className="project-section-header">
             <div className="project-section-icon pd-section-icon-pink">
               💡
