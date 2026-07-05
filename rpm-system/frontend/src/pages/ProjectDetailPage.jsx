@@ -692,70 +692,71 @@ function ProjectDetailPage() {
           {project.key_results?.length === 0 ? (
             <p className="pd-text-muted">No key results yet</p>
           ) : (
-            project.key_results?.map((kr, idx) => (
-              <div
-                key={kr.id}
-                className="key-result-item pd-clickable"
-                onClick={() => handleEditKeyResult(kr)}
-                title="Open key result"
-              >
-                <div className="key-result-number">{idx + 1}</div>
-                <span className="key-result-title">{kr.title}</span>
-                {kr.target_date && (
-                  <span className="key-result-date">{fmtDate(kr.target_date)}</span>
-                )}
-                <div className="key-result-actions pd-item-actions">
-                  <button 
-                    type="button"
-                    className="btn btn-icon btn-ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleKeyResultStar(kr);
-                    }}
-                    style={{ 
-                      color: kr.is_starred ? 'var(--accent-orange)' : 'var(--text-muted)',
-                      padding: '2px'
-                    }}
+            <div className="kr-list">
+              {project.key_results?.map((kr, idx) => {
+                const target = Number(kr.target_value);
+                const current = Number(kr.current_value) || 0;
+                const hasTarget = kr.target_value !== null && kr.target_value !== undefined && kr.target_value !== '' && !Number.isNaN(target) && target > 0;
+                const pct = hasTarget ? Math.max(0, Math.min(100, Math.round((current / target) * 100))) : null;
+                const done = Boolean(kr.is_completed) || (hasTarget && pct >= 100);
+                return (
+                  <div
+                    key={kr.id}
+                    className={`kr-card pd-clickable ${done ? 'kr-card-done' : ''}`}
+                    onClick={() => handleEditKeyResult(kr)}
+                    title="Open key result"
                   >
-                    <Star size={12} fill={kr.is_starred ? 'currentColor' : 'none'} />
-                  </button>
-                  <div className="pd-relative">
-                    <button
-                      type="button"
-                      className="btn btn-icon btn-ghost pd-icon-pad"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenKeyResultMenu(openKeyResultMenu === kr.id ? null : kr.id);
-                      }}
-                    >
-                      <MoreVertical size={12} />
-                    </button>
-                    
-                    {openKeyResultMenu === kr.id && (
-                      <div
-                        className="dropdown-menu pd-dropdown-abs"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div 
-                          className="dropdown-item"
-                          onClick={() => handleEditKeyResult(kr)}
+                    <div className="kr-card-head">
+                      <div className="kr-num">{done ? <Check size={13} /> : idx + 1}</div>
+                      <div className="kr-title">{kr.title}</div>
+                      <div className="key-result-actions pd-item-actions">
+                        <button
+                          type="button"
+                          className="btn btn-icon btn-ghost"
+                          onClick={(e) => { e.stopPropagation(); toggleKeyResultStar(kr); }}
+                          style={{ color: kr.is_starred ? 'var(--accent-orange)' : 'var(--text-muted)', padding: '2px' }}
                         >
-                          <Edit size={14} />
-                          <span>Edit Key Result</span>
+                          <Star size={12} fill={kr.is_starred ? 'currentColor' : 'none'} />
+                        </button>
+                        <div className="pd-relative">
+                          <button
+                            type="button"
+                            className="btn btn-icon btn-ghost pd-icon-pad"
+                            onClick={(e) => { e.stopPropagation(); setOpenKeyResultMenu(openKeyResultMenu === kr.id ? null : kr.id); }}
+                          >
+                            <MoreVertical size={12} />
+                          </button>
+                          {openKeyResultMenu === kr.id && (
+                            <div className="dropdown-menu pd-dropdown-abs" onClick={(e) => e.stopPropagation()}>
+                              <div className="dropdown-item" onClick={() => handleEditKeyResult(kr)}>
+                                <Edit size={14} /><span>Edit Key Result</span>
+                              </div>
+                              <div className="dropdown-item pd-text-red" onClick={() => handleDeleteKeyResult(kr)}>
+                                <Trash2 size={14} /><span>Delete Key Result</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div 
-                          className="dropdown-item pd-text-red"
-                          onClick={() => handleDeleteKeyResult(kr)}
-                        >
-                          <Trash2 size={14} />
-                          <span>Delete Key Result</span>
+                      </div>
+                    </div>
+
+                    {hasTarget && (
+                      <div className="kr-progress">
+                        <div className="kr-track"><span className="kr-fill" style={{ width: `${pct}%` }} /></div>
+                        <div className="kr-progress-meta">
+                          <span className="kr-values">{current}<span className="kr-sep">/</span>{target}{kr.unit ? ` ${kr.unit}` : ''}</span>
+                          <span className="kr-pct">{pct}%</span>
                         </div>
                       </div>
                     )}
+
+                    {kr.target_date && (
+                      <div className="kr-foot"><CalendarIcon size={12} /> {fmtDate(kr.target_date)}</div>
+                    )}
                   </div>
-                </div>
-              </div>
-            ))
+                );
+              })}
+            </div>
           )}
         </div>
 
