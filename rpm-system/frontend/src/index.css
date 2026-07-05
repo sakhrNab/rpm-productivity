@@ -2110,3 +2110,122 @@ select:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+
+/* =====================================================
+   FORM & MODAL MODERNIZATION
+   ===================================================== */
+
+/* Inputs — roomier, softer, clearer focus + hover */
+.form-input,
+.modal input:not([type="checkbox"]):not([type="radio"]),
+.modal textarea,
+.modal select {
+  padding: 11px 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+.form-input:hover,
+.modal input:not([type="checkbox"]):not([type="radio"]):hover,
+.modal textarea:hover,
+.modal select:hover { border-color: var(--border-accent); }
+.form-input:focus,
+.modal input:not([type="checkbox"]):not([type="radio"]):focus,
+.modal textarea:focus,
+.modal select:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.18);
+  background: var(--bg-tertiary);
+}
+
+/* Textareas auto-grow with content and wrap long text; single-line inputs never clip */
+.modal textarea,
+textarea.form-input {
+  min-height: 84px;
+  max-height: 340px;
+  line-height: 1.55;
+  resize: vertical;
+  field-sizing: content;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.form-input { text-overflow: ellipsis; }
+
+/* Labels + groups — a touch more air */
+.form-group { margin-bottom: var(--spacing-lg); }
+.form-label { margin-bottom: 7px; font-weight: 600; }
+
+/* Modals — more breathing room, aligned header + close */
+.modal { border-radius: var(--radius-xl); box-shadow: var(--shadow-lg), 0 0 60px rgba(0, 0, 0, 0.4); }
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-md);
+}
+.modal-body { padding: var(--spacing-lg); }
+.modal-footer { padding: var(--spacing-md) var(--spacing-lg) var(--spacing-lg); gap: var(--spacing-sm); }
+
+/* Buttons — modern gradients, depth, crisp interactions */
+.btn { border-radius: var(--radius-md); font-weight: 600; letter-spacing: 0.01em; padding: 9px 16px; }
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  box-shadow: 0 6px 16px rgba(78, 205, 196, 0.22);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(78, 205, 196, 0.32); }
+.btn-primary:active { transform: translateY(0); }
+.btn:disabled { opacity: 0.5; box-shadow: none; transform: none; cursor: not-allowed; }
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-primary);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.btn-secondary:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--border-accent); transform: translateY(-1px); }
+
+/* Native checkboxes & radios — custom, modern */
+input[type="checkbox"],
+input[type="radio"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 0;
+  border: 2px solid var(--border-primary);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-content: center;
+  transition: all var(--transition-fast);
+}
+input[type="checkbox"] { border-radius: 6px; }
+input[type="radio"] { border-radius: 50%; }
+input[type="checkbox"]:hover,
+input[type="radio"]:hover { border-color: var(--accent-cyan); }
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  border-color: transparent;
+}
+input[type="checkbox"]:checked::after {
+  content: '';
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translateY(-1px);
+}
+input[type="radio"]:checked::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+}
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.3); }
