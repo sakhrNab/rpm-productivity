@@ -10,7 +10,9 @@ function CreateKeyResultModal({ onClose, onSuccess, projectId, initialData = {} 
     description: initialData.description || '',
     target_value: initialData.target_value || '',
     unit: initialData.unit || '',
-    target_date: initialData.target_date || '',
+    // A <input type="date"> needs "yyyy-MM-dd"; the API returns a full ISO
+    // timestamp (e.g. 2026-09-30T00:00:00.000Z), so keep just the date part.
+    target_date: initialData.target_date ? String(initialData.target_date).slice(0, 10) : '',
   });
   const [loading, setLoading] = useState(false);
 

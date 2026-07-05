@@ -14,6 +14,15 @@ import CreateBlockModal from '../components/modals/CreateBlockModal';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import './ProjectDetailPage.css';
 
+// Format an API date (a full ISO timestamp for a DATE column) as a friendly
+// day, using only the date part so timezone never shifts it by a day.
+const fmtDate = (d) => {
+  if (!d) return '';
+  const datePart = String(d).slice(0, 10);
+  const parsed = new Date(`${datePart}T00:00:00`);
+  return isNaN(parsed) ? datePart : format(parsed, 'MMM d, yyyy');
+};
+
 function ProjectDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -673,11 +682,16 @@ function ProjectDetailPage() {
             <p className="pd-text-muted">No key results yet</p>
           ) : (
             project.key_results?.map((kr, idx) => (
-              <div key={kr.id} className="key-result-item">
+              <div
+                key={kr.id}
+                className="key-result-item pd-clickable"
+                onClick={() => handleEditKeyResult(kr)}
+                title="Open key result"
+              >
                 <div className="key-result-number">{idx + 1}</div>
                 <span className="key-result-title">{kr.title}</span>
                 {kr.target_date && (
-                  <span className="key-result-date">{kr.target_date}</span>
+                  <span className="key-result-date">{fmtDate(kr.target_date)}</span>
                 )}
                 <div className="key-result-actions pd-item-actions">
                   <button 
