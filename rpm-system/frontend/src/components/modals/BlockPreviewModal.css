@@ -1,0 +1,80 @@
+.bpv-modal { max-width: 520px; }
+
+.bpv-section { margin-bottom: var(--spacing-lg); }
+.bpv-section:last-child { margin-bottom: 0; }
+
+.bpv-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.bpv-label-pink { color: var(--accent-pink); }
+.bpv-label-cyan { color: var(--accent-cyan); }
+
+.bpv-result {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+.bpv-purpose {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.bpv-progress { margin-bottom: var(--spacing-lg); }
+.bpv-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+.bpv-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-pink), var(--accent-purple));
+  transition: width var(--transition-slow);
+}
+.bpv-progress.is-done .bpv-fill { background: linear-gradient(90deg, var(--accent-green), #4db6ac); }
+.bpv-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.bpv-pct { font-weight: 700; color: var(--accent-pink); }
+.bpv-progress.is-done .bpv-pct { color: var(--accent-green); }
+
+.bpv-actions { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.bpv-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+.bpv-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+.bpv-action.done .bpv-check { background: var(--accent-cyan); border-color: transparent; }
+.bpv-action.done .bpv-action-title { text-decoration: line-through; color: var(--text-muted); }
+.bpv-action.cancelled .bpv-action-title { text-decoration: line-through; color: var(--text-muted); opacity: 0.7; }
+.bpv-empty { color: var(--text-muted); }

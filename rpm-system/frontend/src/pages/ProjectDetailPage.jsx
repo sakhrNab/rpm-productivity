@@ -14,6 +14,7 @@ import CreateBlockModal from '../components/modals/CreateBlockModal';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import CreateInspirationModal from '../components/modals/CreateInspirationModal';
 import InspirationPreviewModal from '../components/modals/InspirationPreviewModal';
+import BlockPreviewModal from '../components/modals/BlockPreviewModal';
 import './ProjectDetailPage.css';
 
 // Format an API date (a full ISO timestamp for a DATE column) as a friendly
@@ -57,6 +58,7 @@ function ProjectDetailPage() {
   const [showInspirationModal, setShowInspirationModal] = useState(false);
   const [editingInspiration, setEditingInspiration] = useState(null);
   const [previewInspiration, setPreviewInspiration] = useState(null);
+  const [previewBlock, setPreviewBlock] = useState(null);
 
   useEffect(() => {
     loadProject();
@@ -1069,7 +1071,11 @@ function ProjectDetailPage() {
                 <div className="rpm-block-content">
                   <div className="rpm-block-section">
                     <div className="rpm-block-label">RESULT</div>
-                    <div className="rpm-block-title">{block.result_title}</div>
+                    <div
+                      className="rpm-block-title pd-clickable"
+                      onClick={() => setPreviewBlock({ ...block, actions: blockActions })}
+                      title="Preview this block"
+                    >{block.result_title}</div>
                   </div>
                   <div className="rpm-block-section">
                     <div className="rpm-block-label">PURPOSE</div>
@@ -1078,7 +1084,11 @@ function ProjectDetailPage() {
                   
                   {/* Massive Action Plan */}
                   <div className="rpm-block-actions">
-                    <div className="rpm-block-label">MASSIVE ACTION PLAN</div>
+                    <div
+                      className="rpm-block-label pd-clickable"
+                      onClick={() => setPreviewBlock({ ...block, actions: blockActions })}
+                      title="Preview this block"
+                    >MASSIVE ACTION PLAN</div>
                     {activeActions.length > 0 && activeActions.map((action, idx) => {
                       const actionIndex = idx + 1;
                       return (
@@ -1519,6 +1529,14 @@ function ProjectDetailPage() {
           onClose={() => setPreviewInspiration(null)}
           onEdit={handleEditInspiration}
           onDelete={handleDeleteInspiration}
+        />
+      )}
+
+      {previewBlock && (
+        <BlockPreviewModal
+          block={previewBlock}
+          onClose={() => setPreviewBlock(null)}
+          onEdit={(b) => { setPreviewBlock(null); handleEditBlock(b); }}
         />
       )}
     </div>
