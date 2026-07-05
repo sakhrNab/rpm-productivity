@@ -323,10 +323,16 @@ app.put('/api/categories/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, icon, color, cover_image } = req.body;
-    const result = await pool.query('UPDATE categories SET name = $1, description = $2, icon = $3, color = $4, cover_image = $5 WHERE id = $6 AND user_id = $7 RETURNING *', [name, description, icon, color, cover_image, id, req.userId]);
+    // COALESCE so partial updates (e.g. cover-image only) don't null out other
+    // columns — a plain SET made cover uploads violate the name NOT NULL constraint.
+    const result = await pool.query(
+      `UPDATE categories SET name = COALESCE($1, name), description = COALESCE($2, description), icon = COALESCE($3, icon), color = COALESCE($4, color), cover_image = COALESCE($5, cover_image)
+       WHERE id = $6 AND user_id = $7 RETURNING *`,
+      [name, description, icon, color, cover_image, id, req.userId]
+    );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Category not found' });
     res.json(result.rows[0]);
-  } catch (error) { res.status(500).json({ error: 'Failed to update category' }); }
+  } catch (error) { console.error('Error updating category:', error); res.status(500).json({ error: 'Failed to update category' }); }
 });
 
 app.put('/api/categories/:id/details', authenticateToken, async (req, res) => {
