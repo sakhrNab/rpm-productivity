@@ -1931,6 +1931,24 @@ select:focus-visible {
   overflow: visible;
   z-index: 6;
 }
+
+/* Row-based lists (My Day / My Week) must not clip their action popovers.
+   The rounded container is purely cosmetic here, so visible overflow is safe. */
+.actions-list {
+  overflow: visible;
+}
+/* The open action popover must sit above later sibling rows. */
+.action-actions .dropdown-menu {
+  z-index: 60;
+}
+
+/* RPM block cards (category/project detail) hold a block-level 3-dot menu.
+   The card has a solid background (no image), so visible overflow is safe and
+   keeps that menu from being clipped when the block is short. Nested action
+   menus already use fixed positioning, so they are unaffected. */
+.rpm-block {
+  overflow: visible;
+}
 .category-card.menu-open .category-card-bg,
 .project-card.menu-open .project-card-bg {
   transform: none;
