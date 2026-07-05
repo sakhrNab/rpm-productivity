@@ -1819,13 +1819,21 @@ h2 { font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2rem); }
   -webkit-text-fill-color: transparent;
 }
 
-/* Glass navbar */
+/* Glass navbar — blur lives on a ::before layer so the navbar itself is NOT a
+   containing block for the fixed mobile drawer (backdrop-filter would make it one). */
 .navbar {
   min-height: var(--nav-h);
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.navbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background: var(--glass);
   -webkit-backdrop-filter: saturate(150%) blur(14px);
   backdrop-filter: saturate(150%) blur(14px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .navbar-brand span {
@@ -1893,6 +1901,15 @@ select:focus-visible {
 .project-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg), 0 0 0 1px var(--border-accent);
+}
+
+/* Keep the card menu pinned top-right: .dropdown (added for the popover) would
+   otherwise reset position to relative and drop it into normal flow (top-left). */
+.category-card-menu.dropdown,
+.project-card-menu.dropdown {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
 }
 
 /* The three-dots menu only appears (nicely) when hovering a card, but stays usable on touch */
