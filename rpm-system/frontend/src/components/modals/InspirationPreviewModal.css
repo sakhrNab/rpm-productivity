@@ -1,0 +1,94 @@
+.insp-preview-overlay {
+  padding: var(--spacing-lg);
+}
+
+.insp-preview {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(255, 105, 180, 0.15);
+  animation: rpm-rise 200ms ease;
+}
+
+.insp-preview-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(10, 22, 40, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  transition: background var(--transition-fast);
+}
+.insp-preview-close:hover { background: rgba(10, 22, 40, 0.85); }
+
+.insp-preview-media {
+  width: 100%;
+  max-height: 58vh;
+  min-height: 160px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(255, 105, 180, 0.18), transparent 55%),
+    radial-gradient(120% 120% at 100% 100%, rgba(78, 205, 196, 0.18), transparent 55%),
+    var(--bg-secondary);
+}
+.insp-preview-media img {
+  width: 100%;
+  max-height: 58vh;
+  object-fit: contain;
+  display: block;
+}
+.insp-preview-noimg {
+  padding: var(--spacing-2xl);
+  color: var(--accent-pink);
+  opacity: 0.7;
+}
+
+.insp-preview-body {
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  overflow-y: auto;
+}
+.insp-preview-title {
+  font-size: 1.25rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.insp-preview-desc {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.insp-preview-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--accent-cyan);
+  word-break: break-all;
+}
+.insp-preview-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}
+.insp-preview-delete { color: var(--accent-red); }
+.insp-preview-delete:hover { border-color: var(--accent-red); }

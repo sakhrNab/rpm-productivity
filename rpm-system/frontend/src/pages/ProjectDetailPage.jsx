@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, ChevronRight, Image, Plus, Star, MoreVertical, 
   Check, Clock, Hourglass, Calendar as CalendarIcon, Edit, Trash2, X,
-  Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen
+  Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen, ExternalLink
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks } from 'date-fns';
@@ -12,6 +12,8 @@ import CreateKeyResultModal from '../components/modals/CreateKeyResultModal';
 import CreateCaptureItemModal from '../components/modals/CreateCaptureItemModal';
 import CreateBlockModal from '../components/modals/CreateBlockModal';
 import CreateActionModal from '../components/modals/CreateActionModal';
+import CreateInspirationModal from '../components/modals/CreateInspirationModal';
+import InspirationPreviewModal from '../components/modals/InspirationPreviewModal';
 import './ProjectDetailPage.css';
 
 // Format an API date (a full ISO timestamp for a DATE column) as a friendly
@@ -52,6 +54,9 @@ function ProjectDetailPage() {
   const [draggedBlock, setDraggedBlock] = useState(null);
   const [dragOverBlock, setDragOverBlock] = useState(null);
   const coverInputRef = useRef(null);
+  const [showInspirationModal, setShowInspirationModal] = useState(false);
+  const [editingInspiration, setEditingInspiration] = useState(null);
+  const [previewInspiration, setPreviewInspiration] = useState(null);
 
   useEffect(() => {
     loadProject();
@@ -73,20 +78,26 @@ function ProjectDetailPage() {
     }
   };
 
-  const handleAddInspiration = async () => {
-    const title = window.prompt('Inspiration title');
-    if (title === null) return;
-    const link_url = window.prompt('Link URL (optional)') || '';
-    try {
-      await api.createInspirationItem({ project_id: id, title: title.trim(), link_url });
-      await loadProject();
-    } catch (error) {
-      console.error('Failed to add inspiration item:', error);
-    }
+  const handleAddInspiration = () => {
+    setEditingInspiration(null);
+    setShowInspirationModal(true);
+  };
+
+  const handleEditInspiration = (item) => {
+    setPreviewInspiration(null);
+    setEditingInspiration(item);
+    setShowInspirationModal(true);
+  };
+
+  const handleInspirationSuccess = () => {
+    setShowInspirationModal(false);
+    setEditingInspiration(null);
+    loadProject();
   };
 
   const handleDeleteInspiration = async (item) => {
     if (!window.confirm('Delete this inspiration item?')) return;
+    setPreviewInspiration(null);
     try {
       await api.deleteInspirationItem(item.id);
       await loadProject();
@@ -845,40 +856,38 @@ function ProjectDetailPage() {
             <Plus size={14} />
           </button>
         </div>
-        {(!project.inspiration_items || project.inspiration_items.length === 0) ? (
-          <div className="empty-state pd-empty-state">
-            No inspiration yet. Add links, quotes, or references that fuel this project.
-          </div>
-        ) : (
-          <div className="pd-inspiration-grid">
-            {project.inspiration_items.map(item => (
-              <div key={item.id} className="card pd-inspiration-card">
-                <div className="pd-flex-1-min0">
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: item.link_url ? '4px' : 0 }}>
-                    {item.title || 'Untitled'}
-                  </div>
-                  {item.link_url && (
-                    <a
-                      href={item.link_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="pd-inspiration-link"
-                    >
-                      {item.link_url}
-                    </a>
-                  )}
-                </div>
-                <button
-                  className="btn btn-icon btn-ghost pd-text-red"
-                  aria-label="Delete inspiration item"
-                  onClick={() => handleDeleteInspiration(item)}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="pd-mood-grid">
+          {project.inspiration_items?.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              className="pd-mood-card"
+              onClick={() => setPreviewInspiration(item)}
+              title={item.title || 'Open'}
+              style={item.image_url ? { backgroundImage: `url(${item.image_url})` } : undefined}
+            >
+              {!item.image_url && <span className="pd-mood-noimg"><Image size={26} /></span>}
+              <span className="pd-mood-overlay">
+                <span className="pd-mood-title">{item.title || 'Untitled'}</span>
+                {item.link_url && <span className="pd-mood-badge"><ExternalLink size={12} /></span>}
+              </span>
+              <span
+                className="pd-mood-del"
+                role="button"
+                aria-label="Delete inspiration item"
+                onClick={(e) => { e.stopPropagation(); handleDeleteInspiration(item); }}
+              >
+                <Trash2 size={13} />
+              </span>
+            </button>
+          ))}
+
+          {/* Add tile */}
+          <button type="button" className="pd-mood-add" onClick={handleAddInspiration}>
+            <Plus size={22} />
+            <span>Add inspiration</span>
+          </button>
+        </div>
       </div>
 
       {/* RPM Blocks Section */}
@@ -1473,6 +1482,26 @@ function ProjectDetailPage() {
             category_id: project.category_id,
             project_id: project.id
           }}
+        />
+      )}
+
+      {/* Inspiration create / edit */}
+      {showInspirationModal && project && (
+        <CreateInspirationModal
+          projectId={project.id}
+          initialData={editingInspiration || {}}
+          onClose={() => { setShowInspirationModal(false); setEditingInspiration(null); }}
+          onSuccess={handleInspirationSuccess}
+        />
+      )}
+
+      {/* Inspiration preview / lightbox */}
+      {previewInspiration && (
+        <InspirationPreviewModal
+          item={previewInspiration}
+          onClose={() => setPreviewInspiration(null)}
+          onEdit={handleEditInspiration}
+          onDelete={handleDeleteInspiration}
         />
       )}
     </div>
