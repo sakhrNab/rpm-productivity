@@ -33,6 +33,11 @@ services:
       start_period: 10s
     labels:
       - coolify.managed=true
+      # Pin Traefik to the shared 'coolify' ingress network. The frontend is on
+      # multiple networks (coolify, rpm-internal); without this, Traefik can
+      # forward to the private rpm-internal IP that the proxy can't reach,
+      # causing a 12s hang -> 504 Gateway Timeout.
+      - traefik.docker.network=coolify
       - traefik.http.services.frontend-rpm.loadbalancer.server.port=3012
       - traefik.http.services.frontend-rpm.loadbalancer.server.scheme=http
 
@@ -71,6 +76,9 @@ services:
       start_period: 30s
     labels:
       - coolify.managed=true
+      # Same rationale as the frontend: pin Traefik to the reachable ingress
+      # network so api.rpm.aiwaverider.com never routes to the private IP.
+      - traefik.docker.network=coolify
 
   # =============================================================================
   # POSTGRESQL - Primary Database
