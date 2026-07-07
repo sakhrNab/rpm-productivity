@@ -618,10 +618,12 @@ app.put('/api/key-results/:id', authenticateToken, async (req, res) => {
     const values = [];
     let paramCount = 1;
     const allowedFields = ['title', 'description', 'target_value', 'current_value', 'unit', 'target_date', 'is_starred', 'is_completed'];
+    // numeric/date columns reject '' — coerce empty strings to NULL
+    const nullableFields = new Set(['target_value', 'current_value', 'target_date']);
     for (const [key, value] of Object.entries(updates)) {
       if (allowedFields.includes(key)) {
         fields.push(`${key} = $${paramCount}`);
-        values.push(value);
+        values.push(nullableFields.has(key) && value === '' ? null : value);
         paramCount++;
       }
     }

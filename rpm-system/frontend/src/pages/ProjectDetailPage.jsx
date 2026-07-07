@@ -407,6 +407,23 @@ function ProjectDetailPage() {
     }
   };
 
+  const handleUpdateKeyResultProgress = async (keyResult, rawValue) => {
+    let value = rawValue === '' || rawValue === null ? 0 : Number(rawValue);
+    if (Number.isNaN(value)) return;
+    value = Math.max(0, value);
+    if (value === (Number(keyResult.current_value) || 0)) return; // no change
+    const target = Number(keyResult.target_value);
+    const nowDone = !Number.isNaN(target) && target > 0 && value >= target;
+    patchListItem('key_results', keyResult.id, { current_value: value, ...(nowDone ? { is_completed: true } : {}) });
+    try {
+      await api.updateKeyResult(keyResult.id, { current_value: value, ...(nowDone ? { is_completed: true } : {}) });
+    } catch (error) {
+      console.error('Failed to update progress:', error);
+      showToast('Could not update progress. Please try again.', 'error');
+      await loadProject();
+    }
+  };
+
   const handleEditKeyResult = (keyResult) => {
     setEditingKeyResult(keyResult);
     setShowKeyResultModal(true);
@@ -751,10 +768,34 @@ function ProjectDetailPage() {
                     </div>
 
                     {hasTarget && (
-                      <div className="kr-progress">
+                      <div className="kr-progress" onClick={(e) => e.stopPropagation()}>
                         <div className="kr-track"><span className="kr-fill" style={{ width: `${pct}%` }} /></div>
                         <div className="kr-progress-meta">
-                          <span className="kr-values">{current}<span className="kr-sep">/</span>{target}{kr.unit ? ` ${kr.unit}` : ''}</span>
+                          <div className="kr-editor" title="Update progress">
+                            <button
+                              type="button"
+                              className="kr-step"
+                              aria-label="Decrease progress"
+                              onClick={() => handleUpdateKeyResultProgress(kr, current - 1)}
+                            >−</button>
+                            <input
+                              type="number"
+                              key={`kr-cur-${kr.id}-${current}`}
+                              className="kr-current-input"
+                              defaultValue={current}
+                              min={0}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+                              onBlur={(e) => handleUpdateKeyResultProgress(kr, e.target.value)}
+                            />
+                            <span className="kr-sep">/</span>
+                            <span className="kr-target-val">{target}{kr.unit ? ` ${kr.unit}` : ''}</span>
+                            <button
+                              type="button"
+                              className="kr-step"
+                              aria-label="Increase progress"
+                              onClick={() => handleUpdateKeyResultProgress(kr, current + 1)}
+                            >+</button>
+                          </div>
                           <span className="kr-pct">{pct}%</span>
                         </div>
                       </div>

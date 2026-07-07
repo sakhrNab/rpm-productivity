@@ -1,14 +1,17 @@
 import { useState, useContext } from 'react';
 import { X } from 'lucide-react';
 import { AuthContext } from '../../App';
+import { useToast } from '../ToastProvider';
 import './CreateKeyResultModal.css';
 
 function CreateKeyResultModal({ onClose, onSuccess, projectId, initialData = {} }) {
   const { api } = useContext(AuthContext);
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     title: initialData.title || '',
     description: initialData.description || '',
-    target_value: initialData.target_value || '',
+    target_value: initialData.target_value ?? '',
+    current_value: initialData.current_value ?? '',
     unit: initialData.unit || '',
     // A <input type="date"> needs "yyyy-MM-dd"; the API returns a full ISO
     // timestamp (e.g. 2026-09-30T00:00:00.000Z), so keep just the date part.
@@ -33,9 +36,11 @@ function CreateKeyResultModal({ onClose, onSuccess, projectId, initialData = {} 
           project_id: projectId,
         });
       }
+      showToast(initialData.id ? 'Key result updated.' : 'Key result added.', 'success');
       onSuccess();
     } catch (error) {
       console.error('Failed to save key result:', error);
+      showToast('Could not save this key result. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
@@ -77,29 +82,45 @@ function CreateKeyResultModal({ onClose, onSuccess, projectId, initialData = {} 
               />
             </div>
 
-            <div className="ckr-grid">
+            <div className="ckr-grid ckr-grid-3">
               <div className="form-group">
-                <label className="form-label">Target Value (optional)</label>
+                <label className="form-label">Current</label>
                 <input
-                  type="text"
+                  type="number"
+                  min="0"
+                  inputMode="decimal"
                   className="form-input"
-                  placeholder="e.g., 100"
+                  placeholder="0"
+                  value={formData.current_value}
+                  onChange={e => setFormData({ ...formData, current_value: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Target</label>
+                <input
+                  type="number"
+                  min="0"
+                  inputMode="decimal"
+                  className="form-input"
+                  placeholder="100"
                   value={formData.target_value}
                   onChange={e => setFormData({ ...formData, target_value: e.target.value })}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">Unit (optional)</label>
+                <label className="form-label">Unit</label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="e.g., kg, %, items"
+                  placeholder="kg, %, items"
                   value={formData.unit}
                   onChange={e => setFormData({ ...formData, unit: e.target.value })}
                 />
               </div>
             </div>
+            <p className="ckr-hint">Progress bar fills as <strong>current ÷ target</strong>. Update “Current” here or with the ± control on the card.</p>
 
             <div className="form-group">
               <label className="form-label">Target Date (optional)</label>

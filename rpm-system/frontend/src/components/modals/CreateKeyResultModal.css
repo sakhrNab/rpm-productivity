@@ -1,9 +1,104 @@
 .ckr-modal {
-  max-width: 500px;
+  max-width: 520px;
 }
 
+/* Roomier, more intuitive fields inside the modal body */
+.ckr-modal .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 22px;
+}
+.ckr-modal .form-group { margin: 0; }
+
+.ckr-modal .form-label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-secondary);
+  white-space: normal;      /* long labels wrap instead of clipping */
+  word-break: break-word;
+}
+
+.ckr-modal .form-input {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: var(--radius-md, 10px);
+  line-height: 1.45;
+}
+
+/* Textareas grow with content and wrap long text */
+.ckr-modal textarea.form-input {
+  min-height: 84px;
+  resize: vertical;
+  field-sizing: content;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Value row: Current / Target / Unit */
 .ckr-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
+.ckr-grid-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.ckr-hint {
+  margin: -4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.ckr-hint strong { color: var(--text-secondary); font-weight: 600; }
+
+@media (max-width: 520px) {
+  .ckr-grid, .ckr-grid-3 { grid-template-columns: 1fr; }
+}
+
+/* ---- Inline progress editor on the key-result card ---- */
+.kr-editor {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.kr-step {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-primary);
+  border-radius: 7px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.kr-step:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+.kr-current-input {
+  width: 56px;
+  padding: 3px 6px;
+  text-align: center;
+  border: 1px solid var(--border-primary);
+  border-radius: 7px;
+  background: var(--bg-primary, var(--bg-secondary));
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  -moz-appearance: textfield;
+}
+.kr-current-input::-webkit-outer-spin-button,
+.kr-current-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.kr-current-input:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.25);
+}
+.kr-target-val { font-size: 0.82rem; color: var(--text-muted); }
