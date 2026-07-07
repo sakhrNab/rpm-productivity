@@ -168,7 +168,12 @@ button {
   height: 36px;
   padding: 0;
   border-radius: var(--radius-sm);
+  flex-shrink: 0;
 }
+
+/* Icons (lucide sets explicit width/height) must never be squeezed to a sliver
+   by a tight flex row — without this they collapse horizontally to ~2-4px. */
+svg { flex-shrink: 0; }
 
 /* Inputs */
 input, textarea, select {
