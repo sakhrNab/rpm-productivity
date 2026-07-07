@@ -1,12 +1,21 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { AuthContext } from '../../App';
 import { useToast } from '../ToastProvider';
 import './CreateKeyResultModal.css';
 
+// Grow a textarea to fit its content (cross-browser; field-sizing is Chromium-only)
+const autoGrow = (el) => {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+};
+
 function CreateKeyResultModal({ onClose, onSuccess, projectId, initialData = {} }) {
   const { api } = useContext(AuthContext);
   const { showToast } = useToast();
+  const titleRef = useRef(null);
+  useEffect(() => { autoGrow(titleRef.current); }, []);
   const [formData, setFormData] = useState({
     title: initialData.title || '',
     description: initialData.description || '',
@@ -60,12 +69,14 @@ function CreateKeyResultModal({ onClose, onSuccess, projectId, initialData = {} 
           <div className="modal-body">
             <div className="form-group">
               <label className="form-label">Title</label>
-              <input
-                type="text"
-                className="form-input"
+              <textarea
+                ref={titleRef}
+                className="form-input ckr-title"
+                rows={1}
                 placeholder="Key result title"
                 value={formData.title}
-                onChange={e => setFormData({ ...formData, title: e.target.value })}
+                onChange={e => { setFormData({ ...formData, title: e.target.value }); autoGrow(e.target); }}
+                onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
                 autoFocus
                 required
               />

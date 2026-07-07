@@ -26,6 +26,18 @@
   line-height: 1.45;
 }
 
+/* Title: looks like a one-line input but wraps + grows with long text */
+.ckr-modal textarea.ckr-title {
+  min-height: 0;
+  height: auto;
+  line-height: 1.4;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  field-sizing: content;
+}
+
 /* Textareas grow with content and wrap long text */
 .ckr-modal textarea.form-input {
   min-height: 84px;
