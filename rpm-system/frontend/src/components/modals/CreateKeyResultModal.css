@@ -23,9 +23,6 @@
 }
 
 .ckr-modal .form-input {
-  width: 100%;
-  padding: 11px 14px;
-  border-radius: var(--radius-md, 10px);
   line-height: 1.45;
 }
 
