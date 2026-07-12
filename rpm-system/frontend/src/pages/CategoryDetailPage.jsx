@@ -467,9 +467,30 @@ function CategoryDetailPage() {
             MY ULTIMATE VISION
           </div>
           
-          <h1 className="cd-vision-title">
-            {details.ultimate_vision || category.description || 'Click to add your ultimate vision...'}
-          </h1>
+          {editingField === 'ultimate_vision' ? (
+            <div>
+              <textarea
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                className="form-input cd-vision-input"
+                rows={3}
+                autoFocus
+                placeholder="Living the life that I desire…"
+              />
+              <div className="cd-edit-actions">
+                <button className="btn btn-primary" onClick={handleFieldSave}>Save</button>
+                <button className="btn btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <h1
+              className="cd-vision-title cd-clickable"
+              onClick={() => handleFieldEdit('ultimate_vision', details.ultimate_vision || category.description || '')}
+              title="Click to edit your ultimate vision"
+            >
+              {details.ultimate_vision || category.description || 'Click to add your ultimate vision...'}
+            </h1>
+          )}
         </div>
       </div>
 

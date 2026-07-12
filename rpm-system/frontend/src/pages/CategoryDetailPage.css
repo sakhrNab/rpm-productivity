@@ -310,3 +310,12 @@
 @media (max-width: 640px) {
   .cd-archived-hint { display: none; }
 }
+
+/* Inline editor for the Ultimate Vision hero */
+.cd-vision-input {
+  width: 100%;
+  max-width: 900px;
+  font-size: 1.4rem;
+  line-height: 1.35;
+  font-weight: 600;
+}
