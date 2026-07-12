@@ -585,3 +585,14 @@
   font-size: 0.72rem;
 }
 .rpm-block-kr strong { color: var(--text-primary); font-weight: 600; }
+
+/* Subtle inline empty state (replaces the big centered block) */
+.pd-actions-empty-sm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 4px;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}

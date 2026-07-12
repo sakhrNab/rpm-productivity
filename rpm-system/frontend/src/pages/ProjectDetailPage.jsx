@@ -36,7 +36,7 @@ function ProjectDetailPage() {
   const { showToast } = useToast();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('starred');
+  const [activeTab, setActiveTab] = useState('all');
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingField, setEditingField] = useState(null);
@@ -415,10 +415,13 @@ function ProjectDetailPage() {
     value = Math.max(0, value);
     if (value === (Number(keyResult.current_value) || 0)) return; // no change
     const target = Number(keyResult.target_value);
-    const nowDone = !Number.isNaN(target) && target > 0 && value >= target;
-    patchListItem('key_results', keyResult.id, { current_value: value, ...(nowDone ? { is_completed: true } : {}) });
+    const hasTarget = !Number.isNaN(target) && target > 0;
+    // When there's a target, completion tracks the target both ways (so reducing
+    // below target clears the checkmark instead of leaving it stuck on).
+    const patch = { current_value: value, ...(hasTarget ? { is_completed: value >= target } : {}) };
+    patchListItem('key_results', keyResult.id, patch);
     try {
-      await api.updateKeyResult(keyResult.id, { current_value: value, ...(nowDone ? { is_completed: true } : {}) });
+      await api.updateKeyResult(keyResult.id, patch);
     } catch (error) {
       console.error('Failed to update progress:', error);
       showToast('Could not update progress. Please try again.', 'error');
@@ -667,26 +670,16 @@ function ProjectDetailPage() {
             </div>
 
             {list.length === 0 ? (
-              <div className="pd-actions-empty">
+              <div className="pd-actions-empty-sm">
                 {activeAll.length === 0 ? (
                   <>
-                    <div className="pd-empty-emoji">🎯</div>
-                    <h4>No actions yet</h4>
-                    <p>Actions are the concrete steps that move this project toward its result. Add your first one to get going.</p>
-                    <button type="button" className="btn btn-primary" onClick={openNewAction}>
-                      <Plus size={15} /> Add your first action
-                    </button>
+                    <span>No actions yet.</span>
+                    <button type="button" className="pd-linkbtn" onClick={openNewAction}>Add your first action</button>
                   </>
                 ) : (
                   <>
-                    <div className="pd-empty-emoji">⭐</div>
-                    <h4>No starred actions</h4>
-                    <p>
-                      Star an action to keep your top priorities here.{' '}
-                      <button type="button" className="pd-linkbtn" onClick={() => setActiveTab('all')}>
-                        View all {activeAll.length} actions
-                      </button>
-                    </p>
+                    <span>No starred actions.</span>
+                    <button type="button" className="pd-linkbtn" onClick={() => setActiveTab('all')}>View all {activeAll.length}</button>
                   </>
                 )}
               </div>
