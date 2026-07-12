@@ -2384,3 +2384,69 @@ body {
   backdrop-filter: blur(14px) saturate(1.2);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
 }
+
+/* ============================================================
+   GLOBAL POLISH v3 — decisive glassmorphism (bold, app-wide)
+   ============================================================ */
+
+body {
+  background:
+    radial-gradient(1100px 800px at 6% -12%, rgba(255, 105, 180, 0.22), transparent 56%),
+    radial-gradient(1000px 720px at 112% -6%, rgba(78, 205, 196, 0.17), transparent 54%),
+    radial-gradient(1000px 1000px at 50% 118%, rgba(149, 117, 205, 0.16), transparent 60%),
+    linear-gradient(180deg, #0d1a36 0%, #070f1e 100%);
+  background-attachment: fixed;
+}
+
+/* Frosted-glass content panels — lighter, translucent, clearly glossy */
+.card,
+.big-picture-section,
+.rpm-block,
+.rpm-blocks-container,
+.project-planner,
+.project-section,
+.actions-list,
+.md-actions-list,
+.mw-actions-list,
+.kr-card,
+.auth-card,
+.planner-unscheduled {
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05) 46%, rgba(255, 255, 255, 0.02) 100%),
+    rgba(20, 37, 68, 0.72);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 22px 52px -22px rgba(0, 0, 0, 0.78);
+}
+.card:hover,
+.rpm-block:hover,
+.kr-card:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 28px 60px -20px rgba(0, 0, 0, 0.82),
+    0 0 0 1px rgba(78, 205, 196, 0.12);
+}
+
+/* Cover cards: brighter glass edge + stronger lift */
+.category-card,
+.project-card {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 22px 50px -20px rgba(0, 0, 0, 0.78);
+}
+.category-card:hover,
+.project-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 30px 64px -18px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 105, 180, 0.18);
+}
+
+/* Bigger titles with a soft glow */
+h1, .page-title, .project-title, .category-title, .dashboard-title, .cd-title, .pd-title {
+  font-size: clamp(2.3rem, 1.5rem + 2.8vw, 3.35rem);
+  text-shadow: 0 2px 34px rgba(255, 105, 180, 0.16);
+}
