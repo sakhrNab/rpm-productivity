@@ -475,3 +475,42 @@
   background: rgba(78, 205, 196, 0.12);
   flex-shrink: 0;
 }
+
+/* ===== Planner: unscheduled actions strip + drag-to-schedule ===== */
+.planner-unscheduled {
+  margin-bottom: var(--spacing-md);
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-primary);
+}
+.planner-unscheduled-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.planner-unscheduled-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.planner-chip {
+  max-width: 240px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255,105,180,0.18), rgba(78,205,196,0.14));
+  border: 1px solid var(--border-accent);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grab;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-fast);
+}
+.planner-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow-glow); }
+.planner-chip:active { cursor: grabbing; }
+.planner-chip.is-dragging { opacity: 0.4; }
+.planner-day.is-drop-target { box-shadow: inset 0 0 0 2px var(--accent-pink); }

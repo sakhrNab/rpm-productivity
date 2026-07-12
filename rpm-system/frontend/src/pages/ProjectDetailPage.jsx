@@ -62,6 +62,8 @@ function ProjectDetailPage() {
   const [editingInspiration, setEditingInspiration] = useState(null);
   const [previewInspiration, setPreviewInspiration] = useState(null);
   const [previewBlock, setPreviewBlock] = useState(null);
+  const [dragActionId, setDragActionId] = useState(null);
+  const [dropDay, setDropDay] = useState(null);
 
   useEffect(() => {
     loadProject();
@@ -507,11 +509,28 @@ function ProjectDetailPage() {
   const starredActions = project.actions?.filter(a => a.is_starred && !a.is_completed) || [];
   const allActions = project.actions || [];
 
-  // Get actions for a specific day
+  // Get actions for a specific day (scheduled_date may be an ISO timestamp)
   const getActionsForDay = (day) => {
     if (!project.actions) return [];
     const dayStr = format(day, 'yyyy-MM-dd');
-    return project.actions.filter(a => a.scheduled_date === dayStr);
+    return project.actions.filter(a => a.scheduled_date && String(a.scheduled_date).slice(0, 10) === dayStr);
+  };
+
+  // Actions with no date yet — shown in the planner's "Unscheduled" strip
+  const unscheduledActions = (project.actions || []).filter(a => !a.scheduled_date && !a.is_completed && !a.is_cancelled);
+
+  const handleScheduleAction = async (actionId, dateStr) => {
+    const action = (project.actions || []).find(a => a.id === actionId);
+    if (!action || String(action.scheduled_date || '').slice(0, 10) === dateStr) return;
+    patchListItem('actions', actionId, { scheduled_date: dateStr });
+    try {
+      await api.updateAction(actionId, { scheduled_date: dateStr });
+      showToast(`Scheduled for ${format(new Date(dateStr + 'T00:00:00'), 'MMM d')}.`, 'success');
+    } catch (error) {
+      console.error('Failed to schedule action:', error);
+      showToast('Could not schedule that action. Please try again.', 'error');
+      await loadProject();
+    }
   };
 
   return (
@@ -1415,6 +1434,29 @@ function ProjectDetailPage() {
           </div>
         </div>
 
+        {unscheduledActions.length > 0 && (
+          <div className="planner-unscheduled">
+            <div className="planner-unscheduled-label">
+              Unscheduled · {unscheduledActions.length} — drag onto a day (or click to edit)
+            </div>
+            <div className="planner-unscheduled-list">
+              {unscheduledActions.map(a => (
+                <div
+                  key={a.id}
+                  className={`planner-chip${dragActionId === a.id ? ' is-dragging' : ''}`}
+                  draggable
+                  onDragStart={(e) => { setDragActionId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
+                  onDragEnd={() => { setDragActionId(null); setDropDay(null); }}
+                  onClick={() => handleEditAction(a)}
+                  title={a.title}
+                >
+                  {a.title}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="planner-grid">
           {weekDays.map(day => (
             <div key={day.toISOString()} className="planner-day-header">
@@ -1423,24 +1465,33 @@ function ProjectDetailPage() {
           ))}
           {weekDays.map(day => {
             const dayActions = getActionsForDay(day);
-            const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-            
+            const dayStr = format(day, 'yyyy-MM-dd');
+            const isToday = dayStr === format(new Date(), 'yyyy-MM-dd');
+            const isDropTarget = dropDay === dayStr;
+
             return (
-              <div 
-                key={day.toISOString() + '-cell'} 
-                className="planner-day"
+              <div
+                key={day.toISOString() + '-cell'}
+                className={`planner-day${isDropTarget ? ' is-drop-target' : ''}`}
+                onDragOver={(e) => { if (dragActionId) { e.preventDefault(); setDropDay(dayStr); } }}
+                onDragLeave={() => setDropDay(d => (d === dayStr ? null : d))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragActionId) handleScheduleAction(dragActionId, dayStr);
+                  setDragActionId(null); setDropDay(null);
+                }}
                 onClick={() => {
-                  setEditingAction({ 
-                    scheduled_date: format(day, 'yyyy-MM-dd'),
+                  setEditingAction({
+                    scheduled_date: dayStr,
                     project_id: project.id,
                     category_id: project.category_id
                   });
                   setShowActionModal(true);
                 }}
-                style={{ 
+                style={{
                   cursor: 'pointer',
-                  background: isToday ? 'var(--bg-card-hover)' : 'var(--bg-secondary)',
-                  border: isToday ? '1px solid var(--accent-cyan)' : '1px solid transparent'
+                  background: isDropTarget ? 'var(--bg-card-hover)' : (isToday ? 'var(--bg-card-hover)' : 'var(--bg-secondary)'),
+                  border: isDropTarget ? '1px solid var(--accent-pink)' : (isToday ? '1px solid var(--accent-cyan)' : '1px solid transparent')
                 }}
               >
                 <div className="planner-day-number" style={{ 

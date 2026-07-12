@@ -25,12 +25,9 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
   useEffect(() => {
     const loadActions = async () => {
       try {
-        // If category_id is provided, filter by it; otherwise get all
-        const params = { completed: 'false' };
-        if (formData.category_id) {
-          params.category_id = formData.category_id;
-        }
-        const data = await api.getActions(params);
+        // Load all incomplete actions so the user can attach any of them — filtering
+        // by category previously hid actions whose category didn't match the block.
+        const data = await api.getActions({ completed: 'false' });
         // Show unassigned actions plus any already belonging to this block (when editing)
         setActions(data.filter(a => !a.block_id || a.block_id === initialData.id));
       } catch (error) {
@@ -242,7 +239,8 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
               <div className="checkbox-list">
                 {actions.length === 0 ? (
                   <div className="cbm-empty">
-                    No available actions. Create actions first.
+                    No unassigned actions to attach yet. You can add actions to this
+                    block after saving, with the “+ Add Massive Action Plan” button on the block.
                   </div>
                 ) : (
                   actions.map(action => (
