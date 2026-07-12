@@ -102,6 +102,20 @@
 }
 .asst-websearch:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.asst-toggles { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Tool-activity chips (agent actions) */
+.asst-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.asst-tool {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.76rem; font-weight: 600; border-radius: 999px; padding: 3px 10px;
+  color: var(--accent-cyan); background: rgba(78,205,196,0.1); border: 1px solid rgba(78,205,196,0.28);
+}
+.asst-tool.running { color: var(--text-secondary); background: rgba(255,255,255,0.05); border-color: var(--border-primary); }
+.asst-tool.running svg { animation: asst-spin 1s linear infinite; }
+.asst-tool.err { color: var(--accent-red); background: rgba(255,107,107,0.1); border-color: rgba(255,107,107,0.3); }
+@keyframes asst-spin { to { transform: rotate(360deg); } }
+
 /* Messages */
 .asst-messages { flex: 1; overflow-y: auto; padding: var(--spacing-lg); display: flex; flex-direction: column; gap: var(--spacing-lg); }
 .asst-empty {

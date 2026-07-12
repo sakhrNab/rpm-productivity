@@ -3,13 +3,28 @@ import { Link } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
 import {
-  Send, Globe, Plus, Trash2, MessageSquare, Sparkles, ChevronDown, Settings as SettingsIcon
+  Send, Globe, Plus, Trash2, MessageSquare, Sparkles, ChevronDown, Settings as SettingsIcon, Zap
 } from 'lucide-react';
 import './AssistantPage.css';
 
 const PROVIDER_LABEL = {
   anthropic: 'Claude', openai: 'OpenAI', zhipu: 'z.ai (GLM)', deepseek: 'DeepSeek',
 };
+
+// Human label for a tool-activity chip.
+function toolLabel(t) {
+  const r = t.result;
+  const failed = r && r.ok === false;
+  const base = {
+    list_projects: 'Read your projects',
+    create_action: r?.title ? `Created action “${r.title}”` : 'Created an action',
+    schedule_action: r?.scheduled_date ? `Scheduled → ${String(r.scheduled_date).slice(0, 10)}` : 'Scheduled an action',
+    complete_action: r?.is_completed === false ? 'Reopened an action' : 'Completed an action',
+    create_rpm_block: r?.result_title ? `Created RPM block “${r.result_title}”` : 'Created an RPM block',
+    update_key_result: r?.title ? `Updated “${r.title}” → ${r.current_value}` : 'Updated a key result',
+  }[t.name] || t.name;
+  return failed ? `${base} — failed` : base;
+}
 
 function AssistantPage() {
   const { api } = useContext(AuthContext);
@@ -19,6 +34,7 @@ function AssistantPage() {
   const [providers, setProviders] = useState([]);
   const [modelKey, setModelKey] = useState(localStorage.getItem('ai.modelKey') || '');
   const [webSearch, setWebSearch] = useState(false);
+  const [rpmMode, setRpmMode] = useState(() => localStorage.getItem('ai.rpmMode') !== 'off');
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
 
   const [conversations, setConversations] = useState([]);
@@ -59,6 +75,7 @@ function AssistantPage() {
   }, [availableModels, modelKey]);
 
   useEffect(() => { if (modelKey) localStorage.setItem('ai.modelKey', modelKey); }, [modelKey]);
+  useEffect(() => { localStorage.setItem('ai.rpmMode', rpmMode ? 'on' : 'off'); }, [rpmMode]);
 
   // Web search auto-off when the model doesn't support it.
   useEffect(() => {
@@ -102,11 +119,11 @@ function AssistantPage() {
     if (!modelKey) { showToast('Pick a model first', 'error'); return; }
 
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: text }, { role: 'assistant', content: '', sources: null }]);
+    setMessages(prev => [...prev, { role: 'user', content: text }, { role: 'assistant', content: '', sources: null, tools: [] }]);
     setStreaming(true);
 
     try {
-      const res = await api.aiChatStream({ conversationId, modelKey, message: text, webSearch });
+      const res = await api.aiChatStream({ conversationId, modelKey, message: text, webSearch, rpmMode });
       if (!res.ok || !res.body) {
         let msg = 'AI request failed';
         try { const j = await res.json(); msg = j.error || msg; } catch { /* ignore */ }
@@ -123,6 +140,28 @@ function AssistantPage() {
           setMessages(prev => {
             const next = [...prev];
             next[next.length - 1] = { ...next[next.length - 1], content: next[next.length - 1].content + ev.text };
+            return next;
+          });
+        } else if (ev.type === 'tool_call') {
+          setMessages(prev => {
+            const next = [...prev];
+            const m = next[next.length - 1];
+            next[next.length - 1] = { ...m, tools: [...(m.tools || []), { name: ev.name, args: ev.args, done: false }] };
+            return next;
+          });
+        } else if (ev.type === 'tool_result') {
+          setMessages(prev => {
+            const next = [...prev];
+            const m = next[next.length - 1];
+            const tools = [...(m.tools || [])];
+            // mark the most recent matching, not-yet-done tool as complete
+            for (let i = tools.length - 1; i >= 0; i--) {
+              if (tools[i].name === ev.name && !tools[i].done) {
+                tools[i] = { ...tools[i], done: true, result: ev.result };
+                break;
+              }
+            }
+            next[next.length - 1] = { ...m, tools };
             return next;
           });
         } else if (ev.type === 'sources') {
@@ -243,14 +282,23 @@ function AssistantPage() {
             )}
           </div>
 
-          <button
-            className={`asst-websearch ${webSearch ? 'on' : ''}`}
-            disabled={!selectedModel?.webSearch}
-            onClick={() => setWebSearch(v => !v)}
-            title={selectedModel?.webSearch ? 'Toggle web search' : 'This model has no web search'}
-          >
-            <Globe size={15} /> Web search {webSearch ? 'on' : 'off'}
-          </button>
+          <div className="asst-toggles">
+            <button
+              className={`asst-websearch ${rpmMode ? 'on' : ''}`}
+              onClick={() => setRpmMode(v => !v)}
+              title="RPM mode: the assistant can see your projects, key results and actions — and act on them"
+            >
+              <Sparkles size={15} /> RPM mode {rpmMode ? 'on' : 'off'}
+            </button>
+            <button
+              className={`asst-websearch ${webSearch ? 'on' : ''}`}
+              disabled={!selectedModel?.webSearch}
+              onClick={() => setWebSearch(v => !v)}
+              title={selectedModel?.webSearch ? 'Toggle web search' : 'This model has no web search'}
+            >
+              <Globe size={15} /> Web search {webSearch ? 'on' : 'off'}
+            </button>
+          </div>
         </header>
 
         <div className="asst-messages" ref={scrollRef}>
@@ -272,6 +320,15 @@ function AssistantPage() {
           {messages.map((m, i) => (
             <div key={i} className={`asst-msg ${m.role}`}>
               <div className="asst-msg-role">{m.role === 'user' ? 'You' : (selectedModel?.label || 'Assistant')}</div>
+              {Array.isArray(m.tools) && m.tools.length > 0 && (
+                <div className="asst-tools">
+                  {m.tools.map((t, k) => (
+                    <span key={k} className={`asst-tool ${t.done ? 'done' : 'running'} ${t.result && t.result.ok === false ? 'err' : ''}`}>
+                      <Zap size={12} /> {toolLabel(t)}
+                    </span>
+                  ))}
+                </div>
+              )}
               <div className="asst-msg-content">
                 {m.content || (streaming && i === messages.length - 1 ? <span className="asst-cursor">▍</span> : '')}
               </div>

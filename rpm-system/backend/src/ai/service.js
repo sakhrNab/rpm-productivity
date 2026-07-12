@@ -5,10 +5,24 @@ const { loadSdk } = require('./esm');
 const { getModelEntry, providerLabel } = require('./registry');
 const { resolveKey } = require('./keys');
 const { streamZai } = require('./zai');
+const { buildRpmContext } = require('./context');
+const { buildTools } = require('./tools');
 
 class AiError extends Error {
   constructor(code, message) { super(message); this.code = code; this.name = 'AiError'; }
 }
+
+const RPM_SYSTEM = `You are the user's RPM assistant and coach (RPM = Result, Purpose, Massive Action Plan).
+You can SEE their live data (projects, key results, RPM blocks, actions — with ids) in the context below,
+and you can ACT using tools: create/schedule/complete actions, create RPM blocks, update key-result progress.
+
+Be action-driven, not just conversational:
+- When the user asks you to plan, capture, or change something, USE the tools to actually do it — don't just describe it.
+- Reference their real projects and key results by name. Connect actions to the key results they advance.
+- If asked "what should I focus on", look at behind-pace key results and upcoming deadlines, then give a concrete
+  must-win plus 1-3 specific next actions (offer to create them).
+- Be concise. After using tools, briefly confirm what you did. Never invent ids — only use ids from the context.
+- Use plain, motivating language. It's fine to push back if the user's plan won't move any key result.`;
 
 // Split a leading system message out of the array (AI SDK prefers `system`).
 function splitSystem(messages) {
@@ -46,7 +60,8 @@ async function searchTools(sdk) {
   return undefined;
 }
 
-async function* runChat({ pool, userId, modelKey, messages, webSearch }) {
+// rpm=true injects the user's RPM context and enables action tools ("agent mode").
+async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm }) {
   const entry = getModelEntry(modelKey);
   if (!entry) throw new AiError('unknown_model', `Unknown model: ${modelKey}`);
 
@@ -57,35 +72,73 @@ async function* runChat({ pool, userId, modelKey, messages, webSearch }) {
 
   const useSearch = !!webSearch && !!entry.webSearch;
 
-  // z.ai goes through the direct client so we can pass GLM's web_search tool.
+  // In RPM mode, prepend a fresh system message carrying the live context.
+  let msgs = messages;
+  if (rpm) {
+    const ctx = await buildRpmContext(pool, userId);
+    msgs = [
+      { role: 'system', content: `${RPM_SYSTEM}\n\n=== YOUR RPM DATA ===\n${ctx.text}` },
+      ...messages.filter(m => m.role !== 'system'),
+    ];
+  }
+
+  // z.ai goes through the direct client (GLM web_search). It gets context but not
+  // the action tools (the direct client doesn't run function tools here).
   if (entry.provider === 'zhipu') {
-    yield* streamZai({ apiKey, model: entry.model, messages, webSearch: useSearch });
+    yield* streamZai({ apiKey, model: entry.model, messages: msgs, webSearch: useSearch });
     return;
   }
 
   const { ai } = await loadSdk();
   const { model, sdk } = await buildAiSdkModel(entry, apiKey);
-  const { system, rest } = splitSystem(messages);
-  const tools = useSearch ? await searchTools(sdk) : undefined;
+  const { system, rest } = splitSystem(msgs);
+
+  const tools = {};
+  if (useSearch) Object.assign(tools, await searchTools(sdk));
+  if (rpm) Object.assign(tools, buildTools(ai, pool, userId));
+  const hasTools = Object.keys(tools).length > 0;
 
   const result = ai.streamText({
     model,
     ...(system ? { system } : {}),
     messages: rest,
-    ...(tools ? { tools } : {}),
+    ...(hasTools ? { tools } : {}),
+    // Allow the model to call tools then respond (multi-step) in RPM mode.
+    ...(rpm ? { stopWhen: ai.stepCountIs(6) } : {}),
   });
 
-  for await (const chunk of result.textStream) {
-    if (chunk) yield { type: 'text', text: chunk };
+  const sources = [];
+  // fullStream surfaces text + tool activity so the UI can show what the agent did.
+  for await (const part of result.fullStream) {
+    switch (part.type) {
+      case 'text-delta': {
+        const t = part.text ?? part.textDelta ?? '';
+        if (t) yield { type: 'text', text: t };
+        break;
+      }
+      case 'tool-call':
+        yield { type: 'tool_call', name: part.toolName, args: part.input ?? part.args ?? {} };
+        break;
+      case 'tool-result':
+        yield { type: 'tool_result', name: part.toolName, result: part.output ?? part.result ?? null };
+        break;
+      case 'source':
+        if (part.url || part.source?.url) sources.push({ url: part.url || part.source.url, title: part.title || part.source?.title || part.url });
+        break;
+      case 'error':
+        yield { type: 'error', message: String(part.error?.message || part.error || 'stream error') };
+        break;
+      default:
+        break;
+    }
   }
 
-  let sources = [];
-  try {
-    const s = await result.sources;
-    if (Array.isArray(s)) {
-      sources = s.map(x => ({ url: x.url, title: x.title || x.url })).filter(x => x.url);
-    }
-  } catch { /* provider returned no sources */ }
+  if (!sources.length) {
+    try {
+      const s = await result.sources;
+      if (Array.isArray(s)) for (const x of s) if (x.url) sources.push({ url: x.url, title: x.title || x.url });
+    } catch { /* no sources */ }
+  }
   yield { type: 'sources', sources };
 }
 

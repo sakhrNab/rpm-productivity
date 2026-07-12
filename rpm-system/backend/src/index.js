@@ -1008,7 +1008,7 @@ app.delete('/api/ai/keys/:provider', authenticateToken, async (req, res) => {
 
 // Streaming chat (SSE). Persists the user + assistant messages.
 app.post('/api/ai/chat', authenticateToken, async (req, res) => {
-  const { conversationId, modelKey, message, webSearch } = req.body;
+  const { conversationId, modelKey, message, webSearch, rpmMode } = req.body;
   if (!modelKey || !message || !String(message).trim()) {
     return res.status(400).json({ error: 'modelKey and message are required' });
   }
@@ -1056,9 +1056,12 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
     let full = '';
     let sources = [];
     try {
-      for await (const ev of runChat({ pool, userId: req.userId, modelKey, messages, webSearch: !!webSearch })) {
+      for await (const ev of runChat({ pool, userId: req.userId, modelKey, messages, webSearch: !!webSearch, rpm: rpmMode !== false })) {
         if (ev.type === 'text') { full += ev.text; send({ type: 'delta', text: ev.text }); }
+        else if (ev.type === 'tool_call') send({ type: 'tool_call', name: ev.name, args: ev.args });
+        else if (ev.type === 'tool_result') send({ type: 'tool_result', name: ev.name, result: ev.result });
         else if (ev.type === 'sources') { sources = ev.sources || []; if (sources.length) send({ type: 'sources', sources }); }
+        else if (ev.type === 'error') send({ type: 'error', message: ev.message });
       }
     } catch (err) {
       console.error('[ai] chat stream error:', err);
