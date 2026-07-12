@@ -638,13 +638,98 @@ function ProjectDetailPage() {
           <Star size={14} />
           Starred Actions
         </button>
-        <button 
+        <button
           className={`category-tab ${activeTab === 'all' ? 'active' : ''}`}
           onClick={() => setActiveTab('all')}
         >
           All Actions
         </button>
       </div>
+
+      {/* Actions list — driven by the tabs above */}
+      {(() => {
+        const openNewAction = () => {
+          setEditingAction({ project_id: project.id, category_id: project.category_id });
+          setShowActionModal(true);
+        };
+        const activeAll = allActions.filter(a => !a.is_cancelled);
+        const list = activeTab === 'starred' ? starredActions : activeAll;
+        return (
+          <div className="project-section pd-mt-16 pd-actions-panel">
+            <div className="project-section-header">
+              <span className="project-section-label">
+                {activeTab === 'starred' ? 'Starred Actions' : 'All Actions'}
+              </span>
+              <span className="pd-actions-count">{list.length}</span>
+              <button type="button" className="btn btn-primary pd-ml-auto pd-btn-sm" onClick={openNewAction}>
+                <Plus size={14} /> Add Action
+              </button>
+            </div>
+
+            {list.length === 0 ? (
+              <div className="pd-actions-empty">
+                {activeAll.length === 0 ? (
+                  <>
+                    <div className="pd-empty-emoji">🎯</div>
+                    <h4>No actions yet</h4>
+                    <p>Actions are the concrete steps that move this project toward its result. Add your first one to get going.</p>
+                    <button type="button" className="btn btn-primary" onClick={openNewAction}>
+                      <Plus size={15} /> Add your first action
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="pd-empty-emoji">⭐</div>
+                    <h4>No starred actions</h4>
+                    <p>
+                      Star an action to keep your top priorities here.{' '}
+                      <button type="button" className="pd-linkbtn" onClick={() => setActiveTab('all')}>
+                        View all {activeAll.length} actions
+                      </button>
+                    </p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="pd-actions-list">
+                {list.map(action => (
+                  <div key={action.id} className={`pd-action-row ${action.is_completed ? 'is-done' : ''}`}>
+                    <button
+                      type="button"
+                      className={`pd-action-check ${action.is_completed ? 'checked' : ''}`}
+                      onClick={() => toggleActionComplete(action)}
+                      title={action.is_completed ? 'Mark as not done' : 'Mark done'}
+                    >
+                      {action.is_completed && <Check size={13} />}
+                    </button>
+                    <span className="pd-action-title" onClick={() => handleEditAction(action)} title="Edit action">
+                      {action.title}
+                    </span>
+                    {action.scheduled_date && (
+                      <span className="pd-action-date"><CalendarIcon size={12} /> {fmtDate(action.scheduled_date)}</span>
+                    )}
+                    <button
+                      type="button"
+                      className="pd-action-icon"
+                      onClick={() => toggleActionStar(action)}
+                      title="Star"
+                      style={{ color: action.is_starred ? 'var(--accent-orange)' : 'var(--text-muted)' }}
+                    >
+                      <Star size={13} fill={action.is_starred ? 'currentColor' : 'none'} />
+                    </button>
+                    <button type="button" className="pd-action-icon" onClick={() => handleEditAction(action)} title="Edit">
+                      <Edit size={13} />
+                    </button>
+                    <button type="button" className="pd-action-icon pd-action-del" onClick={() => handleDeleteAction(action)} title="Delete">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Project Sections */}
       <div className="project-sections">
@@ -912,52 +997,6 @@ function ProjectDetailPage() {
               </div>
             ))
           )}
-        </div>
-      </div>
-
-      {/* Inspiration Board */}
-      <div className="project-section pd-mt-24">
-        <div className="project-section-header">
-          <span className="project-section-label">Inspiration Board</span>
-          <button
-            type="button"
-            className="btn btn-icon btn-ghost pd-ml-auto"
-            onClick={handleAddInspiration}
-          >
-            <Plus size={14} />
-          </button>
-        </div>
-        <div className="pd-mood-grid">
-          {project.inspiration_items?.map(item => (
-            <button
-              key={item.id}
-              type="button"
-              className="pd-mood-card"
-              onClick={() => setPreviewInspiration(item)}
-              title={item.title || 'Open'}
-              style={item.image_url ? { backgroundImage: `url(${item.image_url})` } : undefined}
-            >
-              {!item.image_url && <span className="pd-mood-noimg"><Image size={26} /></span>}
-              <span className="pd-mood-overlay">
-                <span className="pd-mood-title">{item.title || 'Untitled'}</span>
-                {item.link_url && <span className="pd-mood-badge"><ExternalLink size={12} /></span>}
-              </span>
-              <span
-                className="pd-mood-del"
-                role="button"
-                aria-label="Delete inspiration item"
-                onClick={(e) => { e.stopPropagation(); handleDeleteInspiration(item); }}
-              >
-                <Trash2 size={13} />
-              </span>
-            </button>
-          ))}
-
-          {/* Add tile */}
-          <button type="button" className="pd-mood-add" onClick={handleAddInspiration}>
-            <Plus size={22} />
-            <span>Add inspiration</span>
-          </button>
         </div>
       </div>
 
@@ -1400,6 +1439,52 @@ function ProjectDetailPage() {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Inspiration Board */}
+      <div className="project-section pd-mt-24">
+        <div className="project-section-header">
+          <span className="project-section-label">Inspiration Board</span>
+          <button
+            type="button"
+            className="btn btn-icon btn-ghost pd-ml-auto"
+            onClick={handleAddInspiration}
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+        <div className="pd-mood-grid">
+          {project.inspiration_items?.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              className="pd-mood-card"
+              onClick={() => setPreviewInspiration(item)}
+              title={item.title || 'Open'}
+              style={item.image_url ? { backgroundImage: `url(${item.image_url})` } : undefined}
+            >
+              {!item.image_url && <span className="pd-mood-noimg"><Image size={26} /></span>}
+              <span className="pd-mood-overlay">
+                <span className="pd-mood-title">{item.title || 'Untitled'}</span>
+                {item.link_url && <span className="pd-mood-badge"><ExternalLink size={12} /></span>}
+              </span>
+              <span
+                className="pd-mood-del"
+                role="button"
+                aria-label="Delete inspiration item"
+                onClick={(e) => { e.stopPropagation(); handleDeleteInspiration(item); }}
+              >
+                <Trash2 size={13} />
+              </span>
+            </button>
+          ))}
+
+          {/* Add tile */}
+          <button type="button" className="pd-mood-add" onClick={handleAddInspiration}>
+            <Plus size={22} />
+            <span>Add inspiration</span>
+          </button>
         </div>
       </div>
 
