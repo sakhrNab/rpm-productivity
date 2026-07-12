@@ -21,8 +21,12 @@ Be action-driven, not just conversational:
 - Reference their real projects and key results by name. Connect actions to the key results they advance.
 - If asked "what should I focus on", look at behind-pace key results and upcoming deadlines, then give a concrete
   must-win plus 1-3 specific next actions (offer to create them).
-- Be concise. After using tools, briefly confirm what you did. Never invent ids — only use ids from the context.
-- Use plain, motivating language. It's fine to push back if the user's plan won't move any key result.`;
+- Be concise. Never invent ids — only use ids from the context.
+- Use plain, motivating language. It's fine to push back if the user's plan won't move any key result.
+- IMPORTANT: a change tool may be applied directly OR proposed for the user's approval (their choice).
+  If a tool result contains "proposed": true, DO NOT say you created/changed it — say you've *suggested* it and
+  they can approve it below. Don't re-list every item in prose; the UI already shows each suggestion with a button.
+- Format answers in clean Markdown (headings, tables, bold, short lists) — it is rendered, not shown as raw text.`;
 
 // Split a leading system message out of the array (AI SDK prefers `system`).
 function splitSystem(messages) {
@@ -61,7 +65,8 @@ async function searchTools(sdk) {
 }
 
 // rpm=true injects the user's RPM context and enables action tools ("agent mode").
-async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm }) {
+// autoMode=true executes writes immediately; otherwise writes are proposed for approval.
+async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm, autoMode }) {
   const entry = getModelEntry(modelKey);
   if (!entry) throw new AiError('unknown_model', `Unknown model: ${modelKey}`);
 
@@ -95,7 +100,7 @@ async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm }) {
 
   const tools = {};
   if (useSearch) Object.assign(tools, await searchTools(sdk));
-  if (rpm) Object.assign(tools, buildTools(ai, pool, userId));
+  if (rpm) Object.assign(tools, buildTools(ai, pool, userId, !!autoMode));
   const hasTools = Object.keys(tools).length > 0;
 
   const result = ai.streamText({

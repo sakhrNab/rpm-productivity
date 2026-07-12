@@ -9,6 +9,7 @@ const aiRegistry = require('./ai/registry');
 const aiKeys = require('./ai/keys');
 const { isConfigured: aiKeysConfigured } = require('./ai/crypto');
 const { runChat, AiError } = require('./ai/service');
+const { applyProposal } = require('./ai/tools');
 const { runCompass } = require('./ai/coach');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
@@ -1008,7 +1009,7 @@ app.delete('/api/ai/keys/:provider', authenticateToken, async (req, res) => {
 
 // Streaming chat (SSE). Persists the user + assistant messages.
 app.post('/api/ai/chat', authenticateToken, async (req, res) => {
-  const { conversationId, modelKey, message, webSearch, rpmMode } = req.body;
+  const { conversationId, modelKey, message, webSearch, rpmMode, autoMode } = req.body;
   if (!modelKey || !message || !String(message).trim()) {
     return res.status(400).json({ error: 'modelKey and message are required' });
   }
@@ -1056,7 +1057,7 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
     let full = '';
     let sources = [];
     try {
-      for await (const ev of runChat({ pool, userId: req.userId, modelKey, messages, webSearch: !!webSearch, rpm: rpmMode !== false })) {
+      for await (const ev of runChat({ pool, userId: req.userId, modelKey, messages, webSearch: !!webSearch, rpm: rpmMode !== false, autoMode: !!autoMode })) {
         if (ev.type === 'text') { full += ev.text; send({ type: 'delta', text: ev.text }); }
         else if (ev.type === 'tool_call') send({ type: 'tool_call', name: ev.name, args: ev.args });
         else if (ev.type === 'tool_result') send({ type: 'tool_result', name: ev.name, result: ev.result });
@@ -1107,6 +1108,20 @@ app.delete('/api/ai/conversations/:id', authenticateToken, async (req, res) => {
     await pool.query('DELETE FROM ai_conversations WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
     res.json({ success: true });
   } catch (error) { console.error('[ai] delete conversation error:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+// Apply an assistant proposal the user approved (propose-mode writes).
+app.post('/api/ai/apply', authenticateToken, async (req, res) => {
+  try {
+    const { kind, payload } = req.body;
+    if (!kind) return res.status(400).json({ error: 'kind is required' });
+    const result = await applyProposal(pool, req.userId, kind, payload || {});
+    if (result && result.ok === false) return res.status(400).json(result);
+    res.json(result);
+  } catch (error) {
+    console.error('[ai] apply error:', error);
+    res.status(500).json({ error: 'Failed to apply' });
+  }
 });
 
 // RPM Coach — Daily Compass (scaffold)

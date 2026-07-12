@@ -1,9 +1,12 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
 import {
-  Send, Globe, Plus, Trash2, MessageSquare, Sparkles, ChevronDown, Settings as SettingsIcon, Zap
+  Send, Globe, Plus, Trash2, MessageSquare, Sparkles, ChevronDown,
+  Settings as SettingsIcon, Zap, Wand2, Check, X, ExternalLink
 } from 'lucide-react';
 import './AssistantPage.css';
 
@@ -11,19 +14,32 @@ const PROVIDER_LABEL = {
   anthropic: 'Claude', openai: 'OpenAI', zhipu: 'z.ai (GLM)', deepseek: 'DeepSeek',
 };
 
-// Human label for a tool-activity chip.
+// Label for an executed (auto-mode) tool chip.
 function toolLabel(t) {
   const r = t.result;
   const failed = r && r.ok === false;
   const base = {
     list_projects: 'Read your projects',
-    create_action: r?.title ? `Created action “${r.title}”` : 'Created an action',
+    create_action: r?.title ? `Created “${r.title}”` : 'Created an action',
     schedule_action: r?.scheduled_date ? `Scheduled → ${String(r.scheduled_date).slice(0, 10)}` : 'Scheduled an action',
     complete_action: r?.is_completed === false ? 'Reopened an action' : 'Completed an action',
-    create_rpm_block: r?.result_title ? `Created RPM block “${r.result_title}”` : 'Created an RPM block',
+    create_rpm_block: r?.result_title ? `Created block “${r.result_title}”` : 'Created an RPM block',
     update_key_result: r?.title ? `Updated “${r.title}” → ${r.current_value}` : 'Updated a key result',
   }[t.name] || t.name;
   return failed ? `${base} — failed` : base;
+}
+
+const MD_COMPONENTS = {
+  a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+  table: ({ node, ...props }) => <div className="asst-md-tablewrap"><table {...props} /></div>,
+};
+
+function Markdown({ children }) {
+  return (
+    <div className="asst-md">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{children}</ReactMarkdown>
+    </div>
+  );
 }
 
 function AssistantPage() {
@@ -35,11 +51,12 @@ function AssistantPage() {
   const [modelKey, setModelKey] = useState(localStorage.getItem('ai.modelKey') || '');
   const [webSearch, setWebSearch] = useState(false);
   const [rpmMode, setRpmMode] = useState(() => localStorage.getItem('ai.rpmMode') !== 'off');
+  const [autoMode, setAutoMode] = useState(() => localStorage.getItem('ai.autoMode') === 'on');
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
 
   const [conversations, setConversations] = useState([]);
   const [conversationId, setConversationId] = useState(null);
-  const [messages, setMessages] = useState([]); // {role, content, sources?}
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
 
@@ -57,16 +74,12 @@ function AssistantPage() {
 
   useEffect(() => {
     api.getAiModels()
-      .then(data => {
-        setModels(data.models || []);
-        setProviders(data.providers || []);
-      })
+      .then(data => { setModels(data.models || []); setProviders(data.providers || []); })
       .catch(() => showToast('Failed to load AI models', 'error'));
     refreshConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Default the model to the first available one, once models load.
   useEffect(() => {
     if (!modelKey && availableModels.length) setModelKey(availableModels[0].key);
     if (modelKey && !availableModels.find(m => m.key === modelKey) && availableModels.length) {
@@ -76,8 +89,8 @@ function AssistantPage() {
 
   useEffect(() => { if (modelKey) localStorage.setItem('ai.modelKey', modelKey); }, [modelKey]);
   useEffect(() => { localStorage.setItem('ai.rpmMode', rpmMode ? 'on' : 'off'); }, [rpmMode]);
+  useEffect(() => { localStorage.setItem('ai.autoMode', autoMode ? 'on' : 'off'); }, [autoMode]);
 
-  // Web search auto-off when the model doesn't support it.
   useEffect(() => {
     if (selectedModel && !selectedModel.webSearch && webSearch) setWebSearch(false);
   }, [selectedModel, webSearch]);
@@ -86,17 +99,13 @@ function AssistantPage() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, streaming]);
 
-  const refreshConversations = () => {
-    api.getAiConversations().then(setConversations).catch(() => {});
-  };
+  const refreshConversations = () => { api.getAiConversations().then(setConversations).catch(() => {}); };
 
   const openConversation = async (id) => {
     try {
       const conv = await api.getAiConversation(id);
       setConversationId(conv.id);
-      setMessages((conv.messages || []).map(m => ({
-        role: m.role, content: m.content, sources: m.sources || null,
-      })));
+      setMessages((conv.messages || []).map(m => ({ role: m.role, content: m.content, sources: m.sources || null, tools: [] })));
       if (conv.model) setModelKey(conv.model);
     } catch { showToast('Failed to open conversation', 'error'); }
   };
@@ -113,6 +122,27 @@ function AssistantPage() {
     } catch { showToast('Failed to delete', 'error'); }
   };
 
+  // Update one tool entry within a message (immutably).
+  const updateTool = (mi, ti, patch) => setMessages(prev => prev.map((m, i) => {
+    if (i !== mi) return m;
+    const tools = (m.tools || []).map((t, j) => (j === ti ? { ...t, ...patch } : t));
+    return { ...m, tools };
+  }));
+
+  const approveProposal = async (mi, ti, t) => {
+    updateTool(mi, ti, { status: 'applying' });
+    try {
+      const res = await api.aiApplyProposal({ kind: t.result.kind, payload: t.result.payload });
+      if (!res || res.error || res.ok === false) throw new Error(res?.error || 'Failed to apply');
+      updateTool(mi, ti, { status: 'applied', applied: res });
+      showToast('Applied', 'success');
+    } catch (e) {
+      updateTool(mi, ti, { status: undefined });
+      showToast(e.message || 'Failed to apply', 'error');
+    }
+  };
+  const dismissProposal = (mi, ti) => updateTool(mi, ti, { status: 'dismissed' });
+
   const send = async () => {
     const text = input.trim();
     if (!text || streaming) return;
@@ -123,7 +153,7 @@ function AssistantPage() {
     setStreaming(true);
 
     try {
-      const res = await api.aiChatStream({ conversationId, modelKey, message: text, webSearch, rpmMode });
+      const res = await api.aiChatStream({ conversationId, modelKey, message: text, webSearch, rpmMode, autoMode });
       if (!res.ok || !res.body) {
         let msg = 'AI request failed';
         try { const j = await res.json(); msg = j.error || msg; } catch { /* ignore */ }
@@ -154,7 +184,6 @@ function AssistantPage() {
             const next = [...prev];
             const m = next[next.length - 1];
             const tools = [...(m.tools || [])];
-            // mark the most recent matching, not-yet-done tool as complete
             for (let i = tools.length - 1; i >= 0; i--) {
               if (tools[i].name === ev.name && !tools[i].done) {
                 tools[i] = { ...tools[i], done: true, result: ev.result };
@@ -211,37 +240,81 @@ function AssistantPage() {
     }
   };
 
-  const onKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
-  };
+  const onKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
 
   const noModels = models.length > 0 && availableModels.length === 0;
+
+  // Split a message's tools into executed chips vs approval proposals.
+  const renderTools = (m, mi) => {
+    const tools = m.tools || [];
+    if (!tools.length) return null;
+    const chips = [];
+    const proposals = [];
+    tools.forEach((t, ti) => {
+      if (t.result && t.result.proposed) proposals.push({ t, ti });
+      else chips.push({ t, ti });
+    });
+    return (
+      <>
+        {chips.length > 0 && (
+          <div className="asst-tools">
+            {chips.map(({ t, ti }) => {
+              const link = t.result?.link;
+              return (
+                <span key={ti} className={`asst-tool ${t.done ? 'done' : 'running'} ${t.result && t.result.ok === false ? 'err' : ''}`}>
+                  <Zap size={12} /> {toolLabel(t)}
+                  {t.done && link && <Link to={link} className="asst-tool-open">Open <ExternalLink size={11} /></Link>}
+                </span>
+              );
+            })}
+          </div>
+        )}
+        {proposals.length > 0 && (
+          <div className="asst-proposals">
+            <div className="asst-proposals-head"><Wand2 size={13} /> Suggested changes — approve what you want</div>
+            {proposals.map(({ t, ti }) => {
+              const link = (t.applied && t.applied.link) || t.result.link;
+              return (
+                <div key={ti} className={`asst-proposal ${t.status || ''}`}>
+                  <span className="asst-proposal-label">{t.result.label || t.name}</span>
+                  {(!t.status) && (
+                    <span className="asst-proposal-actions">
+                      <button className="asst-prop-approve" onClick={() => approveProposal(mi, ti, t)}><Check size={13} /> Approve</button>
+                      <button className="asst-prop-dismiss" onClick={() => dismissProposal(mi, ti)}><X size={13} /> Dismiss</button>
+                    </span>
+                  )}
+                  {t.status === 'applying' && <span className="asst-proposal-state">Applying…</span>}
+                  {t.status === 'applied' && (
+                    <span className="asst-proposal-state done">
+                      <Check size={13} /> Added
+                      {link && <Link to={link} className="asst-tool-open">Open <ExternalLink size={11} /></Link>}
+                    </span>
+                  )}
+                  {t.status === 'dismissed' && <span className="asst-proposal-state muted">Dismissed</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="asst">
       <aside className="asst-sidebar">
-        <button className="btn btn-primary asst-newchat" onClick={newChat}>
-          <Plus size={16} /> New chat
-        </button>
+        <button className="btn btn-primary asst-newchat" onClick={newChat}><Plus size={16} /> New chat</button>
         <div className="asst-conv-list">
           {conversations.length === 0 && <div className="asst-conv-empty">No conversations yet.</div>}
           {conversations.map(c => (
-            <div
-              key={c.id}
-              className={`asst-conv ${c.id === conversationId ? 'active' : ''}`}
-              onClick={() => openConversation(c.id)}
-            >
+            <div key={c.id} className={`asst-conv ${c.id === conversationId ? 'active' : ''}`} onClick={() => openConversation(c.id)}>
               <MessageSquare size={14} />
               <span className="asst-conv-title">{c.title || 'Untitled'}</span>
-              <button className="asst-conv-del" onClick={(e) => deleteConversation(e, c.id)} aria-label="Delete">
-                <Trash2 size={13} />
-              </button>
+              <button className="asst-conv-del" onClick={(e) => deleteConversation(e, c.id)} aria-label="Delete"><Trash2 size={13} /></button>
             </div>
           ))}
         </div>
-        <Link to="/settings" className="asst-settings-link">
-          <SettingsIcon size={14} /> API keys &amp; settings
-        </Link>
+        <Link to="/settings" className="asst-settings-link"><SettingsIcon size={14} /> API keys &amp; settings</Link>
       </aside>
 
       <section className="asst-main">
@@ -265,12 +338,8 @@ function AssistantPage() {
                         {!configured && <span className="asst-nokey">needs key</span>}
                       </div>
                       {provModels.map(m => (
-                        <button
-                          key={m.key}
-                          className={`asst-model-item ${m.key === modelKey ? 'active' : ''}`}
-                          disabled={!configured}
-                          onClick={() => { setModelKey(m.key); setModelMenuOpen(false); }}
-                        >
+                        <button key={m.key} className={`asst-model-item ${m.key === modelKey ? 'active' : ''}`} disabled={!configured}
+                          onClick={() => { setModelKey(m.key); setModelMenuOpen(false); }}>
                           {m.label}
                           {m.webSearch && <Globe size={12} className="asst-model-web" />}
                         </button>
@@ -283,20 +352,17 @@ function AssistantPage() {
           </div>
 
           <div className="asst-toggles">
-            <button
-              className={`asst-websearch ${rpmMode ? 'on' : ''}`}
-              onClick={() => setRpmMode(v => !v)}
-              title="RPM mode: the assistant can see your projects, key results and actions — and act on them"
-            >
-              <Sparkles size={15} /> RPM mode {rpmMode ? 'on' : 'off'}
+            <button className={`asst-websearch ${rpmMode ? 'on' : ''}`} onClick={() => setRpmMode(v => !v)}
+              title="RPM mode: the assistant sees your projects, key results and actions — and can act on them">
+              <Sparkles size={15} /> RPM {rpmMode ? 'on' : 'off'}
             </button>
-            <button
-              className={`asst-websearch ${webSearch ? 'on' : ''}`}
-              disabled={!selectedModel?.webSearch}
-              onClick={() => setWebSearch(v => !v)}
-              title={selectedModel?.webSearch ? 'Toggle web search' : 'This model has no web search'}
-            >
-              <Globe size={15} /> Web search {webSearch ? 'on' : 'off'}
+            <button className={`asst-websearch ${autoMode ? 'on' : ''}`} disabled={!rpmMode} onClick={() => setAutoMode(v => !v)}
+              title={autoMode ? 'Auto: changes apply immediately' : 'Ask first: changes are suggested for your approval'}>
+              <Wand2 size={15} /> {autoMode ? 'Auto' : 'Ask first'}
+            </button>
+            <button className={`asst-websearch ${webSearch ? 'on' : ''}`} disabled={!selectedModel?.webSearch} onClick={() => setWebSearch(v => !v)}
+              title={selectedModel?.webSearch ? 'Toggle web search' : 'This model has no web search'}>
+              <Globe size={15} /> Web {webSearch ? 'on' : 'off'}
             </button>
           </div>
         </header>
@@ -314,31 +380,23 @@ function AssistantPage() {
             <div className="asst-empty">
               <Sparkles size={28} />
               <h2>Ask anything</h2>
-              <p>Pick a model, optionally turn on web search, and start typing.</p>
+              <p>In RPM mode I can see your projects and suggest or make changes. Try “Plan my week for my top key result.”</p>
             </div>
           )}
           {messages.map((m, i) => (
             <div key={i} className={`asst-msg ${m.role}`}>
               <div className="asst-msg-role">{m.role === 'user' ? 'You' : (selectedModel?.label || 'Assistant')}</div>
-              {Array.isArray(m.tools) && m.tools.length > 0 && (
-                <div className="asst-tools">
-                  {m.tools.map((t, k) => (
-                    <span key={k} className={`asst-tool ${t.done ? 'done' : 'running'} ${t.result && t.result.ok === false ? 'err' : ''}`}>
-                      <Zap size={12} /> {toolLabel(t)}
-                    </span>
-                  ))}
-                </div>
-              )}
+              {renderTools(m, i)}
               <div className="asst-msg-content">
-                {m.content || (streaming && i === messages.length - 1 ? <span className="asst-cursor">▍</span> : '')}
+                {m.role === 'assistant'
+                  ? (m.content ? <Markdown>{m.content}</Markdown> : (streaming && i === messages.length - 1 ? <span className="asst-cursor">▍</span> : null))
+                  : m.content}
               </div>
               {Array.isArray(m.sources) && m.sources.length > 0 && (
                 <div className="asst-sources">
                   <span className="asst-sources-label"><Globe size={12} /> Sources</span>
                   {m.sources.map((s, j) => (
-                    <a key={j} href={s.url} target="_blank" rel="noopener noreferrer" className="asst-source">
-                      {s.title || s.url}
-                    </a>
+                    <a key={j} href={s.url} target="_blank" rel="noopener noreferrer" className="asst-source">{s.title || s.url}</a>
                   ))}
                 </div>
               )}
@@ -347,15 +405,10 @@ function AssistantPage() {
         </div>
 
         <div className="asst-composer">
-          <textarea
-            className="asst-input"
+          <textarea className="asst-input"
             placeholder={selectedModel ? `Message ${selectedModel.label}…` : 'Select a model to begin…'}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            rows={1}
-            disabled={!modelKey || streaming}
-          />
+            value={input} onChange={e => setInput(e.target.value)} onKeyDown={onKeyDown} rows={1}
+            disabled={!modelKey || streaming} />
           <button className="btn btn-primary asst-send" onClick={send} disabled={!input.trim() || streaming || !modelKey}>
             <Send size={16} />
           </button>
