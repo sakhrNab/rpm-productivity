@@ -2411,11 +2411,11 @@ body {
 .kr-card,
 .auth-card,
 .planner-unscheduled {
+  /* No backdrop-filter here: it makes the card a containing block for
+     position:fixed dropdown menus, which broke their placement/z-index. */
   background:
-    linear-gradient(150deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05) 46%, rgba(255, 255, 255, 0.02) 100%),
-    rgba(20, 37, 68, 0.72);
-  backdrop-filter: blur(16px) saturate(1.15);
-  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+    linear-gradient(150deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04) 46%, rgba(255, 255, 255, 0.015) 100%),
+    rgba(20, 37, 68, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 20px;
   box-shadow:

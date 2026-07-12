@@ -135,10 +135,15 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
 
   const handleActionCreated = async () => {
     setShowActionModal(false);
-    // Reload actions list to include the newly created action (same project/category scope)
+    // Reload the list and auto-attach any newly created action, so a brand-new
+    // action actually lands in the block's Massive Action Plan (not just listed).
     try {
       const data = await api.getActions({ completed: 'false' });
-      setActions(data.filter(inScope));
+      const scoped = data.filter(inScope);
+      const prevIds = new Set(actions.map(a => a.id));
+      const newIds = scoped.filter(a => !prevIds.has(a.id)).map(a => a.id);
+      setActions(scoped);
+      if (newIds.length) setSelectedActions(prev => [...new Set([...prev, ...newIds])]);
     } catch (error) {
       console.error('Failed to reload actions:', error);
     }
