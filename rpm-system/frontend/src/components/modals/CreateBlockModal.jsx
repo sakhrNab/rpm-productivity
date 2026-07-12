@@ -282,7 +282,7 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
             {/* Add Actions to Block */}
             <div className="form-group">
               <div className="cbm-actions-head">
-                <label className="form-label cbm-label-flush">ADD ACTIONS TO BLOCK</label>
+                <label className="form-label cbm-label-flush">MASSIVE ACTION PLAN</label>
                 <div className="cbm-actions">
                   <button
                     type="button"
@@ -305,14 +305,20 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
                 </div>
               </div>
 
+              <p className="cbm-hint">
+                Checked actions ARE this block’s Massive Action Plan (they show on the
+                block card). Check to add, uncheck to remove, or “+” to create a new one.
+              </p>
               <div className="checkbox-list">
                 {actions.length === 0 ? (
                   <div className="cbm-empty">
-                    No unassigned actions to attach yet. You can add actions to this
-                    block after saving, with the “+ Add Massive Action Plan” button on the block.
+                    No actions yet. Use “+” to create the first step of this block’s
+                    Massive Action Plan.
                   </div>
                 ) : (
-                  actions.map(action => {
+                  [...actions]
+                    .sort((a, b) => (selectedActions.includes(b.id) ? 1 : 0) - (selectedActions.includes(a.id) ? 1 : 0))
+                    .map(action => {
                     const isSel = selectedActions.includes(action.id);
                     const dateVal = action.scheduled_date ? String(action.scheduled_date).slice(0, 10) : '';
                     return (

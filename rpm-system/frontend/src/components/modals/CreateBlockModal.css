@@ -151,3 +151,10 @@
 }
 .cbm-icon-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); }
 .cbm-icon-btn.cbm-del:hover { background: rgba(239, 83, 80, 0.16); color: #ff6b6b; }
+
+.cbm-hint {
+  margin: 2px 0 10px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
