@@ -222,16 +222,17 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
             {/* Leverage Person */}
             <div className="form-row cam-mb-16">
               <span className="cam-field-label">Leverage/Commit</span>
-              <div className="dropdown cam-relative">
+              <div className="dropdown cam-dropdown-flex">
                 <button
                   type="button"
-                  className="btn btn-icon btn-secondary"
+                  className="dropdown-trigger cam-trigger-full"
                   onClick={() => setShowPersonDropdown(!showPersonDropdown)}
                 >
-                  <User size={16} />
+                  <User size={16} className="cam-icon-muted" />
+                  <span>{selectedPerson?.name || 'Choose person (optional)'}</span>
                 </button>
                 {showPersonDropdown && (
-                  <div className="dropdown-menu cam-menu-right">
+                  <div className="dropdown-menu">
                     <div
                       className="dropdown-item"
                       onClick={() => {
@@ -239,8 +240,13 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
                         setShowPersonDropdown(false);
                       }}
                     >
-                      No Person
+                      No person
                     </div>
+                    {persons.length === 0 && (
+                      <div className="dropdown-item cam-dropdown-empty">
+                        No people yet — add them on the People page
+                      </div>
+                    )}
                     {persons.map(person => (
                       <div
                         key={person.id}
@@ -251,26 +257,22 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
                         }}
                       >
                         {person.name}
+                        {person.email && <span className="cam-person-email">{person.email}</span>}
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-              {selectedPerson && (
-                <span className="cam-unit">
-                  {selectedPerson.name}
-                </span>
-              )}
-              <label className="cam-leverage-label">
-                <input
-                  type="checkbox"
-                  checked={createLeverage}
-                  onChange={e => setCreateLeverage(e.target.checked)}
-                  disabled={!formData.leverage_person_id}
-                />
-                Create Leverage Request
-              </label>
             </div>
+            <label className="cam-leverage-label cam-mb-16">
+              <input
+                type="checkbox"
+                checked={createLeverage}
+                onChange={e => setCreateLeverage(e.target.checked)}
+                disabled={!formData.leverage_person_id}
+              />
+              Create Leverage Request
+            </label>
           </div>
 
           <div className="modal-footer">

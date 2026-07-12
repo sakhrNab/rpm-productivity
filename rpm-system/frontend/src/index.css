@@ -82,6 +82,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Never allow sideways scroll on the page itself — cards/grids must fit the
+   viewport on mobile instead of pushing the layout wider than the screen. */
+html, body { max-width: 100%; overflow-x: hidden; }
+.main-content, .app-container { min-width: 0; }
+
 #root {
   min-height: 100vh;
   display: flex;
@@ -411,11 +416,21 @@ input::placeholder, textarea::placeholder {
   inset: 0;
   background-size: cover;
   background-position: center;
-  opacity: 0.6;
+  opacity: 0.55;
+}
+
+/* Dark scrim so titles/descriptions stay readable over bright cover images */
+.project-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 16, 32, 0.35) 0%, rgba(8, 16, 32, 0.82) 100%);
+  pointer-events: none;
 }
 
 .project-card-content {
   position: relative;
+  z-index: 1;
   padding: var(--spacing-md);
   height: 100%;
   display: flex;
@@ -438,12 +453,16 @@ input::placeholder, textarea::placeholder {
 
 .project-card-title {
   font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
   margin-bottom: var(--spacing-xs);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
 .project-card-description {
   font-size: 0.85rem;
-  color: var(--text-secondary);
+  color: rgba(230, 236, 247, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   flex: 1;
 }
 
@@ -1344,18 +1363,8 @@ input::placeholder, textarea::placeholder {
 
 /* Responsive */
 @media (max-width: 768px) {
-  .navbar {
-    flex-wrap: wrap;
-    gap: var(--spacing-md);
-  }
-  
-  .navbar-nav {
-    order: 3;
-    width: 100%;
-    overflow-x: auto;
-    padding-bottom: var(--spacing-sm);
-  }
-  
+  /* .navbar-nav here is handled by the slide-in drawer rules below (≤860px);
+     the old inline horizontal-scroll layout was removed so it can't conflict. */
   .main-content {
     padding: var(--spacing-md);
   }
@@ -1915,6 +1924,7 @@ select:focus-visible {
   position: absolute;
   top: var(--spacing-sm);
   right: var(--spacing-sm);
+  z-index: 2; /* above the .project-card::after scrim */
 }
 
 /* Card action popover: give it a real width and right-align it so text isn't
@@ -1996,9 +2006,10 @@ select:focus-visible {
 /* Key Results / Capture columns become responsive */
 .project-sections {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: var(--spacing-lg);
 }
+.project-sections > * { min-width: 0; }
 
 /* ---------- Tablet & mobile: slide-in nav drawer ---------- */
 @media (max-width: 860px) {
@@ -2047,6 +2058,27 @@ select:focus-visible {
 
   /* Create button collapses to an icon-ish pill */
   .create-menu .btn-primary { padding: var(--spacing-sm) var(--spacing-md); }
+
+  /* Project/Category header: the Edit / Change-Cover buttons are absolutely
+     positioned on desktop and overlap the title on a phone. Drop them into
+     normal flow so they stack neatly above the title, and let them wrap. */
+  .project-header-content,
+  .category-header-content { padding: var(--spacing-md); }
+  .pd-cover-actions,
+  .cd-header-actions {
+    position: static;
+    flex-wrap: wrap;
+    margin-bottom: var(--spacing-md);
+  }
+  .pd-cover-actions .btn,
+  .cd-header-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .pd-title-heading { font-size: 1.6rem; }
+  .cd-vision-title { font-size: 1.8rem; }
+
+  /* RPM block header: badge + timers wrap instead of being clipped off-screen */
+  .rpm-block-header { flex-wrap: wrap; gap: var(--spacing-sm); }
+  .rpm-block-badge { max-width: 100%; }
+  .pd-blocks-grid { grid-template-columns: 1fr; }
 
   /* Modals become bottom sheets */
   .modal-overlay { align-items: flex-end; }
@@ -2381,6 +2413,11 @@ body {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 70%),
     rgba(10, 22, 40, 0.82);
+}
+/* NOTE: blur intentionally lives on .navbar::before, NOT here. A backdrop-filter
+   on .navbar itself makes it a containing block for the fixed mobile drawer,
+   which collapses the drawer to the navbar's height (menu appears empty). */
+.navbar::before {
   backdrop-filter: blur(14px) saturate(1.2);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
 }

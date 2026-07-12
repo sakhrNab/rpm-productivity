@@ -12,6 +12,31 @@ function ProjectsPage() {
   const [openMenuId, setOpenMenuId] = useState(null);
   const menuRef = useRef(null);
 
+  // Drag-to-reorder: keep a local ordered copy; sync from context when not dragging.
+  const [items, setItems] = useState(projects);
+  const [dragId, setDragId] = useState(null);
+  useEffect(() => { if (!dragId) setItems(projects); }, [projects, dragId]);
+
+  const handleCardDragOver = (e, overId) => {
+    e.preventDefault();
+    if (!dragId || dragId === overId) return;
+    setItems(prev => {
+      const from = prev.findIndex(p => p.id === dragId);
+      const to = prev.findIndex(p => p.id === overId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+  const handleCardDrop = async () => {
+    const ids = items.map(p => p.id);
+    setDragId(null);
+    try { await api.reorderProjects(ids); if (refreshData) refreshData(); }
+    catch (error) { console.error('Failed to reorder projects:', error); if (refreshData) refreshData(); }
+  };
+
   const getCategoryById = (id) => categories.find(c => c.id === id);
 
   const handleProjectSuccess = () => {
@@ -69,13 +94,18 @@ function ProjectsPage() {
             </p>
           </div>
         ) : (
-          projects.map(project => {
+          items.map(project => {
           const category = getCategoryById(project.category_id);
           return (
             <div
               key={project.id}
-              className={`project-card ${openMenuId === project.id ? 'menu-open' : ''}`}
-              onClick={() => navigate(`/projects/${project.id}`)}
+              className={`project-card ${openMenuId === project.id ? 'menu-open' : ''} ${dragId === project.id ? 'cd-dragging' : ''}`}
+              draggable
+              onDragStart={(e) => { setDragId(project.id); e.dataTransfer.effectAllowed = 'move'; }}
+              onDragOver={(e) => handleCardDragOver(e, project.id)}
+              onDrop={(e) => { e.preventDefault(); handleCardDrop(); }}
+              onDragEnd={handleCardDrop}
+              onClick={() => { if (!dragId) navigate(`/projects/${project.id}`); }}
             >
               <div
                 className="project-card-bg"

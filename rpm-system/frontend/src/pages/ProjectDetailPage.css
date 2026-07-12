@@ -154,9 +154,14 @@
 
 .pd-blocks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(400px, 100%), 1fr));
   gap: 16px;
 }
+.pd-blocks-grid > * { min-width: 0; }
+/* Header holds a category badge + timers/menu; let it wrap so nothing is clipped. */
+.rpm-block-header { flex-wrap: wrap; gap: 8px; }
+.rpm-block-badge { min-width: 0; max-width: 100%; }
+.pd-flex-center-gap8 { flex-wrap: wrap; justify-content: flex-end; }
 
 .pd-flex-center-gap4-sm {
   display: flex;
