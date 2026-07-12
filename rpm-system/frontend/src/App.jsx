@@ -9,6 +9,8 @@ import CalendarPage from './pages/CalendarPage';
 import PeoplePage from './pages/PeoplePage';
 import MyWeekPage from './pages/MyWeekPage';
 import MyDayPage from './pages/MyDayPage';
+import AssistantPage from './pages/AssistantPage';
+import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
@@ -116,6 +118,22 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       method: 'PUT',
       body: JSON.stringify({ ids })
     }).then(r => r.json()),
+
+    // ---- AI layer ----
+    getAiModels: () => authFetch(`${API_BASE}/ai/models`).then(r => r.json()),
+    getAiKeys: () => authFetch(`${API_BASE}/ai/keys`).then(r => r.json()),
+    saveAiKey: (provider, key) => authFetch(`${API_BASE}/ai/keys/${provider}`, {
+      method: 'PUT', body: JSON.stringify({ key })
+    }).then(r => r.json()),
+    deleteAiKey: (provider) => authFetch(`${API_BASE}/ai/keys/${provider}`, { method: 'DELETE' }).then(r => r.json()),
+    getAiConversations: () => authFetch(`${API_BASE}/ai/conversations`).then(r => r.json()),
+    getAiConversation: (id) => authFetch(`${API_BASE}/ai/conversations/${id}`).then(r => r.json()),
+    deleteAiConversation: (id) => authFetch(`${API_BASE}/ai/conversations/${id}`, { method: 'DELETE' }).then(r => r.json()),
+    aiCoachCompass: (body) => authFetch(`${API_BASE}/ai/coach/compass`, {
+      method: 'POST', body: JSON.stringify(body)
+    }).then(r => r.json()),
+    // Returns the raw streaming Response for SSE reading in the page.
+    aiChatStream: (body) => authFetch(`${API_BASE}/ai/chat`, { method: 'POST', body: JSON.stringify(body) }),
     updateCategoryDetails: (id, data) => authFetch(`${API_BASE}/categories/${id}/details`, {
       method: 'PUT',
       body: JSON.stringify(data)
@@ -477,6 +495,8 @@ function AppContent() {
           <Route path="/my-week" element={<MyWeekPage />} />
           <Route path="/my-day" element={<MyDayPage />} />
           <Route path="/people" element={<PeoplePage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
     </AppContext.Provider>

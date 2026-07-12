@@ -1,0 +1,49 @@
+.settings-page { max-width: 820px; }
+
+.settings-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+}
+.settings-section-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: var(--spacing-lg); color: var(--accent-cyan); }
+.settings-section-head h2 { font-size: 1.15rem; color: var(--text-primary); margin-bottom: 4px; }
+.settings-section-head p { font-size: 0.88rem; color: var(--text-secondary); }
+
+.settings-warn {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,183,77,0.1); border: 1px solid rgba(255,183,77,0.35);
+  color: var(--accent-orange); border-radius: var(--radius-md);
+  padding: 12px 14px; font-size: 0.85rem; margin-bottom: var(--spacing-md);
+}
+.settings-warn code { background: rgba(0,0,0,0.3); padding: 1px 6px; border-radius: 4px; }
+
+.settings-keys { display: flex; flex-direction: column; gap: var(--spacing-md); }
+.settings-key-row {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: var(--spacing-md);
+  background: var(--bg-card); border: 1px solid var(--border-primary); border-radius: var(--radius-md);
+}
+.settings-key-info { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.settings-key-label { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text-primary); }
+.settings-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.72rem; font-weight: 600; border-radius: 999px; padding: 2px 8px;
+}
+.settings-badge.ok { color: var(--accent-green); background: rgba(129,199,132,0.12); border: 1px solid rgba(129,199,132,0.35); }
+.settings-badge.env { color: var(--accent-cyan); background: rgba(78,205,196,0.12); border: 1px solid rgba(78,205,196,0.3); }
+.settings-key-get { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--accent-cyan); }
+
+.settings-key-actions { display: flex; gap: 8px; align-items: center; }
+.settings-key-input { flex: 1; min-width: 0; }
+.settings-key-save { white-space: nowrap; }
+
+.settings-note {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.82rem;
+}
+
+@media (max-width: 640px) {
+  .settings-key-actions { flex-wrap: wrap; }
+  .settings-key-input { flex: 1 1 100%; }
+}

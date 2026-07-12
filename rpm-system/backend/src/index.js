@@ -5,6 +5,11 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { sendInvitation, sendWelcome } = require('./email');
+const aiRegistry = require('./ai/registry');
+const aiKeys = require('./ai/keys');
+const { isConfigured: aiKeysConfigured } = require('./ai/crypto');
+const { runChat, AiError } = require('./ai/service');
+const { runCompass } = require('./ai/coach');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -918,6 +923,170 @@ app.post('/api/upload', authenticateToken, upload.single('image'), (req, res) =>
 app.get('/api/health', async (req, res) => {
   try { await pool.query('SELECT 1'); res.json({ status: 'healthy', database: 'connected' }); }
   catch (error) { res.status(500).json({ status: 'unhealthy', database: 'disconnected' }); }
+});
+
+// ============================================================
+// AI layer: multi-provider chat + native web search + per-user keys
+// ============================================================
+
+// Model registry (all curated models) + this user's provider key status.
+app.get('/api/ai/models', authenticateToken, async (req, res) => {
+  try {
+    const providers = await aiKeys.listKeysMasked(pool, req.userId);
+    res.json({ models: aiRegistry.MODELS, providers, storageEnabled: aiKeysConfigured() });
+  } catch (error) {
+    console.error('[ai] models error:', error);
+    res.status(500).json({ error: 'Failed to load models' });
+  }
+});
+
+// Masked key status per provider.
+app.get('/api/ai/keys', authenticateToken, async (req, res) => {
+  try {
+    res.json({ providers: await aiKeys.listKeysMasked(pool, req.userId), storageEnabled: aiKeysConfigured() });
+  } catch (error) {
+    console.error('[ai] keys list error:', error);
+    res.status(500).json({ error: 'Failed to load keys' });
+  }
+});
+
+// Save / replace a provider key (encrypted at rest).
+app.put('/api/ai/keys/:provider', authenticateToken, async (req, res) => {
+  try {
+    const { key } = req.body;
+    if (!key || !String(key).trim()) return res.status(400).json({ error: 'API key is required' });
+    if (!aiKeysConfigured()) {
+      return res.status(503).json({ error: 'Key storage is not enabled on the server yet (AI_KEYS_SECRET is missing).' });
+    }
+    await aiKeys.saveKey(pool, req.userId, req.params.provider, String(key));
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[ai] key save error:', error);
+    res.status(400).json({ error: error.message || 'Failed to save key' });
+  }
+});
+
+app.delete('/api/ai/keys/:provider', authenticateToken, async (req, res) => {
+  try {
+    await aiKeys.deleteKey(pool, req.userId, req.params.provider);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[ai] key delete error:', error);
+    res.status(500).json({ error: 'Failed to delete key' });
+  }
+});
+
+// Streaming chat (SSE). Persists the user + assistant messages.
+app.post('/api/ai/chat', authenticateToken, async (req, res) => {
+  const { conversationId, modelKey, message, webSearch } = req.body;
+  if (!modelKey || !message || !String(message).trim()) {
+    return res.status(400).json({ error: 'modelKey and message are required' });
+  }
+  if (!aiRegistry.getModelEntry(modelKey)) return res.status(400).json({ error: 'Unknown model' });
+
+  try {
+    // Resolve or create the conversation
+    let convId = conversationId;
+    if (convId) {
+      const chk = await pool.query('SELECT id FROM ai_conversations WHERE id = $1 AND user_id = $2', [convId, req.userId]);
+      if (!chk.rows[0]) return res.status(404).json({ error: 'Conversation not found' });
+    } else {
+      const title = String(message).trim().slice(0, 60);
+      const ins = await pool.query(
+        'INSERT INTO ai_conversations (user_id, title, model) VALUES ($1, $2, $3) RETURNING id',
+        [req.userId, title, modelKey]
+      );
+      convId = ins.rows[0].id;
+    }
+
+    const history = (await pool.query(
+      'SELECT role, content FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at',
+      [convId]
+    )).rows;
+
+    await pool.query(
+      'INSERT INTO ai_messages (conversation_id, role, content, model) VALUES ($1, $2, $3, $4)',
+      [convId, 'user', String(message).trim(), modelKey]
+    );
+
+    const messages = [
+      ...history.map(h => ({ role: h.role, content: h.content })),
+      { role: 'user', content: String(message).trim() },
+    ];
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+    send({ type: 'meta', conversationId: convId, model: modelKey });
+
+    let full = '';
+    let sources = [];
+    try {
+      for await (const ev of runChat({ pool, userId: req.userId, modelKey, messages, webSearch: !!webSearch })) {
+        if (ev.type === 'text') { full += ev.text; send({ type: 'delta', text: ev.text }); }
+        else if (ev.type === 'sources') { sources = ev.sources || []; if (sources.length) send({ type: 'sources', sources }); }
+      }
+    } catch (err) {
+      console.error('[ai] chat stream error:', err);
+      send({ type: 'error', code: err.code || 'stream_error', message: err.message || 'AI request failed' });
+    }
+
+    await pool.query(
+      'INSERT INTO ai_messages (conversation_id, role, content, model, sources) VALUES ($1, $2, $3, $4, $5)',
+      [convId, 'assistant', full, modelKey, sources.length ? JSON.stringify(sources) : null]
+    );
+    await pool.query('UPDATE ai_conversations SET updated_at = NOW(), model = $2 WHERE id = $1', [convId, modelKey]);
+    send({ type: 'done' });
+    res.end();
+  } catch (error) {
+    console.error('[ai] chat error:', error);
+    if (!res.headersSent) res.status(500).json({ error: 'AI request failed' });
+    else { res.write(`data: ${JSON.stringify({ type: 'error', message: 'AI request failed' })}\n\n`); res.end(); }
+  }
+});
+
+// Conversation history
+app.get('/api/ai/conversations', authenticateToken, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, title, model, created_at, updated_at FROM ai_conversations WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 100',
+      [req.userId]
+    );
+    res.json(rows);
+  } catch (error) { console.error('[ai] conversations error:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.get('/api/ai/conversations/:id', authenticateToken, async (req, res) => {
+  try {
+    const conv = await pool.query('SELECT id, title, model FROM ai_conversations WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (!conv.rows[0]) return res.status(404).json({ error: 'Not found' });
+    const msgs = await pool.query('SELECT role, content, model, sources, created_at FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at', [req.params.id]);
+    res.json({ ...conv.rows[0], messages: msgs.rows });
+  } catch (error) { console.error('[ai] conversation error:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.delete('/api/ai/conversations/:id', authenticateToken, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM ai_conversations WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    res.json({ success: true });
+  } catch (error) { console.error('[ai] delete conversation error:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+// RPM Coach — Daily Compass (scaffold)
+app.post('/api/ai/coach/compass', authenticateToken, async (req, res) => {
+  try {
+    const { modelKey, webSearch } = req.body;
+    if (!modelKey) return res.status(400).json({ error: 'modelKey is required' });
+    const result = await runCompass({ pool, userId: req.userId, modelKey, webSearch: !!webSearch });
+    res.json(result);
+  } catch (error) {
+    console.error('[ai] compass error:', error);
+    res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
+  }
 });
 
 app.listen(PORT, '0.0.0.0', () => console.log(`RPM Backend running on port ${PORT}`));

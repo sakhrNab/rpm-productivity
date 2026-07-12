@@ -426,3 +426,43 @@ BEGIN
     INSERT INTO category_details (category_id) VALUES (cat_id);
 END;
 $$ LANGUAGE plpgsql;
+
+-- ============================================================
+-- AI layer: per-user encrypted provider keys + chat history
+-- ============================================================
+
+-- Provider API keys, encrypted at rest (AES-256-GCM). We store ciphertext +
+-- iv + auth_tag, never the plaintext. last4 is kept purely for a masked display.
+CREATE TABLE IF NOT EXISTS user_api_keys (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,          -- 'anthropic' | 'openai' | 'zhipu' | 'deepseek'
+    ciphertext TEXT NOT NULL,
+    iv TEXT NOT NULL,
+    auth_tag TEXT NOT NULL,
+    last4 TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (user_id, provider)
+);
+
+CREATE TABLE IF NOT EXISTS ai_conversations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT,
+    model TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON ai_conversations (user_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,              -- 'user' | 'assistant'
+    content TEXT NOT NULL DEFAULT '',
+    model TEXT,
+    sources JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages (conversation_id, created_at);

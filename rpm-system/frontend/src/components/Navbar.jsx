@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Target, Calendar, CalendarDays, Sun, Users, FolderKanban, Grid3X3,
   Plus, Zap, Blocks, FolderPlus, Tag, UserPlus, ChevronDown,
-  LogOut, Menu, X
+  LogOut, Menu, X, Sparkles, Settings
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from './modals/CreateActionModal';
@@ -50,6 +50,7 @@ function Navbar() {
     { path: '/people', icon: Users, label: 'People' },
     { path: '/projects', icon: FolderKanban, label: 'Projects' },
     { path: '/categories', icon: Grid3X3, label: 'Categories' },
+    { path: '/assistant', icon: Sparkles, label: 'Assistant' },
   ];
 
   const createOptions = [
@@ -166,6 +167,10 @@ function Navbar() {
                   </div>
                 </div>
                 <div className="user-menu-divider"></div>
+                <Link to="/settings" className="user-menu-item" onClick={() => setShowUserMenu(false)}>
+                  <Settings size={16} />
+                  <span>Settings &amp; API keys</span>
+                </Link>
                 <div className="user-menu-item" onClick={handleLogout}>
                   <LogOut size={16} />
                   <span>Sign Out</span>

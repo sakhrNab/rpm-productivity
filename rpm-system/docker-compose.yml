@@ -70,6 +70,14 @@ services:
       - SMTP_PASS=${SMTP_PASS:-}
       - FROM_EMAIL=${FROM_EMAIL:-support@aiwaverider.com}
       - FROM_NAME=${FROM_NAME:-AI Waverider · RPM}
+      # AI layer — master key that encrypts per-user provider API keys at rest.
+      # Generate once: openssl rand -base64 32   (set in Coolify env)
+      - AI_KEYS_SECRET=${AI_KEYS_SECRET:-}
+      # Optional owner-level fallback keys (used only if a user hasn't set their own).
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ZHIPU_API_KEY=${ZHIPU_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
     networks:
       - coolify
       - rpm-internal
