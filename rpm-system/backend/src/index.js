@@ -4,7 +4,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const { sendInvitation, sendWelcome } = require('./email');
+const { sendInvitation, sendWelcome, sendContactAdded, sendAccountability } = require('./email');
 const aiRegistry = require('./ai/registry');
 const aiKeys = require('./ai/keys');
 const { isConfigured: aiKeysConfigured } = require('./ai/crypto');
@@ -819,6 +819,25 @@ app.post('/api/leverage-requests', authenticateToken, async (req, res) => {
       'INSERT INTO leverage_requests (action_id, person_id, message, status) VALUES ($1, $2, $3, $4) RETURNING *',
       [action_id || null, person_id, message || '', status || 'pending']
     );
+
+    // Notify the person they're being counted on (if they have an email).
+    try {
+      const person = await pool.query('SELECT name, email FROM persons WHERE id = $1', [person_id]);
+      const to = (person.rows[0]?.email || '').trim();
+      if (to) {
+        const me = await pool.query('SELECT name FROM users WHERE id = $1', [req.userId]);
+        let actionTitle = '';
+        if (action_id) {
+          const a = await pool.query('SELECT title FROM actions WHERE id = $1', [action_id]);
+          actionTitle = a.rows[0]?.title || '';
+        }
+        sendAccountability({ to, recipientName: person.rows[0]?.name, inviterName: me.rows[0]?.name, actionTitle, message, appUrl: FRONTEND_URL })
+          .catch(err => console.error('Accountability email error:', err));
+      }
+    } catch (notifyErr) {
+      console.error('Accountability notify flow error:', notifyErr);
+    }
+
     res.status(201).json(result.rows[0]);
   } catch (error) { res.status(500).json({ error: 'Failed to create leverage request' }); }
 });
@@ -866,6 +885,10 @@ app.post('/api/persons', authenticateToken, async (req, res) => {
       try {
         const existingUser = await pool.query('SELECT id FROM users WHERE LOWER(email) = $1', [cleanEmail]);
         if (existingUser.rows.length > 0) {
+          // Already a member: no invite, but let them know they were added.
+          const me = await pool.query('SELECT name FROM users WHERE id = $1', [req.userId]);
+          sendContactAdded({ to: cleanEmail, recipientName: name, inviterName: me.rows[0]?.name, appUrl: FRONTEND_URL })
+            .catch(err => console.error('Contact-added email error:', err));
           inviteStatus = 'already_member';
         } else {
           const token = crypto.randomBytes(24).toString('hex');

@@ -146,4 +146,82 @@ async function sendWelcome({ to, name, appUrl }) {
   }
 }
 
-module.exports = { sendInvitation, sendWelcome };
+// ---- Notification emails (recipient is already an RPM member) ----
+
+function notifyShell({ eyebrowColor, eyebrow, heading, bodyHtml, ctaUrl, ctaLabel }) {
+  return `<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a1120;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a1120;padding:32px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#0f1d38;border:1px solid rgba(255,255,255,0.08);border-radius:20px;overflow:hidden;">
+        <tr><td style="background:${eyebrowColor};height:6px;line-height:6px;font-size:6px;">&nbsp;</td></tr>
+        <tr><td style="padding:36px 40px 8px;">
+          <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#4ecdc4;font-weight:700;">AI Waverider · RPM</div>
+          <h1 style="margin:14px 0 6px;font-size:24px;line-height:1.3;color:#ffffff;font-weight:800;">${heading}</h1>
+        </td></tr>
+        <tr><td style="padding:8px 40px 0;color:#c3cfe2;font-size:15px;line-height:1.65;">${bodyHtml}</td></tr>
+        <tr><td align="center" style="padding:26px 40px 30px;">
+          <a href="${ctaUrl}" style="display:inline-block;background:linear-gradient(135deg,#4ecdc4,#6b8dd6);color:#04121a;text-decoration:none;font-weight:800;font-size:16px;padding:14px 32px;border-radius:999px;">${ctaLabel} →</a>
+        </td></tr>
+      </table>
+      <div style="max-width:560px;color:#4a5568;font-size:11px;padding:16px 8px;">© AI Waverider · RPM</div>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function sendGeneric({ to, subject, html, text }) {
+  const t = getTransporter();
+  if (!t) { console.warn('[email] SMTP not configured — skipping', subject, 'to', to); return { sent: false, reason: 'not_configured' }; }
+  try {
+    await t.sendMail({ from: `"${SMTP.fromName}" <${SMTP.fromEmail}>`, to, subject, html, text });
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Failed to send to', to, err.message);
+    return { sent: false, reason: 'send_error' };
+  }
+}
+
+// Existing member added as a contact.
+async function sendContactAdded({ to, recipientName, inviterName, appUrl }) {
+  const from = inviterName ? escapeHtml(inviterName) : 'Someone';
+  const hi = recipientName ? `Hi ${escapeHtml(recipientName)},` : 'Hi there,';
+  const html = notifyShell({
+    eyebrowColor: 'linear-gradient(135deg,#4ecdc4,#6b8dd6 55%,#9575cd)',
+    heading: `${from} added you as a contact on RPM`,
+    bodyHtml: `<p style="margin:0 0 14px;">${hi}</p>
+      <p style="margin:0 0 14px;"><strong style="color:#fff;">${from}</strong> just added you to their people in RPM. They may lean on you for accountability on their goals — no action needed right now.</p>`,
+    ctaUrl: appUrl, ctaLabel: 'Open RPM',
+  });
+  return sendGeneric({
+    to, subject: `${inviterName || 'Someone'} added you as a contact on RPM`, html,
+    text: `${recipientName ? 'Hi ' + recipientName + ',' : 'Hi there,'}\n\n${inviterName || 'Someone'} added you as a contact in RPM. Open RPM: ${appUrl}\n\n— AI Waverider · RPM`,
+  });
+}
+
+// Person assigned an accountability / Leverage-Commit request for an action.
+async function sendAccountability({ to, recipientName, inviterName, actionTitle, message, appUrl }) {
+  const from = inviterName ? escapeHtml(inviterName) : 'Someone';
+  const hi = recipientName ? `Hi ${escapeHtml(recipientName)},` : 'Hi there,';
+  const task = actionTitle ? escapeHtml(actionTitle) : 'a commitment';
+  const note = message ? `<p style="margin:0 0 14px;padding:12px 14px;background:rgba(255,255,255,0.05);border-left:3px solid #4ecdc4;border-radius:6px;color:#e6ecf7;">“${escapeHtml(message)}”</p>` : '';
+  const html = notifyShell({
+    eyebrowColor: 'linear-gradient(135deg,#ff69b4,#9575cd 55%,#4ecdc4)',
+    heading: `${from} is counting on you`,
+    bodyHtml: `<p style="margin:0 0 14px;">${hi}</p>
+      <p style="margin:0 0 14px;"><strong style="color:#fff;">${from}</strong> asked you to hold them accountable for:</p>
+      <p style="margin:0 0 14px;font-size:17px;color:#fff;font-weight:700;">${task}</p>
+      ${note}
+      <p style="margin:0 0 8px;">A gentle nudge from you can be the difference between a goal and a done deal.</p>`,
+    ctaUrl: appUrl, ctaLabel: 'Open RPM',
+  });
+  return sendGeneric({
+    to, subject: `${inviterName || 'Someone'} is counting on you: ${actionTitle || 'an RPM commitment'}`, html,
+    text: `${recipientName ? 'Hi ' + recipientName + ',' : 'Hi there,'}\n\n${inviterName || 'Someone'} asked you to hold them accountable for: ${actionTitle || 'a commitment'}.${message ? '\n\nNote: ' + message : ''}\n\nOpen RPM: ${appUrl}\n\n— AI Waverider · RPM`,
+  });
+}
+
+module.exports = { sendInvitation, sendWelcome, sendContactAdded, sendAccountability };

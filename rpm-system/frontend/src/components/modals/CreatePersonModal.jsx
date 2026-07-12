@@ -30,7 +30,7 @@ function CreatePersonModal({ onClose, onSuccess, initialData }) {
             showToast(`Invitation email sent to ${to}.`, 'success');
             break;
           case 'already_member':
-            showToast(`${to} is already an RPM member — no invitation needed.`, 'info');
+            showToast(`${to} is already an RPM member — we let them know you added them.`, 'info');
             break;
           case 'already_invited':
             showToast(`${to} was already invited earlier.`, 'info');
