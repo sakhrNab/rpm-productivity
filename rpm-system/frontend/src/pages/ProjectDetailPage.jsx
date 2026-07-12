@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, ChevronRight, Image, Plus, Star, MoreVertical, 
   Check, Clock, Hourglass, Calendar as CalendarIcon, Edit, Trash2, X,
-  Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen, ExternalLink
+  Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen, ExternalLink, Target
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks } from 'date-fns';
@@ -1183,6 +1183,14 @@ function ProjectDetailPage() {
                       onClick={() => setPreviewBlock({ ...block, actions: blockActions })}
                       title="Preview this block"
                     >{block.result_title}</div>
+                    {block.key_result_id && (() => {
+                      const kr = (project.key_results || []).find(k => k.id === block.key_result_id);
+                      return kr ? (
+                        <div className="rpm-block-kr" title="This block drives toward a key result">
+                          <Target size={11} /> Key result: <strong>{kr.title}</strong>
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="rpm-block-section">
                     <div className="rpm-block-label">PURPOSE</div>

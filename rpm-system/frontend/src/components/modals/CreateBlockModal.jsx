@@ -44,9 +44,21 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
     purpose: initialData.purpose || '',
     category_id: initialData.category_id || '',
     project_id: initialData.project_id || '',
+    key_result_id: initialData.key_result_id || '',
     target_date: initialData.target_date || '',
   });
+  const [keyResults, setKeyResults] = useState([]);
   const [actions, setActions] = useState([]);
+
+  // Key results for this project — a block can be linked to the KR it drives toward
+  useEffect(() => {
+    if (!formData.project_id) { setKeyResults([]); return; }
+    let active = true;
+    api.getKeyResults(formData.project_id)
+      .then(data => { if (active) setKeyResults(Array.isArray(data) ? data : []); })
+      .catch(err => console.error('Failed to load key results:', err));
+    return () => { active = false; };
+  }, [formData.project_id]);
   const [selectedActions, setSelectedActions] = useState((initialData.actions || []).map(a => a.id));
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
@@ -242,6 +254,23 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
                 onChange={e => setFormData({ ...formData, purpose: e.target.value })}
               />
             </div>
+
+            {/* Link to a Key Result (optional) — the block's actions drive toward it */}
+            {formData.project_id && keyResults.length > 0 && (
+              <div className="form-group">
+                <label className="form-label">Key result this block works toward (optional)</label>
+                <select
+                  className="form-input"
+                  value={formData.key_result_id}
+                  onChange={e => setFormData({ ...formData, key_result_id: e.target.value })}
+                >
+                  <option value="">Not linked to a key result</option>
+                  {keyResults.map(kr => (
+                    <option key={kr.id} value={kr.id}>{kr.title}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Add Actions to Block */}
             <div className="form-group">

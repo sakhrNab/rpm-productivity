@@ -557,10 +557,10 @@ app.get('/api/blocks/:id', authenticateToken, async (req, res) => {
 
 app.post('/api/blocks', authenticateToken, async (req, res) => {
   try {
-    const { category_id, project_id, result_title, result_description, purpose, target_date, action_ids } = req.body;
+    const { category_id, project_id, key_result_id, result_title, result_description, purpose, target_date, action_ids } = req.body;
     const result = await pool.query(
-      `INSERT INTO rpm_blocks (user_id, category_id, project_id, result_title, result_description, purpose, target_date, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM rpm_blocks WHERE user_id = $1)) RETURNING *`,
-      [req.userId, category_id || null, project_id || null, result_title, result_description || '', purpose || '', target_date || null]
+      `INSERT INTO rpm_blocks (user_id, category_id, project_id, key_result_id, result_title, result_description, purpose, target_date, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM rpm_blocks WHERE user_id = $1)) RETURNING *`,
+      [req.userId, category_id || null, project_id || null, key_result_id || null, result_title, result_description || '', purpose || '', target_date || null]
     );
     if (action_ids && action_ids.length > 0) await pool.query('UPDATE actions SET block_id = $1 WHERE id = ANY($2) AND user_id = $3', [result.rows[0].id, action_ids, req.userId]);
     res.status(201).json(result.rows[0]);
@@ -569,12 +569,14 @@ app.post('/api/blocks', authenticateToken, async (req, res) => {
 
 app.put('/api/blocks/:id', authenticateToken, async (req, res) => {
   try {
-    const { category_id, project_id, result_title, result_description, purpose, target_date, is_completed, is_in_progress, action_ids } = req.body;
+    const { category_id, project_id, key_result_id, result_title, result_description, purpose, target_date, is_completed, is_in_progress, action_ids } = req.body;
     // the date column rejects '' — coerce empty string to NULL (COALESCE then keeps the existing value)
     const targetDate = target_date === '' ? null : target_date;
+    // key_result_id: '' clears the link, a uuid sets it, and undefined (not sent) keeps it
+    const keyResultParam = key_result_id === undefined ? '__KEEP__' : (key_result_id || '');
     const result = await pool.query(
-      `UPDATE rpm_blocks SET category_id = COALESCE($1, category_id), project_id = COALESCE($2, project_id), result_title = COALESCE($3, result_title), result_description = COALESCE($4, result_description), purpose = COALESCE($5, purpose), target_date = COALESCE($6, target_date), is_completed = COALESCE($7, is_completed), is_in_progress = COALESCE($8, is_in_progress) WHERE id = $9 AND user_id = $10 RETURNING *`,
-      [category_id, project_id, result_title, result_description, purpose, targetDate, is_completed, is_in_progress, req.params.id, req.userId]
+      `UPDATE rpm_blocks SET category_id = COALESCE($1, category_id), project_id = COALESCE($2, project_id), result_title = COALESCE($3, result_title), result_description = COALESCE($4, result_description), purpose = COALESCE($5, purpose), target_date = COALESCE($6, target_date), is_completed = COALESCE($7, is_completed), is_in_progress = COALESCE($8, is_in_progress), key_result_id = CASE WHEN $11 = '__KEEP__' THEN key_result_id ELSE NULLIF($11, '')::uuid END WHERE id = $9 AND user_id = $10 RETURNING *`,
+      [category_id, project_id, result_title, result_description, purpose, targetDate, is_completed, is_in_progress, req.params.id, req.userId, keyResultParam]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Block not found' });
     // Re-sync which actions belong to this block when action_ids is provided.

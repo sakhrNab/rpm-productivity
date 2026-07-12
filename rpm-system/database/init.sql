@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS rpm_blocks (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
     project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+    key_result_id UUID REFERENCES key_results(id) ON DELETE SET NULL,
     result_title VARCHAR(300) NOT NULL,
     result_description TEXT,
     purpose TEXT,
