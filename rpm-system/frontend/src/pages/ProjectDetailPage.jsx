@@ -1505,6 +1505,9 @@ function ProjectDetailPage() {
                     {dayActions.slice(0, 3).map(action => (
                       <div
                         key={action.id}
+                        draggable
+                        onDragStart={(e) => { e.stopPropagation(); setDragActionId(action.id); e.dataTransfer.effectAllowed = 'move'; }}
+                        onDragEnd={() => { setDragActionId(null); setDropDay(null); }}
                         style={{
                           fontSize: '0.75rem',
                           padding: '4px 6px',
@@ -1513,13 +1516,14 @@ function ProjectDetailPage() {
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          cursor: 'pointer'
+                          cursor: 'grab',
+                          opacity: dragActionId === action.id ? 0.4 : 1
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleEditAction(action);
                         }}
-                        title={action.title}
+                        title={`${action.title} — drag to another day`}
                       >
                         {action.title}
                       </div>

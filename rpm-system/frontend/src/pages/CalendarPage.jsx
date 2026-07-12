@@ -5,17 +5,36 @@ import {
   isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek
 } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
+import { useToast } from '../components/ToastProvider';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import './CalendarPage.css';
 
 function CalendarPage() {
   const { categories, refreshData } = useContext(AppContext);
   const { api } = useContext(AuthContext);
+  const { showToast } = useToast();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [actions, setActions] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
   const [editingAction, setEditingAction] = useState(null);
   const [showActionModal, setShowActionModal] = useState(false);
+  const [dragId, setDragId] = useState(null);
+  const [dropKey, setDropKey] = useState(null);
+
+  // Move an action to a different day (drag-and-drop reschedule)
+  const rescheduleAction = async (actionId, dateStr) => {
+    const action = actions.find(a => a.id === actionId);
+    if (!action || String(action.scheduled_date || '').slice(0, 10) === dateStr) return;
+    setActions(prev => prev.map(a => (a.id === actionId ? { ...a, scheduled_date: dateStr } : a)));
+    try {
+      await api.updateAction(actionId, { scheduled_date: dateStr });
+      showToast(`Moved to ${format(new Date(dateStr + 'T00:00:00'), 'MMM d')}.`, 'success');
+    } catch (error) {
+      console.error('Failed to reschedule action:', error);
+      showToast('Could not move that action. Please try again.', 'error');
+      loadActions();
+    }
+  };
 
   const closeModal = () => {
     setShowActionModal(false);
@@ -97,10 +116,19 @@ function CalendarPage() {
             const dayActions = getActionsForDay(day);
             const isToday = isSameDay(day, new Date());
             const isCurrentMonth = isSameMonth(day, currentDate);
-            
+            const dayStr = format(day, 'yyyy-MM-dd');
+            const isDropTarget = dropKey === dayStr;
+
             return (
               <div
                 key={day.toISOString()}
+                onDragOver={(e) => { if (dragId) { e.preventDefault(); setDropKey(dayStr); } }}
+                onDragLeave={() => setDropKey(k => (k === dayStr ? null : k))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragId) rescheduleAction(dragId, dayStr);
+                  setDragId(null); setDropKey(null);
+                }}
                 onClick={() => {
                   setEditingAction(null);
                   setSelectedDate(day);
@@ -109,7 +137,8 @@ function CalendarPage() {
                 style={{
                   minHeight: '100px',
                   padding: '8px',
-                  background: isToday ? 'var(--bg-card-hover)' : 'var(--bg-secondary)',
+                  background: isDropTarget ? 'var(--bg-card-hover)' : (isToday ? 'var(--bg-card-hover)' : 'var(--bg-secondary)'),
+                  boxShadow: isDropTarget ? 'inset 0 0 0 2px var(--accent-pink)' : 'none',
                   cursor: 'pointer',
                   opacity: isCurrentMonth ? 1 : 0.5
                 }}
@@ -124,7 +153,10 @@ function CalendarPage() {
                 {dayActions.slice(0, 3).map(action => (
                   <div
                     key={action.id}
-                    title="Click to edit"
+                    title="Drag to another day, or click to edit"
+                    draggable
+                    onDragStart={(e) => { e.stopPropagation(); setDragId(action.id); e.dataTransfer.effectAllowed = 'move'; }}
+                    onDragEnd={() => { setDragId(null); setDropKey(null); }}
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedDate(null);
@@ -140,9 +172,9 @@ function CalendarPage() {
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      cursor: 'pointer',
-                      textDecoration: action.is_completed ? 'line-through' : 'none',
-                      opacity: action.is_completed ? 0.7 : 1
+                      cursor: 'grab',
+                      opacity: dragId === action.id ? 0.4 : (action.is_completed ? 0.7 : 1),
+                      textDecoration: action.is_completed ? 'line-through' : 'none'
                     }}
                   >
                     {action.title}
