@@ -319,3 +319,62 @@
   line-height: 1.35;
   font-weight: 600;
 }
+
+/* One-year / 90-day goals rendered as a scannable list */
+.cd-goal-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  cursor: pointer;
+}
+.cd-goal-list li {
+  position: relative;
+  padding: 7px 0 7px 22px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.cd-goal-list li:last-child { border-bottom: none; }
+.cd-goal-list li::before {
+  content: '';
+  position: absolute;
+  left: 4px; top: 14px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--category-color, var(--accent-cyan));
+}
+.cd-goal-empty { cursor: pointer; color: var(--text-muted); }
+
+/* Project card tools (mark-done + archive), top-right, reveal on hover */
+.project-card-tools {
+  position: absolute;
+  top: 10px; right: 10px;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+.project-card:hover .project-card-tools { opacity: 1; transform: translateY(0); }
+@media (hover: none) { .project-card-tools { opacity: 1; transform: none; } }
+.project-card-tool {
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 8px; color: #fff;
+  background: rgba(8, 18, 34, 0.6);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.project-card-tool:hover { background: var(--accent-pink); }
+.project-card-done:hover { background: var(--accent-green); }
+.project-card-done-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  margin-left: 8px; padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(129, 199, 132, 0.18);
+  border: 1px solid rgba(129, 199, 132, 0.4);
+  color: var(--accent-green);
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.03em;
+}

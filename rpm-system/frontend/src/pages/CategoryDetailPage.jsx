@@ -187,6 +187,24 @@ function CategoryDetailPage() {
     setEditValue(value || '');
   };
 
+  // Render a multi-line text field as a scannable bulleted list (one goal per line).
+  // Same underlying text field — click to edit as plain multiline text.
+  const renderGoalList = (text, field, placeholder) => {
+    const items = (text || '').split('\n').map(s => s.replace(/^[\s•\-*]+/, '').trim()).filter(Boolean);
+    if (items.length === 0) {
+      return (
+        <p className="big-picture-content cd-clickable-prewrap cd-goal-empty" onClick={() => handleFieldEdit(field, text)}>
+          {placeholder}
+        </p>
+      );
+    }
+    return (
+      <ul className="cd-goal-list" onClick={() => handleFieldEdit(field, text)} title="Click to edit (one goal per line)">
+        {items.map((it, i) => <li key={i}>{it}</li>)}
+      </ul>
+    );
+  };
+
   const handleFieldSave = async () => {
     if (!editingField) return;
     
@@ -275,6 +293,23 @@ function CategoryDetailPage() {
       } catch (error) {
         console.error('Failed to delete action:', error);
       }
+    }
+  };
+
+  // Mark a project done → complete it and move it into the Archived dropdown.
+  const handleCompleteProject = async (project) => {
+    setCategory(prev => prev ? {
+      ...prev,
+      projects: (prev.projects || []).map(p =>
+        p.id === project.id ? { ...p, is_completed: true, is_archived: true } : p
+      )
+    } : prev);
+    setArchivedOpen(true);
+    try {
+      await api.updateProject(project.id, { is_completed: true, is_archived: true });
+    } catch (error) {
+      console.error('Failed to complete project:', error);
+      await loadCategory();
     }
   };
 
@@ -601,12 +636,7 @@ function CategoryDetailPage() {
                   </div>
                 </div>
               ) : (
-                <p 
-                  className="big-picture-content cd-clickable-prewrap"
-                  onClick={() => handleFieldEdit('one_year_goals', details.one_year_goals)}
-                >
-                  {details.one_year_goals || 'Click to add your one year goals...'}
-                </p>
+                renderGoalList(details.one_year_goals, 'one_year_goals', 'Click to add your one year goals…')
               )}
             </div>
 
@@ -633,12 +663,7 @@ function CategoryDetailPage() {
                   </div>
                 </div>
               ) : (
-                <p 
-                  className="big-picture-content cd-clickable-prewrap"
-                  onClick={() => handleFieldEdit('ninety_day_goals', details.ninety_day_goals)}
-                >
-                  {details.ninety_day_goals || 'Click to add your 90 day goals...'}
-                </p>
+                renderGoalList(details.ninety_day_goals, 'ninety_day_goals', 'Click to add your 90 day goals…')
               )}
             </div>
           </div>
@@ -674,18 +699,31 @@ function CategoryDetailPage() {
                         : 'linear-gradient(135deg, #1a2d4a 0%, #0d1d35 100%)'
                     }}
                   />
-                  <button
-                    type="button"
-                    className="project-card-archive"
-                    title={archived ? 'Restore to active' : 'Archive project'}
-                    onClick={(e) => { e.stopPropagation(); handleArchiveProject(project, !archived); }}
-                  >
-                    {archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
-                  </button>
+                  <div className="project-card-tools">
+                    {!archived && (
+                      <button
+                        type="button"
+                        className="project-card-tool project-card-done"
+                        title="Mark done & archive"
+                        onClick={(e) => { e.stopPropagation(); handleCompleteProject(project); }}
+                      >
+                        <Check size={15} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="project-card-tool"
+                      title={archived ? 'Restore to active' : 'Archive project'}
+                      onClick={(e) => { e.stopPropagation(); handleArchiveProject(project, !archived); }}
+                    >
+                      {archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+                    </button>
+                  </div>
                   <div className="project-card-content">
                     <div className="project-card-badge" style={{ color: category.color }}>
                       <span className="cd-color-dot" style={{ background: category.color }} />
                       {category.name}
+                      {project.is_completed && <span className="project-card-done-badge"><Check size={11} /> Done</span>}
                     </div>
                     <h3 className="project-card-title">{project.name}</h3>
                     <p className="project-card-description">

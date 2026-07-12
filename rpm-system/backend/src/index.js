@@ -4,7 +4,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const { sendInvitation } = require('./email');
+const { sendInvitation, sendWelcome } = require('./email');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -117,6 +117,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
           );
           user = result.rows[0];
           await pool.query('SELECT create_default_categories_for_user($1)', [user.id]);
+          sendWelcome({ to: user.email, name: user.name, appUrl: FRONTEND_URL }).catch(e => console.error('welcome email:', e));
         }
       } else {
         user = result.rows[0];
@@ -148,6 +149,7 @@ if (MICROSOFT_CLIENT_ID && MICROSOFT_CLIENT_SECRET) {
           );
           user = result.rows[0];
           await pool.query('SELECT create_default_categories_for_user($1)', [user.id]);
+          sendWelcome({ to: user.email, name: user.name, appUrl: FRONTEND_URL }).catch(e => console.error('welcome email:', e));
         }
       } else {
         user = result.rows[0];
@@ -174,7 +176,8 @@ app.post('/api/auth/register', async (req, res) => {
     );
     const user = result.rows[0];
     await pool.query('SELECT create_default_categories_for_user($1)', [user.id]);
-    
+    sendWelcome({ to: user.email, name: user.name, appUrl: FRONTEND_URL }).catch(e => console.error('welcome email:', e));
+
     const { accessToken, refreshToken } = generateTokens(user);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, refreshToken, expiresAt]);

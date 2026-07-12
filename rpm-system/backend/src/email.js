@@ -91,4 +91,59 @@ async function sendInvitation({ to, recipientName, inviterName, joinUrl }) {
   }
 }
 
-module.exports = { sendInvitation };
+function welcomeHtml({ name, appUrl }) {
+  const hi = name ? `Welcome, ${escapeHtml(name)}!` : 'Welcome!';
+  return `<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a1120;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a1120;padding:32px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#0f1d38;border:1px solid rgba(255,255,255,0.08);border-radius:20px;overflow:hidden;">
+        <tr><td style="background:linear-gradient(135deg,#4ecdc4,#6b8dd6 55%,#9575cd);height:6px;line-height:6px;font-size:6px;">&nbsp;</td></tr>
+        <tr><td style="padding:36px 40px 8px;">
+          <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#4ecdc4;font-weight:700;">AI Waverider · RPM</div>
+          <h1 style="margin:14px 0 6px;font-size:26px;line-height:1.25;color:#ffffff;font-weight:800;">${hi} Your account is ready.</h1>
+        </td></tr>
+        <tr><td style="padding:8px 40px 0;color:#c3cfe2;font-size:15px;line-height:1.65;">
+          <p style="margin:0 0 14px;">You just joined RPM — a results-focused way to plan the things that actually matter. Here's the 60-second start:</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 18px;">
+            <tr><td style="padding:6px 0;color:#e6ecf7;font-size:15px;"><strong style="color:#fff;">1.</strong> &nbsp;Create a <strong style="color:#fff;">Category</strong> — an area of your life (Health, Wealth, Relationships…).</td></tr>
+            <tr><td style="padding:6px 0;color:#e6ecf7;font-size:15px;"><strong style="color:#fff;">2.</strong> &nbsp;Add a <strong style="color:#fff;">Project</strong> with an Ultimate Result and Purpose.</td></tr>
+            <tr><td style="padding:6px 0;color:#e6ecf7;font-size:15px;"><strong style="color:#fff;">3.</strong> &nbsp;Break it into an <strong style="color:#fff;">RPM Block</strong> → a Massive Action Plan, and schedule the steps.</td></tr>
+          </table>
+          <p style="margin:0 0 8px;">That's the whole loop: get clear on the <strong style="color:#fff;">Result</strong>, know your <strong style="color:#fff;">Purpose</strong>, take <strong style="color:#fff;">Massive Action</strong>. Do it for one thing today and you'll feel the difference.</p>
+        </td></tr>
+        <tr><td align="center" style="padding:26px 40px 8px;">
+          <a href="${appUrl}" style="display:inline-block;background:linear-gradient(135deg,#4ecdc4,#6b8dd6);color:#04121a;text-decoration:none;font-weight:800;font-size:16px;padding:15px 34px;border-radius:999px;">Open RPM →</a>
+        </td></tr>
+        <tr><td style="padding:22px 40px 30px;border-top:1px solid rgba(255,255,255,0.07);margin-top:12px;color:#66728a;font-size:12px;line-height:1.6;">
+          Need a hand? Just reply to this email. — The AI Waverider team
+        </td></tr>
+      </table>
+      <div style="max-width:560px;color:#4a5568;font-size:11px;padding:16px 8px;">© AI Waverider · RPM</div>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function sendWelcome({ to, name, appUrl }) {
+  const t = getTransporter();
+  if (!t) { console.warn('[email] SMTP not configured — skipping welcome to', to); return { sent: false }; }
+  try {
+    await t.sendMail({
+      from: `"${SMTP.fromName}" <${SMTP.fromEmail}>`,
+      to,
+      subject: 'Welcome to RPM — let\'s design your life on purpose',
+      html: welcomeHtml({ name, appUrl }),
+      text: `${name ? 'Welcome, ' + name + '!' : 'Welcome!'}\n\nYour RPM account is ready. Quick start:\n1. Create a Category (an area of life).\n2. Add a Project with an Ultimate Result and Purpose.\n3. Break it into an RPM Block — a Massive Action Plan — and schedule the steps.\n\nOpen RPM: ${appUrl}\n\n— The AI Waverider team`,
+    });
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Failed to send welcome to', to, err.message);
+    return { sent: false };
+  }
+}
+
+module.exports = { sendInvitation, sendWelcome };
