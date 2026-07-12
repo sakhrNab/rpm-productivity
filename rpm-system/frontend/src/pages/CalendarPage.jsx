@@ -20,6 +20,7 @@ function CalendarPage() {
   const [showActionModal, setShowActionModal] = useState(false);
   const [dragId, setDragId] = useState(null);
   const [dropKey, setDropKey] = useState(null);
+  const [dayView, setDayView] = useState(null); // a Date whose full action list is shown
 
   // Move an action to a different day (drag-and-drop reschedule)
   const rescheduleAction = async (actionId, dateStr) => {
@@ -181,7 +182,12 @@ function CalendarPage() {
                   </div>
                 ))}
                 {dayActions.length > 3 && (
-                  <div className="cal-more">
+                  <div
+                    className="cal-more"
+                    role="button"
+                    title="Show all actions on this day"
+                    onClick={(e) => { e.stopPropagation(); setDayView(day); }}
+                  >
                     +{dayActions.length - 3} more
                   </div>
                 )}
@@ -209,6 +215,49 @@ function CalendarPage() {
           }
         />
       )}
+
+      {/* Day view — every action scheduled on a given day */}
+      {dayView && (() => {
+        const dayStr = format(dayView, 'yyyy-MM-dd');
+        const list = actions
+          .filter(a => a.scheduled_date && String(a.scheduled_date).slice(0, 10) === dayStr)
+          .sort((a, b) => String(a.scheduled_time || '').localeCompare(String(b.scheduled_time || '')));
+        return (
+          <div className="modal-overlay" onClick={() => setDayView(null)}>
+            <div className="modal cal-dayview" onClick={e => e.stopPropagation()}>
+              <div className="modal-header cal-dayview-head">
+                <h3 className="modal-title">{format(dayView, 'EEEE, MMM d')}</h3>
+                <span className="cal-dayview-count">{list.length} action{list.length === 1 ? '' : 's'}</span>
+              </div>
+              <div className="modal-body cal-dayview-list">
+                {list.length === 0 && <p className="cal-dayview-empty">Nothing scheduled.</p>}
+                {list.map(action => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    className={`cal-dayview-item ${action.is_completed ? 'done' : ''}`}
+                    onClick={() => { setDayView(null); setSelectedDate(null); setEditingAction(action); setShowActionModal(true); }}
+                  >
+                    <span className="cal-dayview-dot" style={{ background: action.category_color || 'var(--accent-pink)' }} />
+                    <span className="cal-dayview-title">{action.title}</span>
+                    {action.scheduled_time && <span className="cal-dayview-time">{String(action.scheduled_time).slice(0, 5)}</span>}
+                  </button>
+                ))}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setDayView(null)}>Close</button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => { setSelectedDate(dayView); setEditingAction(null); setDayView(null); setShowActionModal(true); }}
+                >
+                  <Plus size={16} /> Add action
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

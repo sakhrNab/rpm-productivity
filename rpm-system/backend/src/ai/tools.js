@@ -25,11 +25,13 @@ async function applyProposal(pool, userId, kind, payload = {}) {
       const { title, project_id, scheduled_date, duration_minutes, is_starred } = payload;
       if (!title || !String(title).trim()) return { ok: false, error: 'title is required' };
       const proj = project_id ? await ownProject(pool, userId, project_id) : null;
+      // Derive the category from the chosen project so the action lands in the right
+      // category (and gets its colour on the calendar).
       const r = await pool.query(
-        `INSERT INTO actions (user_id, project_id, title, duration_minutes, scheduled_date, is_starred, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, (SELECT COALESCE(MAX(sort_order),0)+1 FROM actions WHERE user_id=$1))
+        `INSERT INTO actions (user_id, category_id, project_id, title, duration_minutes, scheduled_date, is_starred, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT COALESCE(MAX(sort_order),0)+1 FROM actions WHERE user_id=$1))
          RETURNING id, title, scheduled_date, project_id`,
-        [userId, proj?.id || null, String(title).trim(), duration_minutes || 5, scheduled_date || null, !!is_starred]
+        [userId, proj?.category_id || null, proj?.id || null, String(title).trim(), duration_minutes || 5, scheduled_date || null, !!is_starred]
       );
       return { ok: true, ...r.rows[0], link: linkForProject(r.rows[0].project_id) };
     }
