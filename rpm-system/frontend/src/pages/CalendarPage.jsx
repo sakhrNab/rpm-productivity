@@ -45,7 +45,10 @@ function CalendarPage() {
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
   const getActionsForDay = (day) => {
-    return actions.filter(a => a.scheduled_date === format(day, 'yyyy-MM-dd'));
+    // scheduled_date comes back as an ISO timestamp (e.g. 2026-07-15T00:00:00.000Z);
+    // compare only the date part so actions actually land on their day.
+    const dayStr = format(day, 'yyyy-MM-dd');
+    return actions.filter(a => a.scheduled_date && String(a.scheduled_date).slice(0, 10) === dayStr);
   };
 
   return (
