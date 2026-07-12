@@ -1,8 +1,10 @@
 import { useState, useContext } from 'react';
 import { AuthContext } from '../../App';
+import { useToast } from '../ToastProvider';
 
 function CreatePersonModal({ onClose, onSuccess, initialData }) {
   const { api } = useContext(AuthContext);
+  const { showToast } = useToast();
   const isEditing = Boolean(initialData?.id);
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
@@ -18,11 +20,18 @@ function CreatePersonModal({ onClose, onSuccess, initialData }) {
 
     setLoading(true);
     try {
-      if (isEditing) await api.updatePerson(initialData.id, formData);
-      else await api.createPerson(formData);
+      if (isEditing) {
+        await api.updatePerson(initialData.id, formData);
+      } else {
+        const created = await api.createPerson(formData);
+        if (created?.invited) {
+          showToast(`Invitation email sent to ${formData.email.trim()}.`, 'success');
+        }
+      }
       onSuccess();
     } catch (error) {
       console.error('Failed to save person:', error);
+      showToast('Could not save this person. Please try again.', 'error');
     } finally {
       setLoading(false);
     }

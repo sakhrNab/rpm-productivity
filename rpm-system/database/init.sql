@@ -108,6 +108,17 @@ CREATE TABLE IF NOT EXISTS persons (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Invitations sent when a person is added by email and isn't a member yet
+CREATE TABLE IF NOT EXISTS invitations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    inviter_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    email VARCHAR(255) NOT NULL,
+    token VARCHAR(64) NOT NULL,
+    status VARCHAR(20) DEFAULT 'sent',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invitations_email_lower ON invitations (LOWER(email));
+
 -- =====================================================
 -- ACTIONS TABLE
 -- =====================================================

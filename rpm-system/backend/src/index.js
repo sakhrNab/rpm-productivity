@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const { sendInvitation } = require('./email');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -814,7 +816,37 @@ app.post('/api/persons', authenticateToken, async (req, res) => {
   try {
     const { name, email, phone, avatar, notes } = req.body;
     const result = await pool.query('INSERT INTO persons (user_id, name, email, phone, avatar, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.userId, name, email || '', phone || '', avatar || '', notes || '']);
-    res.status(201).json(result.rows[0]);
+    const person = result.rows[0];
+
+    // If this person has an email and isn't already an RPM user, invite them once.
+    let invited = false;
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanEmail)) {
+      try {
+        const existingUser = await pool.query('SELECT id FROM users WHERE LOWER(email) = $1', [cleanEmail]);
+        if (existingUser.rows.length === 0) {
+          const token = crypto.randomBytes(24).toString('hex');
+          // unique index on LOWER(email) makes this a no-op if already invited
+          const ins = await pool.query(
+            `INSERT INTO invitations (inviter_user_id, email, token) VALUES ($1, $2, $3)
+             ON CONFLICT (LOWER(email)) DO NOTHING RETURNING id`,
+            [req.userId, cleanEmail, token]
+          );
+          if (ins.rows.length > 0) {
+            const me = await pool.query('SELECT name FROM users WHERE id = $1', [req.userId]);
+            const joinUrl = `${FRONTEND_URL}/?invite=${token}`;
+            // fire-and-forget: never block or fail the person-create on email
+            sendInvitation({ to: cleanEmail, recipientName: name, inviterName: me.rows[0]?.name, joinUrl })
+              .catch(err => console.error('Invitation send error:', err));
+            invited = true;
+          }
+        }
+      } catch (inviteErr) {
+        console.error('Invitation flow error:', inviteErr);
+      }
+    }
+
+    res.status(201).json({ ...person, invited });
   } catch (error) { res.status(500).json({ error: 'Failed to create person' }); }
 });
 
