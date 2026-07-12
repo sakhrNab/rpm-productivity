@@ -16,6 +16,7 @@ import CreateInspirationModal from '../components/modals/CreateInspirationModal'
 import InspirationPreviewModal from '../components/modals/InspirationPreviewModal';
 import BlockPreviewModal from '../components/modals/BlockPreviewModal';
 import { fileToCompressedDataURL } from '../utils/image';
+import { playDone } from '../utils/sound';
 import { useToast } from '../components/ToastProvider';
 import './ProjectDetailPage.css';
 
@@ -152,8 +153,11 @@ function ProjectDetailPage() {
     }
   };
 
-  const toggleActionComplete = (action) =>
-    optimisticAction(action, { is_completed: !action.is_completed });
+  const toggleActionComplete = (action) => {
+    const next = !action.is_completed;
+    if (next) playDone();
+    return optimisticAction(action, { is_completed: next });
+  };
 
   const toggleActionStar = (action) =>
     optimisticAction(action, { is_starred: !(action.is_starred === true) });
@@ -1066,6 +1070,12 @@ function ProjectDetailPage() {
                         {stats.totalDuration.minutes}m
                       </span>
                     </div>
+                    {block.target_date && (
+                      <div className="pd-flex-center-gap4-sm rpm-block-deadline" title="Block deadline">
+                        <CalendarIcon size={14} />
+                        <span>{fmtDate(block.target_date)}</span>
+                      </div>
+                    )}
                     {/* Block Menu */}
                     <div className="pd-relative-z1000">
                       <button 

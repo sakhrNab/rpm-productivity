@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Star, Check, Clock, FolderOpen, Calendar, MoreVertical, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { playDone } from '../utils/sound';
 import './ActionRow.css';
 
 // Reusable action row used by My Day / My Week.
@@ -23,7 +24,7 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete })
     <div className="action-item">
       <div
         className={`action-checkbox ${action.is_completed ? 'completed' : ''}`}
-        onClick={() => onToggleComplete(action)}
+        onClick={() => { if (!action.is_completed) playDone(); onToggleComplete(action); }}
       >
         {action.is_completed && <Check size={12} />}
       </div>

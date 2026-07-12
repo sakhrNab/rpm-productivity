@@ -45,7 +45,9 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
     category_id: initialData.category_id || '',
     project_id: initialData.project_id || '',
     key_result_id: initialData.key_result_id || '',
-    target_date: initialData.target_date || '',
+    // <input type="date"> needs yyyy-MM-dd; the API returns a full ISO timestamp,
+    // so keep just the date part or the deadline looks empty when re-editing.
+    target_date: initialData.target_date ? String(initialData.target_date).slice(0, 10) : '',
   });
   const [keyResults, setKeyResults] = useState([]);
   const [actions, setActions] = useState([]);
