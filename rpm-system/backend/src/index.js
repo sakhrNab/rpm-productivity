@@ -326,6 +326,22 @@ app.post('/api/categories', authenticateToken, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to create category' }); }
 });
 
+// Reorder categories by an ordered list of ids (drag-and-drop). Defined before
+// /:id so "reorder" isn't matched as an id.
+app.put('/api/categories/reorder', authenticateToken, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids required' });
+    await pool.query(
+      `UPDATE categories AS c SET sort_order = v.ord
+       FROM (SELECT id, ordinality AS ord FROM unnest($1::uuid[]) WITH ORDINALITY AS t(id, ordinality)) v
+       WHERE c.id = v.id AND c.user_id = $2`,
+      [ids, req.userId]
+    );
+    res.json({ success: true });
+  } catch (error) { console.error('Failed to reorder categories:', error); res.status(500).json({ error: 'Failed to reorder categories' }); }
+});
+
 app.put('/api/categories/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -412,6 +428,21 @@ app.post('/api/projects', authenticateToken, async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (error) { res.status(500).json({ error: 'Failed to create project' }); }
+});
+
+// Reorder projects by an ordered list of ids (drag-and-drop). Before /:id.
+app.put('/api/projects/reorder', authenticateToken, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids required' });
+    await pool.query(
+      `UPDATE projects AS p SET sort_order = v.ord
+       FROM (SELECT id, ordinality AS ord FROM unnest($1::uuid[]) WITH ORDINALITY AS t(id, ordinality)) v
+       WHERE p.id = v.id AND p.user_id = $2`,
+      [ids, req.userId]
+    );
+    res.json({ success: true });
+  } catch (error) { console.error('Failed to reorder projects:', error); res.status(500).json({ error: 'Failed to reorder projects' }); }
 });
 
 app.put('/api/projects/:id', authenticateToken, async (req, res) => {

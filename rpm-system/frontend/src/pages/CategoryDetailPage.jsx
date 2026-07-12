@@ -340,6 +340,31 @@ function CategoryDetailPage() {
     handleArchiveProject(project, targetArchived);
   };
 
+  // Reorder active project cards (drag one over another). Active-over-active only.
+  const projectsAreActiveReorder = (overId) => {
+    const dragged = (category?.projects || []).find(p => p.id === dragProjectId);
+    const over = (category?.projects || []).find(p => p.id === overId);
+    return dragProjectId && dragProjectId !== overId && dragged && over && !dragged.is_archived && !over.is_archived;
+  };
+  const handleProjectReorderOver = (overId) => {
+    if (!projectsAreActiveReorder(overId)) return;
+    setCategory(prev => {
+      if (!prev) return prev;
+      const arr = [...(prev.projects || [])];
+      const from = arr.findIndex(p => p.id === dragProjectId);
+      const to = arr.findIndex(p => p.id === overId);
+      if (from === -1 || to === -1) return prev;
+      const [moved] = arr.splice(from, 1);
+      arr.splice(to, 0, moved);
+      return { ...prev, projects: arr };
+    });
+  };
+  const handleProjectReorderDrop = async () => {
+    const ids = (category?.projects || []).filter(p => !p.is_archived).map(p => p.id);
+    setDragProjectId(null); setDropZone(null);
+    try { await api.reorderProjects(ids); } catch (error) { console.error('Failed to reorder projects:', error); await loadCategory(); }
+  };
+
   const handleRemoveFromBlock = async (action) => {
     try {
       await api.updateAction(action.id, { block_id: null });
@@ -689,7 +714,9 @@ function CategoryDetailPage() {
                   draggable
                   onDragStart={(e) => { setDragProjectId(project.id); e.dataTransfer.effectAllowed = 'move'; }}
                   onDragEnd={() => { setDragProjectId(null); setDropZone(null); }}
-                  onClick={() => navigate(`/projects/${project.id}`)}
+                  onDragOver={!archived ? (e) => { if (projectsAreActiveReorder(project.id)) { e.preventDefault(); handleProjectReorderOver(project.id); } } : undefined}
+                  onDrop={!archived ? (e) => { if (projectsAreActiveReorder(project.id)) { e.preventDefault(); e.stopPropagation(); handleProjectReorderDrop(); } } : undefined}
+                  onClick={() => { if (!dragProjectId) navigate(`/projects/${project.id}`); }}
                 >
                   <div
                     className="project-card-bg"

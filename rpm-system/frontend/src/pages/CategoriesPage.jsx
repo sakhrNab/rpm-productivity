@@ -27,6 +27,31 @@ function CategoriesPage() {
   const [editingCategory, setEditingCategory] = useState(null);
   const menuRef = useRef(null);
 
+  // Drag-to-reorder: keep a local ordered copy; sync from context when not dragging.
+  const [items, setItems] = useState(categories);
+  const [dragId, setDragId] = useState(null);
+  useEffect(() => { if (!dragId) setItems(categories); }, [categories, dragId]);
+
+  const handleCardDragOver = (e, overId) => {
+    e.preventDefault();
+    if (!dragId || dragId === overId) return;
+    setItems(prev => {
+      const from = prev.findIndex(c => c.id === dragId);
+      const to = prev.findIndex(c => c.id === overId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+  const handleCardDrop = async () => {
+    const ids = items.map(c => c.id);
+    setDragId(null);
+    try { await api.reorderCategories(ids); if (refreshData) refreshData(); }
+    catch (error) { console.error('Failed to reorder categories:', error); if (refreshData) refreshData(); }
+  };
+
   // Close the open menu when clicking anywhere outside of it
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -67,13 +92,18 @@ function CategoriesPage() {
       </div>
 
       <div className="categories-grid">
-        {categories.map(category => {
+        {items.map(category => {
           const IconComponent = iconMap[category.icon] || Target;
           return (
             <div
               key={category.id}
-              className={`category-card ${openMenuId === category.id ? 'menu-open' : ''}`}
-              onClick={() => navigate(`/categories/${category.id}`)}
+              className={`category-card ${openMenuId === category.id ? 'menu-open' : ''} ${dragId === category.id ? 'cd-dragging' : ''}`}
+              draggable
+              onDragStart={(e) => { setDragId(category.id); e.dataTransfer.effectAllowed = 'move'; }}
+              onDragOver={(e) => handleCardDragOver(e, category.id)}
+              onDrop={(e) => { e.preventDefault(); handleCardDrop(); }}
+              onDragEnd={handleCardDrop}
+              onClick={() => { if (!dragId) navigate(`/categories/${category.id}`); }}
             >
               <div
                 className="category-card-bg"

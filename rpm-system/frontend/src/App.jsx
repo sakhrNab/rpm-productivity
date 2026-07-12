@@ -108,6 +108,14 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       method: 'PUT',
       body: JSON.stringify(data)
     }).then(r => r.json()),
+    reorderCategories: (ids) => authFetch(`${API_BASE}/categories/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ ids })
+    }).then(r => r.json()),
+    reorderProjects: (ids) => authFetch(`${API_BASE}/projects/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ ids })
+    }).then(r => r.json()),
     updateCategoryDetails: (id, data) => authFetch(`${API_BASE}/categories/${id}/details`, {
       method: 'PUT',
       body: JSON.stringify(data)
