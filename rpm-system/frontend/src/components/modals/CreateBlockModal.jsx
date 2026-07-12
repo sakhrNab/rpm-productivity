@@ -1,12 +1,44 @@
 import { useState, useContext, useEffect } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Pencil, Trash2, Calendar as CalendarIcon } from 'lucide-react';
 import { AppContext, AuthContext } from '../../App';
+import { useToast } from '../ToastProvider';
 import CreateActionModal from './CreateActionModal';
 import './CreateBlockModal.css';
 
 function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) {
   const { projects } = useContext(AppContext);
   const { api } = useContext(AuthContext);
+  const { showToast } = useToast();
+  const [editingActionId, setEditingActionId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
+
+  // Inline edit / date / delete for the attached actions
+  const patchAction = async (id, patch) => {
+    setActions(prev => prev.map(a => (a.id === id ? { ...a, ...patch } : a)));
+    try {
+      await api.updateAction(id, patch);
+    } catch (error) {
+      console.error('Failed to update action:', error);
+      showToast('Could not update that action.', 'error');
+    }
+  };
+  const saveTitle = (id) => {
+    const title = editingTitle.trim();
+    setEditingActionId(null);
+    if (title) patchAction(id, { title });
+  };
+  const removeAction = async (id) => {
+    if (!window.confirm('Delete this action permanently?')) return;
+    setActions(prev => prev.filter(a => a.id !== id));
+    setSelectedActions(prev => prev.filter(x => x !== id));
+    try {
+      await api.deleteAction(id);
+      showToast('Action deleted.', 'success');
+    } catch (error) {
+      console.error('Failed to delete action:', error);
+      showToast('Could not delete that action.', 'error');
+    }
+  };
   const [formData, setFormData] = useState({
     result_title: initialData.result_title || '',
     purpose: initialData.purpose || '',
@@ -243,23 +275,70 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
                     block after saving, with the “+ Add Massive Action Plan” button on the block.
                   </div>
                 ) : (
-                  actions.map(action => (
-                    <div key={action.id} className="checkbox-item">
-                      <div
-                        className={`checkbox-input ${selectedActions.includes(action.id) ? 'checked' : ''}`}
-                        onClick={() => toggleAction(action.id)}
-                      >
-                        {selectedActions.includes(action.id) && <Check size={12} />}
+                  actions.map(action => {
+                    const isSel = selectedActions.includes(action.id);
+                    const dateVal = action.scheduled_date ? String(action.scheduled_date).slice(0, 10) : '';
+                    return (
+                      <div key={action.id} className={`cbm-action-row ${isSel ? 'is-selected' : ''}`}>
+                        <button
+                          type="button"
+                          className={`cbm-check ${isSel ? 'checked' : ''}`}
+                          onClick={() => toggleAction(action.id)}
+                          title={isSel ? 'Attached to this block' : 'Attach to this block'}
+                        >
+                          {isSel && <Check size={13} />}
+                        </button>
+
+                        {editingActionId === action.id ? (
+                          <input
+                            className="cbm-title-input"
+                            value={editingTitle}
+                            onChange={e => setEditingTitle(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { e.preventDefault(); saveTitle(action.id); }
+                              if (e.key === 'Escape') setEditingActionId(null);
+                            }}
+                            onBlur={() => saveTitle(action.id)}
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className="cbm-action-title"
+                            onClick={() => { setEditingActionId(action.id); setEditingTitle(action.title); }}
+                            title="Click to rename"
+                          >
+                            {action.title}
+                          </span>
+                        )}
+
+                        <label className="cbm-date" title="Day this action appears on the calendar">
+                          <CalendarIcon size={13} />
+                          <input
+                            type="date"
+                            value={dateVal}
+                            onChange={e => patchAction(action.id, { scheduled_date: e.target.value || null })}
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          className="cbm-icon-btn"
+                          onClick={() => { setEditingActionId(action.id); setEditingTitle(action.title); }}
+                          title="Rename action"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className="cbm-icon-btn cbm-del"
+                          onClick={() => removeAction(action.id)}
+                          title="Delete action"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
-                      <span className="cbm-flex-1">{action.title}</span>
-                      <div 
-                        className="checkbox-input"
-                        style={{ 
-                          background: selectedActions.includes(action.id) ? 'var(--accent-cyan)' : 'transparent'
-                        }}
-                      />
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
