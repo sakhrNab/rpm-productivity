@@ -858,12 +858,16 @@ app.post('/api/persons', authenticateToken, async (req, res) => {
     const person = result.rows[0];
 
     // If this person has an email and isn't already an RPM user, invite them once.
-    let invited = false;
+    // inviteStatus tells the UI exactly what happened so "add person" isn't silent:
+    //   no_email | already_member | already_invited | sent | send_failed
+    let inviteStatus = 'no_email';
     const cleanEmail = (email || '').trim().toLowerCase();
     if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanEmail)) {
       try {
         const existingUser = await pool.query('SELECT id FROM users WHERE LOWER(email) = $1', [cleanEmail]);
-        if (existingUser.rows.length === 0) {
+        if (existingUser.rows.length > 0) {
+          inviteStatus = 'already_member';
+        } else {
           const token = crypto.randomBytes(24).toString('hex');
           // unique index on LOWER(email) makes this a no-op if already invited
           const ins = await pool.query(
@@ -871,21 +875,24 @@ app.post('/api/persons', authenticateToken, async (req, res) => {
              ON CONFLICT (LOWER(email)) DO NOTHING RETURNING id`,
             [req.userId, cleanEmail, token]
           );
-          if (ins.rows.length > 0) {
+          if (ins.rows.length === 0) {
+            inviteStatus = 'already_invited';
+          } else {
             const me = await pool.query('SELECT name FROM users WHERE id = $1', [req.userId]);
             const joinUrl = `${FRONTEND_URL}/?invite=${token}`;
-            // fire-and-forget: never block or fail the person-create on email
-            sendInvitation({ to: cleanEmail, recipientName: name, inviterName: me.rows[0]?.name, joinUrl })
-              .catch(err => console.error('Invitation send error:', err));
-            invited = true;
+            // Await so we can report real delivery status back to the UI. sendInvitation
+            // never throws — it returns { sent: boolean }.
+            const result = await sendInvitation({ to: cleanEmail, recipientName: name, inviterName: me.rows[0]?.name, joinUrl });
+            inviteStatus = result && result.sent ? 'sent' : 'send_failed';
           }
         }
       } catch (inviteErr) {
         console.error('Invitation flow error:', inviteErr);
+        inviteStatus = 'send_failed';
       }
     }
 
-    res.status(201).json({ ...person, invited });
+    res.status(201).json({ ...person, invited: inviteStatus === 'sent', inviteStatus });
   } catch (error) { res.status(500).json({ error: 'Failed to create person' }); }
 });
 

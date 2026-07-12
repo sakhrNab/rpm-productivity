@@ -24,8 +24,22 @@ function CreatePersonModal({ onClose, onSuccess, initialData }) {
         await api.updatePerson(initialData.id, formData);
       } else {
         const created = await api.createPerson(formData);
-        if (created?.invited) {
-          showToast(`Invitation email sent to ${formData.email.trim()}.`, 'success');
+        const to = formData.email.trim();
+        switch (created?.inviteStatus) {
+          case 'sent':
+            showToast(`Invitation email sent to ${to}.`, 'success');
+            break;
+          case 'already_member':
+            showToast(`${to} is already an RPM member — no invitation needed.`, 'info');
+            break;
+          case 'already_invited':
+            showToast(`${to} was already invited earlier.`, 'info');
+            break;
+          case 'send_failed':
+            showToast(`Couldn't send the invitation to ${to}. Please try again.`, 'error');
+            break;
+          default:
+            break; // no_email: nothing to say
         }
       }
       onSuccess();
