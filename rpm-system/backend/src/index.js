@@ -413,9 +413,12 @@ app.put('/api/projects/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, ultimate_result, ultimate_purpose, description, cover_image, start_date, end_date, is_starred, is_completed, is_archived } = req.body;
+    // date columns reject '' — coerce empty strings to NULL
+    const startDate = start_date === '' ? null : start_date;
+    const endDate = end_date === '' ? null : end_date;
     const result = await pool.query(
       `UPDATE projects SET name = COALESCE($1, name), ultimate_result = COALESCE($2, ultimate_result), ultimate_purpose = COALESCE($3, ultimate_purpose), description = COALESCE($4, description), cover_image = COALESCE($5, cover_image), start_date = COALESCE($6, start_date), end_date = COALESCE($7, end_date), is_starred = COALESCE($8, is_starred), is_completed = COALESCE($9, is_completed), is_archived = COALESCE($10, is_archived) WHERE id = $11 AND user_id = $12 RETURNING *`,
-      [name, ultimate_result, ultimate_purpose, description, cover_image, start_date, end_date, is_starred, is_completed, is_archived, id, req.userId]
+      [name, ultimate_result, ultimate_purpose, description, cover_image, startDate, endDate, is_starred, is_completed, is_archived, id, req.userId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
     res.json(result.rows[0]);
@@ -484,8 +487,10 @@ app.put('/api/actions/:id', authenticateToken, async (req, res) => {
     const fields = [], values = [];
     let paramCount = 1;
     const allowedFields = ['category_id', 'project_id', 'block_id', 'leverage_person_id', 'title', 'notes', 'duration_hours', 'duration_minutes', 'scheduled_date', 'scheduled_time', 'end_date', 'is_starred', 'is_this_week', 'is_completed', 'is_cancelled', 'sort_order'];
+    // uuid / date / time / numeric columns reject '' — coerce empty strings to NULL
+    const nullableFields = new Set(['category_id', 'project_id', 'block_id', 'leverage_person_id', 'duration_hours', 'duration_minutes', 'scheduled_date', 'scheduled_time', 'end_date', 'sort_order']);
     for (const [key, value] of Object.entries(updates)) {
-      if (allowedFields.includes(key)) { fields.push(`${key} = $${paramCount}`); values.push(value); paramCount++; }
+      if (allowedFields.includes(key)) { fields.push(`${key} = $${paramCount}`); values.push(nullableFields.has(key) && value === '' ? null : value); paramCount++; }
     }
     if (updates.is_completed === true) fields.push(`completed_at = CURRENT_TIMESTAMP`);
     if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
@@ -565,9 +570,11 @@ app.post('/api/blocks', authenticateToken, async (req, res) => {
 app.put('/api/blocks/:id', authenticateToken, async (req, res) => {
   try {
     const { category_id, project_id, result_title, result_description, purpose, target_date, is_completed, is_in_progress, action_ids } = req.body;
+    // the date column rejects '' — coerce empty string to NULL (COALESCE then keeps the existing value)
+    const targetDate = target_date === '' ? null : target_date;
     const result = await pool.query(
       `UPDATE rpm_blocks SET category_id = COALESCE($1, category_id), project_id = COALESCE($2, project_id), result_title = COALESCE($3, result_title), result_description = COALESCE($4, result_description), purpose = COALESCE($5, purpose), target_date = COALESCE($6, target_date), is_completed = COALESCE($7, is_completed), is_in_progress = COALESCE($8, is_in_progress) WHERE id = $9 AND user_id = $10 RETURNING *`,
-      [category_id, project_id, result_title, result_description, purpose, target_date, is_completed, is_in_progress, req.params.id, req.userId]
+      [category_id, project_id, result_title, result_description, purpose, targetDate, is_completed, is_in_progress, req.params.id, req.userId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Block not found' });
     // Re-sync which actions belong to this block when action_ids is provided.
