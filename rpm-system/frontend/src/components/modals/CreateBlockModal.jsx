@@ -53,21 +53,26 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
   const [showActionModal, setShowActionModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Load actions that don't belong to a block yet
+  // Show only actions that belong to the SAME project (or category, when the block
+  // isn't tied to a project) so one project's actions don't leak into another's.
+  const inScope = (a) => {
+    if (a.block_id && a.block_id !== initialData.id) return false; // already in another block
+    if (formData.project_id) return a.project_id === formData.project_id;
+    if (formData.category_id) return a.category_id === formData.category_id;
+    return !a.project_id; // loose blocks: only truly unassigned actions
+  };
+
   useEffect(() => {
     const loadActions = async () => {
       try {
-        // Load all incomplete actions so the user can attach any of them — filtering
-        // by category previously hid actions whose category didn't match the block.
         const data = await api.getActions({ completed: 'false' });
-        // Show unassigned actions plus any already belonging to this block (when editing)
-        setActions(data.filter(a => !a.block_id || a.block_id === initialData.id));
+        setActions(data.filter(inScope));
       } catch (error) {
         console.error('Failed to load actions:', error);
       }
     };
     loadActions();
-  }, [formData.category_id]);
+  }, [formData.category_id, formData.project_id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -118,14 +123,10 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
 
   const handleActionCreated = async () => {
     setShowActionModal(false);
-    // Reload actions list to include the newly created action
+    // Reload actions list to include the newly created action (same project/category scope)
     try {
-      const params = { completed: 'false' };
-      if (formData.category_id) {
-        params.category_id = formData.category_id;
-      }
-      const data = await api.getActions(params);
-      setActions(data.filter(a => !a.block_id));
+      const data = await api.getActions({ completed: 'false' });
+      setActions(data.filter(inScope));
     } catch (error) {
       console.error('Failed to reload actions:', error);
     }
