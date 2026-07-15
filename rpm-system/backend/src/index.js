@@ -11,6 +11,7 @@ const { isConfigured: aiKeysConfigured } = require('./ai/crypto');
 const { runChat, AiError } = require('./ai/service');
 const { applyProposal } = require('./ai/tools');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
+const { generatePlan, applyPlan } = require('./ai/braindump');
 const notifications = require('./notifications');
 const telegram = require('./telegram');
 const push = require('./push');
@@ -1251,6 +1252,31 @@ app.post('/api/ai/coach/compass', authenticateToken, async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('[ai] compass error:', error);
+    res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
+  }
+});
+
+// Brain Dump → Plan: propose a structured RPM plan from free text (no writes).
+app.post('/api/ai/braindump', authenticateToken, async (req, res) => {
+  try {
+    const { text, modelKey } = req.body;
+    if (!modelKey) return res.status(400).json({ error: 'modelKey is required' });
+    const plan = await generatePlan({ pool, userId: req.userId, modelKey, text });
+    res.json(plan);
+  } catch (error) {
+    console.error('[ai] braindump error:', error.message);
+    res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
+  }
+});
+
+// Apply the approved subset of a Brain Dump plan.
+app.post('/api/ai/braindump/apply', authenticateToken, async (req, res) => {
+  try {
+    const { operations } = req.body;
+    const result = await applyPlan({ pool, userId: req.userId, operations });
+    res.json(result);
+  } catch (error) {
+    console.error('[ai] braindump apply error:', error.message);
     res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
   }
 });

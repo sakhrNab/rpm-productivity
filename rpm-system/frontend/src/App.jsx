@@ -147,6 +147,12 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     aiSuggestPlan: (body) => authFetch(`${API_BASE}/ai/suggest-plan`, {
       method: 'POST', body: JSON.stringify(body)
     }).then(r => r.json()),
+    aiBrainDump: (body) => authFetch(`${API_BASE}/ai/braindump`, {
+      method: 'POST', body: JSON.stringify(body)
+    }).then(r => r.json()),
+    aiBrainDumpApply: (body) => authFetch(`${API_BASE}/ai/braindump/apply`, {
+      method: 'POST', body: JSON.stringify(body)
+    }).then(r => r.json()),
     getNotifPrefs: () => authFetch(`${API_BASE}/notifications/prefs`).then(r => r.json()),
     saveNotifPrefs: (patch) => authFetch(`${API_BASE}/notifications/prefs`, {
       method: 'PUT', body: JSON.stringify(patch)

@@ -11,6 +11,7 @@ import CreateBlockModal from './modals/CreateBlockModal';
 import CreateProjectModal from './modals/CreateProjectModal';
 import CreateCategoryModal from './modals/CreateCategoryModal';
 import CreatePersonModal from './modals/CreatePersonModal';
+import BrainDumpModal from './BrainDumpModal';
 
 function Navbar() {
   const location = useLocation();
@@ -21,6 +22,7 @@ function Navbar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
+  const [showBrainDump, setShowBrainDump] = useState(false);
   const createMenuRef = useRef(null);
   const userMenuRef = useRef(null);
 
@@ -122,6 +124,15 @@ function Navbar() {
         {mobileOpen && <div className="navbar-backdrop" onClick={() => setMobileOpen(false)} />}
 
         <div className="navbar-actions">
+          <button
+            className="btn btn-braindump"
+            onClick={() => setShowBrainDump(true)}
+            title="Brain Dump — turn a messy thought-dump into your plan"
+          >
+            <Sparkles size={16} />
+            <span className="btn-braindump-label">Brain Dump</span>
+          </button>
+
           <div className="create-menu" ref={createMenuRef}>
             <button 
               className="btn btn-primary"
@@ -212,9 +223,15 @@ function Navbar() {
         />
       )}
       {activeModal === 'person' && (
-        <CreatePersonModal 
-          onClose={handleModalClose} 
+        <CreatePersonModal
+          onClose={handleModalClose}
           onSuccess={handleModalSuccess}
+        />
+      )}
+      {showBrainDump && (
+        <BrainDumpModal
+          onClose={() => setShowBrainDump(false)}
+          onApplied={refreshData}
         />
       )}
     </>

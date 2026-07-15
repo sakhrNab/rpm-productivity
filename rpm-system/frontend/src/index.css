@@ -273,6 +273,31 @@ input::placeholder, textarea::placeholder {
   gap: var(--spacing-md);
 }
 
+/* Brain Dump launcher — the "magic" button */
+.btn-braindump {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(120deg, #7c6bf5, #4ecdc4 55%, #ffd166);
+  background-size: 180% 100%;
+  box-shadow: 0 2px 12px rgba(124,107,245,0.35);
+  transition: background-position var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.btn-braindump:hover { background-position: 100% 0; transform: translateY(-1px); box-shadow: 0 4px 18px rgba(124,107,245,0.45); }
+.btn-braindump:active { transform: translateY(0); }
+.btn-braindump svg { filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2)); }
+@media (max-width: 640px) {
+  .btn-braindump-label { display: none; }
+  .btn-braindump { padding: 8px; }
+}
+
 /* Cards */
 .card {
   background: var(--bg-card);
