@@ -150,6 +150,11 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       method: 'PUT', body: JSON.stringify(patch)
     }).then(r => r.json()),
     sendTestDigest: () => authFetch(`${API_BASE}/notifications/test-digest`, { method: 'POST' }).then(r => r.json()),
+    telegramStatus: () => authFetch(`${API_BASE}/telegram/status`).then(r => r.json()),
+    setTelegramBot: (token) => authFetch(`${API_BASE}/telegram/bot`, { method: 'PUT', body: JSON.stringify({ token }) }).then(r => r.json()),
+    removeTelegramBot: () => authFetch(`${API_BASE}/telegram/bot`, { method: 'DELETE' }).then(r => r.json()),
+    telegramConnect: () => authFetch(`${API_BASE}/telegram/connect`, { method: 'POST' }).then(r => r.json()),
+    telegramDisconnect: () => authFetch(`${API_BASE}/telegram/disconnect`, { method: 'POST' }).then(r => r.json()),
     aiApplyProposal: (body) => authFetch(`${API_BASE}/ai/apply`, {
       method: 'POST', body: JSON.stringify(body)
     }).then(r => r.json()),

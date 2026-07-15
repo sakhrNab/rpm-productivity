@@ -26,6 +26,9 @@ function SettingsPage() {
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [testing, setTesting] = useState(false);
   const [tgSteps, setTgSteps] = useState(false);
+  const [tg, setTg] = useState(null);        // telegram status
+  const [botToken, setBotToken] = useState('');
+  const [tgBusy, setTgBusy] = useState(false);
 
   const load = () => {
     api.getAiKeys()
@@ -45,7 +48,9 @@ function SettingsPage() {
       }
       setPrefs({ ...p, timezone: tz });
     }).catch(() => {});
+    api.telegramStatus().then(setTg).catch(() => {});
   };
+  const loadTg = () => api.telegramStatus().then(setTg).catch(() => {});
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If the saved default points to a model that no longer exists, clear it.
@@ -86,6 +91,38 @@ function SettingsPage() {
       showToast('Test digest sent to your email.', 'success');
     } catch (e) { showToast(e.message || 'Failed to send test digest', 'error'); }
     finally { setTesting(false); }
+  };
+
+  const saveBot = async () => {
+    if (!botToken.trim()) return;
+    setTgBusy(true);
+    try {
+      const r = await api.setTelegramBot(botToken.trim());
+      if (r.error) throw new Error(r.error);
+      showToast(`Telegram bot connected: @${r.username}`, 'success');
+      setBotToken(''); loadTg();
+    } catch (e) { showToast(e.message || 'Invalid bot token', 'error'); }
+    finally { setTgBusy(false); }
+  };
+  const removeBot = async () => {
+    if (!window.confirm('Remove the Telegram bot? Everyone will be disconnected.')) return;
+    await api.removeTelegramBot(); loadTg(); showToast('Telegram bot removed', 'info');
+  };
+  const connectTg = async () => {
+    setTgBusy(true);
+    try {
+      const r = await api.telegramConnect();
+      if (r.error) throw new Error(r.error);
+      window.open(r.deepLink, '_blank');
+      showToast('Opening Telegram — tap Start, then return here.', 'info');
+      setTimeout(loadTg, 5000);
+    } catch (e) { showToast(e.message || 'Failed to start connection', 'error'); }
+    finally { setTgBusy(false); }
+  };
+  const disconnectTg = async () => { await api.telegramDisconnect(); loadTg(); showToast('Telegram disconnected', 'info'); };
+  const toggleTgReminders = async (on) => {
+    setPref({ telegram_enabled: on });
+    try { await api.saveNotifPrefs({ telegram_enabled: on }); } catch { showToast('Failed to save', 'error'); }
   };
 
   const save = async (provider) => {
@@ -267,7 +304,7 @@ function SettingsPage() {
             </div>
           )}
 
-          {/* Telegram (coming soon) with connect steps */}
+          {/* Telegram */}
           <div className="settings-remind-row">
             <div className="settings-remind-main">
               <Send size={16} />
@@ -275,22 +312,64 @@ function SettingsPage() {
                 <div className="settings-remind-title">
                   Telegram
                   <button type="button" className="settings-info-btn" onClick={() => setTgSteps(v => !v)} aria-label="How to connect Telegram"><Info size={14} /></button>
-                  <span className="settings-soon">Coming soon</span>
+                  {tg?.connected && <span className="settings-badge ok"><Check size={12} /> Connected</span>}
+                  {tg && !tg.botConfigured && <span className="settings-soon">Not set up</span>}
                 </div>
                 <div className="settings-remind-sub">Instant push + tap “✅ Done” right in chat.</div>
               </div>
             </div>
+            {tg?.botConfigured && !tg.connected && (
+              <button className="btn btn-primary" onClick={connectTg} disabled={tgBusy}>{tgBusy ? 'Opening…' : 'Connect Telegram'}</button>
+            )}
+            {tg?.connected && (
+              <div className="settings-tg-connected">
+                <label className="settings-switch" title="Telegram reminders">
+                  <input type="checkbox" checked={!!prefs?.telegram_enabled} onChange={e => toggleTgReminders(e.target.checked)} /><span />
+                </label>
+                <button className="btn btn-secondary" onClick={disconnectTg}>Disconnect</button>
+              </div>
+            )}
           </div>
+
+          {/* Owner: set the bot token */}
+          {tg && !tg.botConfigured && tg.isOwner && (
+            <div className="settings-remind-detail settings-tg-owner">
+              <input type="password" className="form-input settings-key-input"
+                placeholder="Paste bot token from @BotFather (e.g. 8123…:AAF…)"
+                value={botToken} onChange={e => setBotToken(e.target.value)} autoComplete="off" />
+              <button className="btn btn-primary" onClick={saveBot} disabled={tgBusy || !botToken.trim()}>{tgBusy ? 'Connecting…' : 'Save bot'}</button>
+            </div>
+          )}
+          {tg && !tg.botConfigured && !tg.isOwner && (
+            <div className="settings-remind-sub settings-tg-note">The workspace owner needs to set up the Telegram bot first.</div>
+          )}
+          {tg?.botConfigured && tg.isOwner && (
+            <button type="button" className="settings-tg-remove-link" onClick={removeBot}>Remove bot{tg.botUsername ? ` (@${tg.botUsername})` : ''}</button>
+          )}
+
           {tgSteps && (
             <div className="settings-tg-steps">
-              <strong>How to connect Telegram</strong>
-              <ol>
-                <li>Open Telegram and search for our bot (link appears here once it’s live).</li>
-                <li>Tap <b>Start</b> to open the chat with the bot.</li>
-                <li>Come back here and press <b>Connect Telegram</b> — you’ll be linked in one tap.</li>
-                <li>Pick which reminders you want; the bot will message you at the right times.</li>
-              </ol>
-              <p className="settings-remind-sub">No token needed on your side — the bot is set up by the app.</p>
+              {tg?.isOwner && !tg?.botConfigured ? (
+                <>
+                  <strong>Create the bot (owner, ~2 min)</strong>
+                  <ol>
+                    <li>In Telegram, open <b>@BotFather</b> and send <code>/newbot</code>.</li>
+                    <li>Pick a name, then a username ending in “bot” (e.g. <code>MyRPMBot</code>).</li>
+                    <li>Copy the <b>token</b> it gives you, paste it above, and press <b>Save bot</b>.</li>
+                    <li>Then anyone can tap <b>Connect Telegram</b> to link in one tap.</li>
+                  </ol>
+                </>
+              ) : (
+                <>
+                  <strong>Connect Telegram</strong>
+                  <ol>
+                    <li>Press <b>Connect Telegram</b> — it opens our bot in the Telegram app.</li>
+                    <li>Tap <b>Start</b> in that chat.</li>
+                    <li>Come back here — you’ll show as <b>Connected</b>. Toggle reminders on.</li>
+                  </ol>
+                  <p className="settings-remind-sub">No token needed on your side — the bot is set up by the app.</p>
+                </>
+              )}
             </div>
           )}
 

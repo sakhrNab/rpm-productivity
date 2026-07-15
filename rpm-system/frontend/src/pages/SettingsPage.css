@@ -76,3 +76,11 @@
 .settings-switch span::before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: var(--text-muted); border-radius: 50%; transition: all var(--transition-fast); }
 .settings-switch input:checked + span { background: rgba(78,205,196,0.2); border-color: var(--accent-cyan); }
 .settings-switch input:checked + span::before { transform: translateX(18px); background: var(--accent-cyan); }
+
+/* Telegram controls */
+.settings-tg-connected { display: flex; align-items: center; gap: 10px; }
+.settings-tg-owner { padding-left: 28px; }
+.settings-tg-note { padding: 8px 0 8px 28px; }
+.settings-tg-remove-link { color: var(--text-muted); font-size: 0.8rem; padding: 8px 0 0 28px; text-decoration: underline; }
+.settings-tg-remove-link:hover { color: var(--accent-red); }
+.settings-tg-steps code { background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }

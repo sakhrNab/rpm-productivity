@@ -492,6 +492,16 @@ CREATE TABLE IF NOT EXISTS notification_prefs (
     overdue_enabled BOOLEAN DEFAULT true,
     timezone TEXT DEFAULT 'UTC',
     last_digest_date DATE,
+    telegram_chat_id TEXT,
+    telegram_link_code TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- App-wide config (encrypted secrets like the Telegram bot token). Owner-managed.
+CREATE TABLE IF NOT EXISTS app_config (
+    key TEXT PRIMARY KEY,
+    ciphertext TEXT, iv TEXT, auth_tag TEXT,
+    plain TEXT,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

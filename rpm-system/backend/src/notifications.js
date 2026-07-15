@@ -2,6 +2,7 @@
 // in-process scheduler. Opt-in: only users with a notification_prefs row get sent to.
 
 const { sendDigest } = require('./email');
+const telegram = require('./telegram');
 
 const DEFAULT_PREFS = {
   email_enabled: true, telegram_enabled: false, webpush_enabled: false,
@@ -64,14 +65,23 @@ async function buildDigest(pool, userId, tz, includeOverdue) {
   return { today, todayTasks, overdue };
 }
 
+// Send the digest via every channel the user has enabled (email + telegram).
 async function sendUserDigest(pool, user, prefs) {
-  const { today, todayTasks, overdue } = await buildDigest(pool, user.id, prefs.timezone, prefs.overdue_enabled);
+  const { todayTasks, overdue } = await buildDigest(pool, user.id, prefs.timezone, prefs.overdue_enabled);
   const todayLabel = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: prefs.timezone || 'UTC' }).format(new Date());
-  return sendDigest({
-    to: user.email, name: user.name,
-    appUrl: (process.env.FRONTEND_URL || 'https://rpm.aiwaverider.com') + '/my-day',
-    todayLabel, today: todayTasks, overdue,
-  });
+  const out = {};
+  if (prefs.email_enabled && user.email) {
+    out.email = await sendDigest({
+      to: user.email, name: user.name,
+      appUrl: (process.env.FRONTEND_URL || 'https://rpm.aiwaverider.com') + '/my-day',
+      todayLabel, today: todayTasks, overdue,
+    });
+  }
+  if (prefs.telegram_enabled && prefs.telegram_chat_id) {
+    try { out.telegram = await telegram.sendDigestTelegram(pool, prefs.telegram_chat_id, { todayLabel, today: todayTasks, overdue }); }
+    catch (e) { console.error('[notifications] telegram digest error:', e.message); out.telegram = { sent: false }; }
+  }
+  return out;
 }
 
 // One scheduler tick: send digests that are due and not yet sent today.
@@ -79,7 +89,9 @@ async function tick(pool) {
   const { rows } = await pool.query(
     `SELECT p.*, u.email, u.name FROM notification_prefs p
        JOIN users u ON u.id = p.user_id
-      WHERE p.digest_enabled = true AND p.email_enabled = true AND u.email IS NOT NULL`
+      WHERE p.digest_enabled = true
+        AND ((p.email_enabled = true AND u.email IS NOT NULL)
+             OR (p.telegram_enabled = true AND p.telegram_chat_id IS NOT NULL))`
   );
   for (const p of rows) {
     try {

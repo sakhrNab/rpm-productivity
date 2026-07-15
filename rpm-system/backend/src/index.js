@@ -12,6 +12,7 @@ const { runChat, AiError } = require('./ai/service');
 const { applyProposal } = require('./ai/tools');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const notifications = require('./notifications');
+const telegram = require('./telegram');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -1278,6 +1279,83 @@ app.post('/api/notifications/test-digest', authenticateToken, async (req, res) =
     if (!result || result.sent === false) return res.status(502).json({ error: 'Email could not be sent (SMTP).' });
     res.json({ success: true });
   } catch (error) { console.error('[notifications] test digest:', error); res.status(500).json({ error: 'Failed to send digest' }); }
+});
+
+// ============================================================
+// Telegram bot (Phase 2)
+// ============================================================
+// Owner = ADMIN_EMAIL (if set) else the first-registered user.
+async function isTelegramOwner(userId) {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (adminEmail) {
+    const r = await pool.query('SELECT 1 FROM users WHERE id = $1 AND LOWER(email) = LOWER($2)', [userId, adminEmail]);
+    return r.rows.length > 0;
+  }
+  const first = await pool.query('SELECT id FROM users ORDER BY created_at ASC LIMIT 1');
+  return first.rows[0]?.id === userId;
+}
+
+// Status for the current user (+ whether they may manage the bot token).
+app.get('/api/telegram/status', authenticateToken, async (req, res) => {
+  try {
+    const [configured, owner, pref] = await Promise.all([
+      telegram.isBotConfigured(pool),
+      isTelegramOwner(req.userId),
+      pool.query('SELECT telegram_chat_id, telegram_enabled FROM notification_prefs WHERE user_id = $1', [req.userId]),
+    ]);
+    res.json({
+      botConfigured: configured,
+      botUsername: configured ? await telegram.getBotUsername(pool) : null,
+      isOwner: owner,
+      connected: !!pref.rows[0]?.telegram_chat_id,
+      telegramEnabled: !!pref.rows[0]?.telegram_enabled,
+    });
+  } catch (error) { console.error('[telegram] status:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+// Owner: set / remove the bot token.
+app.put('/api/telegram/bot', authenticateToken, async (req, res) => {
+  try {
+    if (!(await isTelegramOwner(req.userId))) return res.status(403).json({ error: 'Only the workspace owner can set the bot token.' });
+    const { token } = req.body;
+    if (!token || !String(token).trim()) return res.status(400).json({ error: 'Bot token is required' });
+    const { username } = await telegram.configureBot(pool, String(token).trim());
+    res.json({ success: true, username });
+  } catch (error) {
+    console.error('[telegram] set bot:', error);
+    res.status(400).json({ error: error.message || 'Invalid bot token' });
+  }
+});
+app.delete('/api/telegram/bot', authenticateToken, async (req, res) => {
+  try {
+    if (!(await isTelegramOwner(req.userId))) return res.status(403).json({ error: 'Only the owner can do that.' });
+    await telegram.removeBot(pool);
+    res.json({ success: true });
+  } catch (error) { console.error('[telegram] remove bot:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+// User connect / disconnect.
+app.post('/api/telegram/connect', authenticateToken, async (req, res) => {
+  try {
+    if (!(await telegram.isBotConfigured(pool))) return res.status(400).json({ error: 'Telegram is not set up yet.' });
+    res.json(await telegram.startLink(pool, req.userId));
+  } catch (error) { console.error('[telegram] connect:', error); res.status(400).json({ error: error.message || 'Failed' }); }
+});
+app.post('/api/telegram/disconnect', authenticateToken, async (req, res) => {
+  try {
+    await pool.query('UPDATE notification_prefs SET telegram_chat_id = NULL, telegram_enabled = false WHERE user_id = $1', [req.userId]);
+    res.json({ success: true });
+  } catch (error) { console.error('[telegram] disconnect:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+// Telegram webhook (no auth — verified by the secret token header).
+app.post('/api/telegram/webhook', async (req, res) => {
+  try {
+    const secret = await telegram.getWebhookSecret(pool);
+    if (!secret || req.get('X-Telegram-Bot-Api-Secret-Token') !== secret) return res.sendStatus(401);
+    await telegram.handleUpdate(pool, req.body, (actionId) => pool.query('UPDATE actions SET is_completed = true WHERE id = $1', [actionId]));
+    res.sendStatus(200);
+  } catch (error) { console.error('[telegram] webhook:', error); res.sendStatus(200); }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
