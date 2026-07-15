@@ -63,6 +63,15 @@ function MyDayPage() {
     catch (error) { console.error('Failed to reorder actions:', error); loadActions(); }
   };
 
+  const remindAction = async (action, remindAtISO) => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const r = await api.createReminder({ title: action.title, action_id: action.id, kind: 'once', remind_at: remindAtISO, timezone: tz });
+      if (r?.error) throw new Error(r.error);
+      showToast('Reminder set', 'success');
+    } catch (e) { showToast(e.message || 'Failed to set reminder', 'error'); }
+  };
+
   const handleEdit = (action) => { setEditingAction(action); setShowActionModal(true); };
   const handleDelete = async (action) => {
     if (!window.confirm(`Delete action "${action.title}"?`)) return;
@@ -174,6 +183,7 @@ function MyDayPage() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onChangePriority={changePriority}
+                onRemind={remindAction}
               />
             )}
           />

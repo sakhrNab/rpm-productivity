@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
-import { Star, Check, Clock, FolderOpen, Calendar, MoreVertical, Pencil, Trash2, ExternalLink, Flag, Lock, GitBranch } from 'lucide-react';
+import { Star, Check, Clock, FolderOpen, Calendar, MoreVertical, Pencil, Trash2, ExternalLink, Flag, Lock, GitBranch, Bell } from 'lucide-react';
 import { playDone } from '../utils/sound';
 import './ActionRow.css';
 
@@ -41,21 +41,44 @@ function prettyDuration(h, m) {
   return `${mm}m`;
 }
 
-function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete, onChangePriority }) {
+// Quick "remind me" presets → absolute ISO timestamps.
+function atToday(hour) { const d = new Date(); d.setHours(hour, 0, 0, 0); return d; }
+function remindPresets() {
+  const now = new Date();
+  const inHour = new Date(now.getTime() + 3600000);
+  let evening = atToday(18); if (evening <= now) evening = new Date(evening.getTime() + 86400000);
+  const tomorrowAm = new Date(atToday(9).getTime() + 86400000);
+  return [
+    { key: 'hour', label: 'In 1 hour', at: inHour },
+    { key: 'eve', label: 'This evening · 6:00 PM', at: evening },
+    { key: 'tom', label: 'Tomorrow · 9:00 AM', at: tomorrowAm },
+  ];
+}
+
+function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete, onChangePriority, onRemind }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [prioOpen, setPrioOpen] = useState(false);
+  const [remindOpen, setRemindOpen] = useState(false);
+  const [customAt, setCustomAt] = useState('');
   const menuRef = useRef(null);
   const prioRef = useRef(null);
+  const remindRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
       if (prioRef.current && !prioRef.current.contains(e.target)) setPrioOpen(false);
+      if (remindRef.current && !remindRef.current.contains(e.target)) setRemindOpen(false);
     };
-    if (menuOpen || prioOpen) document.addEventListener('mousedown', handleClickOutside);
+    if (menuOpen || prioOpen || remindOpen) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [menuOpen, prioOpen]);
+  }, [menuOpen, prioOpen, remindOpen]);
+
+  const setReminder = (date) => {
+    setRemindOpen(false);
+    if (onRemind && date) onRemind(action, date.toISOString());
+  };
 
   const prio = PRIORITY[action.priority];
   const stripeColor = prio ? prio.color : 'transparent';
@@ -132,6 +155,46 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete, o
           )}
         </div>
       </div>
+
+      {onRemind && (
+        <div className="ar-remind-wrap" ref={remindRef}>
+          <button
+            className="btn btn-icon btn-ghost"
+            aria-label="Remind me about this task"
+            title="Remind me"
+            onClick={() => setRemindOpen(v => !v)}
+          >
+            <Bell size={14} />
+          </button>
+          {remindOpen && (
+            <div className="ar-remind-menu">
+              <div className="ar-remind-head">Remind me…</div>
+              {remindPresets().map(p => (
+                <button key={p.key} type="button" className="ar-remind-opt" onClick={() => setReminder(p.at)}>
+                  {p.label}
+                </button>
+              ))}
+              <div className="ar-remind-custom">
+                <input
+                  type="datetime-local"
+                  className="form-input"
+                  value={customAt}
+                  onChange={(e) => setCustomAt(e.target.value)}
+                  aria-label="Custom reminder time"
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary ar-remind-set"
+                  disabled={!customAt}
+                  onClick={() => customAt && setReminder(new Date(customAt))}
+                >
+                  Set
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <button
         className="btn btn-icon btn-ghost"

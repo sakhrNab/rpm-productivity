@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
 import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe, Bell, Send, Info, Mail, Smartphone, Plus, Clock } from 'lucide-react';
@@ -461,35 +462,14 @@ function SettingsPage() {
             ) : <span className="settings-soon">Not supported here</span>}
           </div>
 
-          {/* Custom reminders */}
+          {/* Custom reminders live on their own page now */}
           <div className="settings-custom-rem">
             <h3 className="settings-subhead"><Clock size={15} /> Your reminders</h3>
-            {reminders.length === 0 && <p className="settings-remind-sub">No custom reminders yet.</p>}
-            {reminders.map(r => (
-              <div key={r.id} className="settings-rem-item">
-                <span className="settings-rem-title">{r.title}</span>
-                <span className="settings-rem-when">{describeReminder(r)}</span>
-                <button className="settings-rem-del" onClick={() => removeReminder(r.id)} aria-label="Delete reminder"><Trash2 size={14} /></button>
-              </div>
-            ))}
-            <div className="settings-rem-form">
-              <input className="form-input settings-rem-title-in" placeholder="Remind me to…" value={newRem.title} onChange={e => setNewRem({ ...newRem, title: e.target.value })} />
-              <select className="form-input settings-rem-kind" value={newRem.kind} onChange={e => setNewRem({ ...newRem, kind: e.target.value })}>
-                <option value="once">Once</option>
-                <option value="daily">Every day</option>
-                <option value="weekly">Every week</option>
-              </select>
-              {newRem.kind === 'once'
-                ? <input type="datetime-local" className="form-input" value={newRem.remind_at} onChange={e => setNewRem({ ...newRem, remind_at: e.target.value })} />
-                : <input type="time" className="form-input settings-time" value={newRem.remind_time} onChange={e => setNewRem({ ...newRem, remind_time: e.target.value })} />}
-              {newRem.kind === 'weekly' && (
-                <select className="form-input settings-rem-dow" value={newRem.remind_dow} onChange={e => setNewRem({ ...newRem, remind_dow: e.target.value })}>
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => <option key={i} value={i}>{d}</option>)}
-                </select>
-              )}
-              <button className="btn btn-primary" onClick={addReminder} disabled={addingRem || !newRem.title.trim()}><Plus size={15} /> Add</button>
-            </div>
-            <p className="settings-remind-sub">Sent via your enabled channels above (email / Telegram / web push).</p>
+            <p className="settings-remind-sub">
+              Your one-off and recurring reminders now live on their own page — and you can set a reminder
+              straight from any task with the <Bell size={12} style={{ verticalAlign: '-2px' }} /> bell in My Day or My Week.
+            </p>
+            <Link to="/reminders" className="btn btn-secondary settings-rem-link"><Bell size={15} /> Manage reminders</Link>
           </div>
 
           <div className="settings-remind-actions">

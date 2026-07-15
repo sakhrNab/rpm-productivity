@@ -54,6 +54,23 @@
 .ar-prio-opt.ar-prio-low { color: var(--accent-cyan); }
 .ar-prio-opt.ar-prio-none { color: var(--text-muted); }
 
+/* Remind-me popover */
+.ar-remind-wrap { position: relative; display: inline-flex; }
+.ar-remind-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 45;
+  background: var(--bg-card); border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg); padding: 6px; width: 220px;
+}
+.ar-remind-head { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); padding: 2px 8px 6px; }
+.ar-remind-opt {
+  display: block; width: 100%; text-align: left; padding: 7px 10px;
+  border-radius: var(--radius-sm); font-size: 0.82rem; color: var(--text-secondary);
+}
+.ar-remind-opt:hover { background: rgba(78,205,196,0.12); color: var(--text-primary); }
+.ar-remind-custom { display: flex; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-primary); }
+.ar-remind-custom .form-input { flex: 1; min-width: 0; font-size: 0.78rem; padding: 5px 6px; }
+.ar-remind-set { padding: 5px 12px; font-size: 0.78rem; }
+
 /* Category + project labels */
 .ar-cat {
   display: inline-flex; align-items: center;
