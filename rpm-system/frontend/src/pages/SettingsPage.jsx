@@ -36,6 +36,14 @@ function SettingsPage() {
   };
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // If the saved default points to a model that no longer exists, clear it.
+  useEffect(() => {
+    if (models.length && defaultModel && !models.some(m => m.key === defaultModel)) {
+      localStorage.removeItem('ai.modelKey');
+      setDefaultModel('');
+    }
+  }, [models, defaultModel]);
+
   const configuredProviders = new Set(Object.values(status).filter(p => p.configured).map(p => p.provider));
   const availableModels = models.filter(m => configuredProviders.has(m.provider));
   const chooseDefault = (key) => {

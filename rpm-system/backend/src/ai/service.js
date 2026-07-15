@@ -80,7 +80,7 @@ async function searchTools(sdk) {
 // autoMode=true executes writes immediately; otherwise writes are proposed for approval.
 async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm, autoMode }) {
   const entry = getModelEntry(modelKey);
-  if (!entry) throw new AiError('unknown_model', `Unknown model: ${modelKey}`);
+  if (!entry) throw new AiError('unknown_model', 'That model is no longer available — pick a new default model in Settings.');
 
   const apiKey = await resolveKey(pool, userId, entry.provider);
   if (!apiKey) {

@@ -91,19 +91,27 @@ async function runPlanSuggestions({ pool, userId, modelKey, startDate, endDate }
     ? krs.map(k => `- ${k.title}: ${k.current_value ?? 0}/${k.target_value ?? '?'}${k.target_date ? ' (due ' + String(k.target_date).slice(0, 10) + ')' : ''}`).join('\n')
     : '(no active key results)';
 
-  const system = `You are the user's RPM coach. Review the task list below and give a short, practical plan.
-Cover, in clean Markdown with brief sections:
-1. **How to tackle it** — a sensible order/approach, what to do first, batching or quick wins, and anything to defer.
-2. **Do the priorities make sense?** — if a High-priority task doesn't move a key result, or a Low/none one is actually urgent (near a deadline or blocking others), call it out and suggest the change (e.g. "bump X to High").
-Reference tasks by name. Be concise and motivating. Don't restate the whole list.`;
-  const user = `Tasks (${startDate}${endDate !== startDate ? ' → ' + endDate : ''}):\n${taskLines}\n\nActive key results:\n${krLines}`;
+  // rpm:true injects the RPM system prompt (coach + propose-only tools) and context.
+  // autoMode:false → any changes come back as proposals the user approves; nothing auto-applies.
+  const user = `Review my task list and give a short, practical plan in clean Markdown with brief sections:
+1. **How to tackle it** — a sensible order/approach, what to do first, batching or quick wins, what to defer.
+2. **Do the priorities make sense?** — if a High-priority task doesn't move a key result, or a Low/None one is actually urgent (near a deadline or blocking others), say so.
+Then, for any priority that should change, PROPOSE it with the update_action tool (set 'priority' 0-3) so I can approve it — do NOT restate the whole list.
+
+Tasks (${startDate}${endDate !== startDate ? ' → ' + endDate : ''}):
+${taskLines}
+
+Active key results:
+${krLines}`;
 
   let text = '';
-  for await (const ev of runChat({ pool, userId, modelKey, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], webSearch: false, rpm: false })) {
+  const proposals = [];
+  for await (const ev of runChat({ pool, userId, modelKey, messages: [{ role: 'user', content: user }], webSearch: false, rpm: true, autoMode: false })) {
     if (ev.type === 'text') text += ev.text;
+    else if (ev.type === 'tool_result' && ev.result && ev.result.proposed) proposals.push(ev.result);
     else if (ev.type === 'error') throw new Error(ev.message || 'AI request failed');
   }
-  return { text };
+  return { text, proposals };
 }
 
 module.exports = { runCompass, runPlanSuggestions };
