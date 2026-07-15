@@ -43,7 +43,8 @@ export default function VoiceOrb() {
   const activate = () => {
     if (!sttSupported()) { showToast('Voice needs Chrome or Edge (with mic access).', 'info'); return; }
     cancelSpeak();
-    setOpen(true); setReply(''); setTranscript('');
+    // Keep the previous answer on screen — it's only cleared once a NEW reply starts.
+    setOpen(true);
     const greet = firstRef.current ? `${timeGreet()} What do you need?` : GREETS[Math.floor(Math.random() * GREETS.length)];
     firstRef.current = false;
     if (ttsSupported()) { setState('speaking'); speak(greet, { onEnd: () => listen() }); }
@@ -53,7 +54,10 @@ export default function VoiceOrb() {
   const listen = () => {
     if (!sttSupported()) { showToast('Voice needs Chrome or Edge (with mic access).', 'info'); return; }
     cancelSpeak();
-    setOpen(true); setReply(''); setTranscript(''); setState('listening');
+    // Don't wipe the last answer just because we're listening again (conversation
+    // mode / wake word) — onInterim overwrites the transcript as you speak, and the
+    // reply is cleared in ask() when a new one starts.
+    setOpen(true); setState('listening');
     startListening({
       onInterim: (t) => setTranscript(t),
       onFinal: (t) => { if (t) ask(t); else setState('idle'); },
@@ -64,7 +68,7 @@ export default function VoiceOrb() {
   const ask = async (text) => {
     const modelKey = localStorage.getItem('ai.modelKey');
     if (!modelKey) { setState('idle'); showToast('Pick a default AI model in Settings first.', 'info'); return; }
-    setState('thinking'); setReply('');
+    setState('thinking'); setReply(''); setTranscript(text);
     let full = '';
     // Speak sentence-by-sentence as the reply streams, instead of waiting for it all.
     const canSpeak = ttsSupported();
