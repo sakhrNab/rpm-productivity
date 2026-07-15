@@ -55,12 +55,26 @@ function remindPresets() {
   ];
 }
 
-function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete, onChangePriority, onRemind }) {
+const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function describeReminder(r) {
+  if (r.kind === 'daily') return `Every day · ${(r.remind_time || '09:00').slice(0, 5)}`;
+  if (r.kind === 'weekly') return `${DOW_SHORT[r.remind_dow] || ''} · ${(r.remind_time || '09:00').slice(0, 5)}`;
+  if (r.remind_at) { try { return new Date(r.remind_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch { return 'Once'; } }
+  return 'Once';
+}
+function toLocalInput(iso) {
+  const d = new Date(iso); const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete, onChangePriority, onRemind, reminders = [], onDeleteReminder, onUpdateReminder }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [prioOpen, setPrioOpen] = useState(false);
   const [remindOpen, setRemindOpen] = useState(false);
   const [customAt, setCustomAt] = useState('');
+  const [editRemId, setEditRemId] = useState(null);
+  const [editRemVal, setEditRemVal] = useState('');
   const menuRef = useRef(null);
   const prioRef = useRef(null);
   const remindRef = useRef(null);
@@ -69,7 +83,7 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete, o
     const handleClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
       if (prioRef.current && !prioRef.current.contains(e.target)) setPrioOpen(false);
-      if (remindRef.current && !remindRef.current.contains(e.target)) setRemindOpen(false);
+      if (remindRef.current && !remindRef.current.contains(e.target)) { setRemindOpen(false); setEditRemId(null); }
     };
     if (menuOpen || prioOpen || remindOpen) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -78,6 +92,16 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete, o
   const setReminder = (date) => {
     setRemindOpen(false);
     if (onRemind && date) onRemind(action, date.toISOString());
+  };
+  const startEditRem = (r) => {
+    setEditRemId(r.id);
+    setEditRemVal(r.kind === 'once' && r.remind_at ? toLocalInput(r.remind_at) : (r.remind_time || '09:00').slice(0, 5));
+  };
+  const saveEditRem = (r) => {
+    if (!editRemVal || !onUpdateReminder) { setEditRemId(null); return; }
+    const patch = r.kind === 'once' ? { remind_at: new Date(editRemVal).toISOString() } : { remind_time: editRemVal };
+    onUpdateReminder(r, patch);
+    setEditRemId(null);
   };
 
   const prio = PRIORITY[action.priority];
@@ -168,7 +192,34 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete, o
           </button>
           {remindOpen && (
             <div className="ar-remind-menu">
-              <div className="ar-remind-head">Remind me…</div>
+              {reminders.length > 0 && (
+                <div className="ar-remind-existing">
+                  <div className="ar-remind-head">Reminders</div>
+                  {reminders.map(r => (
+                    <div key={r.id} className="ar-remind-item">
+                      {editRemId === r.id ? (
+                        <>
+                          <input
+                            type={r.kind === 'once' ? 'datetime-local' : 'time'}
+                            className="form-input ar-remind-edit-in"
+                            value={editRemVal}
+                            onChange={(e) => setEditRemVal(e.target.value)}
+                            autoFocus
+                          />
+                          <button type="button" className="ar-remind-save" onClick={() => saveEditRem(r)}>Save</button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="ar-remind-item-when">{describeReminder(r)}</span>
+                          {onUpdateReminder && <button type="button" className="ar-remind-icon" title="Edit" onClick={() => startEditRem(r)}><Pencil size={12} /></button>}
+                          {onDeleteReminder && <button type="button" className="ar-remind-icon ar-remind-del" title="Delete" onClick={() => onDeleteReminder(r)}><Trash2 size={12} /></button>}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="ar-remind-head">{reminders.length ? 'Add another' : 'Remind me…'}</div>
               {remindPresets().map(p => (
                 <button key={p.key} type="button" className="ar-remind-opt" onClick={() => setReminder(p.at)}>
                   {p.label}

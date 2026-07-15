@@ -169,6 +169,7 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     pushUnsubscribe: (endpoint) => authFetch(`${API_BASE}/push/unsubscribe`, { method: 'POST', body: JSON.stringify({ endpoint }) }).then(r => r.json()),
     getReminders: () => authFetch(`${API_BASE}/reminders`).then(r => r.json()),
     createReminder: (data) => authFetch(`${API_BASE}/reminders`, { method: 'POST', body: JSON.stringify(data) }).then(r => r.json()),
+    updateReminder: (id, data) => authFetch(`${API_BASE}/reminders/${id}`, { method: 'PUT', body: JSON.stringify(data) }).then(r => r.json()),
     deleteReminder: (id) => authFetch(`${API_BASE}/reminders/${id}`, { method: 'DELETE' }).then(r => r.json()),
     aiApplyProposal: (body) => authFetch(`${API_BASE}/ai/apply`, {
       method: 'POST', body: JSON.stringify(body)

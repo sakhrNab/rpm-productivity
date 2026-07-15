@@ -1439,6 +1439,13 @@ app.post('/api/reminders', authenticateToken, async (req, res) => {
   try { res.status(201).json(await notifications.createReminder(pool, req.userId, req.body)); }
   catch (error) { console.error('[reminders] create:', error); res.status(400).json({ error: error.message || 'Failed' }); }
 });
+app.put('/api/reminders/:id', authenticateToken, async (req, res) => {
+  try {
+    const updated = await notifications.updateReminder(pool, req.userId, req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Reminder not found' });
+    res.json(updated);
+  } catch (error) { console.error('[reminders] update:', error); res.status(400).json({ error: error.message || 'Failed' }); }
+});
 app.delete('/api/reminders/:id', authenticateToken, async (req, res) => {
   try { await notifications.deleteReminder(pool, req.userId, req.params.id); res.json({ success: true }); }
   catch (error) { console.error('[reminders] delete:', error); res.status(500).json({ error: 'Failed' }); }

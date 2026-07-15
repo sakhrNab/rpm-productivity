@@ -20,9 +20,10 @@ function MyDayPage() {
   const [showActionModal, setShowActionModal] = useState(false);
   const [editingAction, setEditingAction] = useState(null);
   const [suggest, setSuggest] = useState(null);
+  const [reminders, setReminders] = useState([]);
   const today = format(new Date(), 'yyyy-MM-dd');
 
-  useEffect(() => { loadActions(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadActions(); loadReminders(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadActions = async () => {
     try {
@@ -31,6 +32,16 @@ function MyDayPage() {
     } catch (error) {
       console.error('Failed to load actions:', error);
     } finally { setLoading(false); }
+  };
+  const loadReminders = () => api.getReminders().then(rs => setReminders(Array.isArray(rs) ? rs : [])).catch(() => {});
+  const remindersFor = (actionId) => reminders.filter(r => r.action_id === actionId);
+  const deleteReminderFor = async (r) => {
+    try { await api.deleteReminder(r.id); loadReminders(); showToast('Reminder removed', 'info'); }
+    catch { showToast('Failed to remove reminder', 'error'); }
+  };
+  const updateReminderFor = async (r, patch) => {
+    try { const res = await api.updateReminder(r.id, patch); if (res?.error) throw new Error(res.error); loadReminders(); showToast('Reminder updated', 'success'); }
+    catch (e) { showToast(e.message || 'Failed to update reminder', 'error'); }
   };
 
   const patchAndSort = (id, patch) => setActions(prev => sortActions(prev.map(a => (a.id === id ? { ...a, ...patch } : a))));
@@ -69,6 +80,7 @@ function MyDayPage() {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       const r = await api.createReminder({ title: action.title, action_id: action.id, kind: 'once', remind_at: remindAtISO, timezone: tz });
       if (r?.error) throw new Error(r.error);
+      loadReminders();
       showToast('Reminder set', 'success');
     } catch (e) { showToast(e.message || 'Failed to set reminder', 'error'); }
   };
@@ -188,6 +200,9 @@ function MyDayPage() {
                 onDelete={handleDelete}
                 onChangePriority={changePriority}
                 onRemind={remindAction}
+                reminders={remindersFor(action.id)}
+                onDeleteReminder={deleteReminderFor}
+                onUpdateReminder={updateReminderFor}
               />
             )}
           />

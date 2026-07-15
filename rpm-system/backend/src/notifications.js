@@ -131,6 +131,25 @@ async function createReminder(pool, userId, data) {
 async function deleteReminder(pool, userId, id) {
   await pool.query('DELETE FROM reminders WHERE id = $1 AND user_id = $2', [id, userId]);
 }
+async function updateReminder(pool, userId, id, data) {
+  const sets = [];
+  const vals = [];
+  let i = 1;
+  if ('title' in data && String(data.title).trim()) { sets.push(`title = $${i++}`); vals.push(String(data.title).trim()); }
+  if ('remind_at' in data) { sets.push(`remind_at = $${i++}`); vals.push(data.remind_at || null); }
+  if ('remind_time' in data) { sets.push(`remind_time = $${i++}`); vals.push(data.remind_time || null); }
+  if ('remind_dow' in data) { sets.push(`remind_dow = $${i++}`); vals.push((data.remind_dow === '' || data.remind_dow == null) ? null : data.remind_dow); }
+  if ('kind' in data) { sets.push(`kind = $${i++}`); vals.push(data.kind); }
+  if (!sets.length) return null;
+  // Editing a reminder re-arms it so it can fire again at the new time.
+  sets.push('is_done = false', 'last_fired_date = NULL');
+  const idIdx = i++, userIdx = i;
+  vals.push(id, userId);
+  const r = await pool.query(
+    `UPDATE reminders SET ${sets.join(', ')} WHERE id = $${idIdx} AND user_id = $${userIdx} RETURNING *`, vals
+  );
+  return r.rows[0] || null;
+}
 
 async function deliverReminder(pool, r) {
   const prefs = await getPrefs(pool, r.user_id);
@@ -257,5 +276,5 @@ function startScheduler(pool) {
 
 module.exports = {
   getPrefs, upsertPrefs, sendUserDigest, startScheduler, DEFAULT_PREFS,
-  listReminders, createReminder, deleteReminder,
+  listReminders, createReminder, deleteReminder, updateReminder,
 };

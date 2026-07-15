@@ -71,6 +71,17 @@
 .ar-remind-custom .form-input { flex: 1; min-width: 0; font-size: 0.78rem; padding: 5px 6px; }
 .ar-remind-set { padding: 5px 12px; font-size: 0.78rem; }
 
+/* Existing reminders list (edit / delete) */
+.ar-remind-existing { padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--border-primary); }
+.ar-remind-item { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: var(--radius-sm); }
+.ar-remind-item:hover { background: var(--bg-hover); }
+.ar-remind-item-when { flex: 1; min-width: 0; font-size: 0.8rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-remind-icon { flex-shrink: 0; display: inline-flex; padding: 3px; border-radius: 6px; color: var(--text-muted); background: transparent; border: none; cursor: pointer; }
+.ar-remind-icon:hover { color: var(--accent-cyan); background: rgba(78,205,196,0.12); }
+.ar-remind-del:hover { color: var(--accent-red); background: rgba(255,107,107,0.12); }
+.ar-remind-edit-in { flex: 1; min-width: 0; font-size: 0.76rem; padding: 4px 6px; }
+.ar-remind-save { flex-shrink: 0; padding: 4px 10px; font-size: 0.76rem; font-weight: 600; border: none; border-radius: 6px; background: var(--accent-cyan); color: #04231f; cursor: pointer; }
+
 /* Category + project labels */
 .ar-cat {
   display: inline-flex; align-items: center;
