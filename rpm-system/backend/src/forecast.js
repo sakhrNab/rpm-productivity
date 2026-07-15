@@ -23,7 +23,8 @@ function slopePerDay(points) {
 
 async function computeForecasts(pool, userId) {
   const { rows: krs } = await pool.query(
-    `SELECT kr.id, kr.title, kr.current_value, kr.target_value, kr.unit, kr.target_date,
+    `SELECT kr.id, kr.title, kr.current_value, kr.target_value, kr.unit,
+            to_char(kr.target_date, 'YYYY-MM-DD') AS target_date,
             kr.is_completed, kr.created_at, p.name AS project_name, p.id AS project_id,
             COALESCE(p.start_date, kr.created_at::date) AS start_date
        FROM key_results kr
@@ -39,7 +40,7 @@ async function computeForecasts(pool, userId) {
   for (const kr of krs) {
     const current = Number(kr.current_value) || 0;
     const target = kr.target_value == null ? null : Number(kr.target_value);
-    const targetDate = kr.target_date ? new Date(kr.target_date) : null;
+    const targetDate = kr.target_date ? new Date(kr.target_date + 'T00:00:00Z') : null;
 
     // Trend points: the progress log, prefixed with a (start, 0) baseline.
     const { rows: logRows } = await pool.query(
@@ -87,7 +88,7 @@ async function computeForecasts(pool, userId) {
       unit: kr.unit || '',
       current,
       target,
-      target_date: kr.target_date ? String(kr.target_date).slice(0, 10) : null,
+      target_date: kr.target_date || null,
       days_remaining: daysRemaining == null ? null : Math.round(daysRemaining),
       rate_per_week: Math.round(ratePerDay * 7 * 100) / 100,
       required_per_week: requiredPerWeek == null ? null : Math.round(requiredPerWeek * 100) / 100,
