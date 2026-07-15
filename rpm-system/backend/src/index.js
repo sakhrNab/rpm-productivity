@@ -454,13 +454,20 @@ app.put('/api/projects/reorder', authenticateToken, async (req, res) => {
 app.put('/api/projects/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, ultimate_result, ultimate_purpose, description, cover_image, start_date, end_date, is_starred, is_completed, is_archived } = req.body;
+    const { name, ultimate_result, ultimate_purpose, description, cover_image, start_date, end_date, is_starred, is_completed, is_archived, category_id } = req.body;
     // date columns reject '' — coerce empty strings to NULL
     const startDate = start_date === '' ? null : start_date;
     const endDate = end_date === '' ? null : end_date;
+    // Moving to another category: verify the target belongs to this user first.
+    let newCategoryId = null;
+    if (category_id) {
+      const cat = await pool.query('SELECT id FROM categories WHERE id = $1 AND user_id = $2', [category_id, req.userId]);
+      if (!cat.rows[0]) return res.status(400).json({ error: 'Invalid category' });
+      newCategoryId = category_id;
+    }
     const result = await pool.query(
-      `UPDATE projects SET name = COALESCE($1, name), ultimate_result = COALESCE($2, ultimate_result), ultimate_purpose = COALESCE($3, ultimate_purpose), description = COALESCE($4, description), cover_image = COALESCE($5, cover_image), start_date = COALESCE($6, start_date), end_date = COALESCE($7, end_date), is_starred = COALESCE($8, is_starred), is_completed = COALESCE($9, is_completed), is_archived = COALESCE($10, is_archived) WHERE id = $11 AND user_id = $12 RETURNING *`,
-      [name, ultimate_result, ultimate_purpose, description, cover_image, startDate, endDate, is_starred, is_completed, is_archived, id, req.userId]
+      `UPDATE projects SET name = COALESCE($1, name), ultimate_result = COALESCE($2, ultimate_result), ultimate_purpose = COALESCE($3, ultimate_purpose), description = COALESCE($4, description), cover_image = COALESCE($5, cover_image), start_date = COALESCE($6, start_date), end_date = COALESCE($7, end_date), is_starred = COALESCE($8, is_starred), is_completed = COALESCE($9, is_completed), is_archived = COALESCE($10, is_archived), category_id = COALESCE($13, category_id) WHERE id = $11 AND user_id = $12 RETURNING *`,
+      [name, ultimate_result, ultimate_purpose, description, cover_image, startDate, endDate, is_starred, is_completed, is_archived, id, req.userId, newCategoryId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
     res.json(result.rows[0]);
@@ -1056,11 +1063,17 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
 
     let full = '';
     let sources = [];
+    const toolEvents = []; // persisted so proposals survive leaving the chat
     try {
       for await (const ev of runChat({ pool, userId: req.userId, modelKey, messages, webSearch: !!webSearch, rpm: rpmMode !== false, autoMode: !!autoMode })) {
         if (ev.type === 'text') { full += ev.text; send({ type: 'delta', text: ev.text }); }
-        else if (ev.type === 'tool_call') send({ type: 'tool_call', name: ev.name, args: ev.args });
-        else if (ev.type === 'tool_result') send({ type: 'tool_result', name: ev.name, result: ev.result });
+        else if (ev.type === 'tool_call') { toolEvents.push({ name: ev.name, args: ev.args, done: false }); send({ type: 'tool_call', name: ev.name, args: ev.args }); }
+        else if (ev.type === 'tool_result') {
+          for (let i = toolEvents.length - 1; i >= 0; i--) {
+            if (toolEvents[i].name === ev.name && !toolEvents[i].done) { toolEvents[i].done = true; toolEvents[i].result = ev.result; break; }
+          }
+          send({ type: 'tool_result', name: ev.name, result: ev.result });
+        }
         else if (ev.type === 'sources') { sources = ev.sources || []; if (sources.length) send({ type: 'sources', sources }); }
         else if (ev.type === 'error') send({ type: 'error', message: ev.message });
       }
@@ -1069,11 +1082,12 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
       send({ type: 'error', code: err.code || 'stream_error', message: err.message || 'AI request failed' });
     }
 
-    await pool.query(
-      'INSERT INTO ai_messages (conversation_id, role, content, model, sources) VALUES ($1, $2, $3, $4, $5)',
-      [convId, 'assistant', full, modelKey, sources.length ? JSON.stringify(sources) : null]
+    const saved = await pool.query(
+      'INSERT INTO ai_messages (conversation_id, role, content, model, sources, tools) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [convId, 'assistant', full, modelKey, sources.length ? JSON.stringify(sources) : null, toolEvents.length ? JSON.stringify(toolEvents) : null]
     );
     await pool.query('UPDATE ai_conversations SET updated_at = NOW(), model = $2 WHERE id = $1', [convId, modelKey]);
+    send({ type: 'saved', messageId: saved.rows[0].id });
     send({ type: 'done' });
     res.end();
   } catch (error) {
@@ -1098,7 +1112,7 @@ app.get('/api/ai/conversations/:id', authenticateToken, async (req, res) => {
   try {
     const conv = await pool.query('SELECT id, title, model FROM ai_conversations WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
     if (!conv.rows[0]) return res.status(404).json({ error: 'Not found' });
-    const msgs = await pool.query('SELECT role, content, model, sources, created_at FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at', [req.params.id]);
+    const msgs = await pool.query('SELECT id, role, content, model, sources, tools, created_at FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at', [req.params.id]);
     res.json({ ...conv.rows[0], messages: msgs.rows });
   } catch (error) { console.error('[ai] conversation error:', error); res.status(500).json({ error: 'Failed' }); }
 });
@@ -1108,6 +1122,25 @@ app.delete('/api/ai/conversations/:id', authenticateToken, async (req, res) => {
     await pool.query('DELETE FROM ai_conversations WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
     res.json({ success: true });
   } catch (error) { console.error('[ai] delete conversation error:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+// Persist the tools/proposals state of an assistant message (approve/dismiss survive reloads).
+app.put('/api/ai/messages/:id/tools', authenticateToken, async (req, res) => {
+  try {
+    const { tools } = req.body;
+    const r = await pool.query(
+      `UPDATE ai_messages m SET tools = $1
+         FROM ai_conversations c
+        WHERE m.id = $2 AND m.conversation_id = c.id AND c.user_id = $3
+        RETURNING m.id`,
+      [tools ? JSON.stringify(tools) : null, req.params.id, req.userId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'Message not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[ai] update message tools error:', error);
+    res.status(500).json({ error: 'Failed to save' });
+  }
 });
 
 // Apply an assistant proposal the user approved (propose-mode writes).

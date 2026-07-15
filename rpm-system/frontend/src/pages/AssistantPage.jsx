@@ -105,7 +105,10 @@ function AssistantPage() {
     try {
       const conv = await api.getAiConversation(id);
       setConversationId(conv.id);
-      setMessages((conv.messages || []).map(m => ({ role: m.role, content: m.content, sources: m.sources || null, tools: [] })));
+      setMessages((conv.messages || []).map(m => ({
+        role: m.role, content: m.content, sources: m.sources || null,
+        tools: Array.isArray(m.tools) ? m.tools : [], dbId: m.id,
+      })));
       if (conv.model) setModelKey(conv.model);
     } catch { showToast('Failed to open conversation', 'error'); }
   };
@@ -122,26 +125,31 @@ function AssistantPage() {
     } catch { showToast('Failed to delete', 'error'); }
   };
 
-  // Update one tool entry within a message (immutably).
-  const updateTool = (mi, ti, patch) => setMessages(prev => prev.map((m, i) => {
-    if (i !== mi) return m;
-    const tools = (m.tools || []).map((t, j) => (j === ti ? { ...t, ...patch } : t));
-    return { ...m, tools };
-  }));
+  // Update one tool entry within a message (immutably). persist=true saves the
+  // message's tools to the server so approve/dismiss survive leaving the chat.
+  const updateTool = (mi, ti, patch, persist = false) => setMessages(prev => {
+    const next = prev.map((m, i) => {
+      if (i !== mi) return m;
+      const tools = (m.tools || []).map((t, j) => (j === ti ? { ...t, ...patch } : t));
+      return { ...m, tools };
+    });
+    if (persist && next[mi]?.dbId) api.aiSaveMessageTools(next[mi].dbId, next[mi].tools).catch(() => {});
+    return next;
+  });
 
   const approveProposal = async (mi, ti, t) => {
     updateTool(mi, ti, { status: 'applying' });
     try {
       const res = await api.aiApplyProposal({ kind: t.result.kind, payload: t.result.payload });
       if (!res || res.error || res.ok === false) throw new Error(res?.error || 'Failed to apply');
-      updateTool(mi, ti, { status: 'applied', applied: res });
+      updateTool(mi, ti, { status: 'applied', applied: res }, true);
       showToast('Applied', 'success');
     } catch (e) {
       updateTool(mi, ti, { status: undefined });
       showToast(e.message || 'Failed to apply', 'error');
     }
   };
-  const dismissProposal = (mi, ti) => updateTool(mi, ti, { status: 'dismissed' });
+  const dismissProposal = (mi, ti) => updateTool(mi, ti, { status: 'dismissed' }, true);
 
   const send = async () => {
     const text = input.trim();
@@ -166,7 +174,14 @@ function AssistantPage() {
 
       const apply = (ev) => {
         if (ev.type === 'meta' && ev.conversationId) setConversationId(ev.conversationId);
-        else if (ev.type === 'delta') {
+        else if (ev.type === 'saved' && ev.messageId) {
+          setMessages(prev => {
+            const next = [...prev];
+            const li = next.length - 1;
+            if (next[li] && next[li].role === 'assistant') next[li] = { ...next[li], dbId: ev.messageId };
+            return next;
+          });
+        } else if (ev.type === 'delta') {
           setMessages(prev => {
             const next = [...prev];
             next[next.length - 1] = { ...next[next.length - 1], content: next[next.length - 1].content + ev.text };

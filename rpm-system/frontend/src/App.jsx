@@ -135,6 +135,9 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     aiApplyProposal: (body) => authFetch(`${API_BASE}/ai/apply`, {
       method: 'POST', body: JSON.stringify(body)
     }).then(r => r.json()),
+    aiSaveMessageTools: (id, tools) => authFetch(`${API_BASE}/ai/messages/${id}/tools`, {
+      method: 'PUT', body: JSON.stringify({ tools })
+    }).then(r => r.json()),
     // Returns the raw streaming Response for SSE reading in the page.
     aiChatStream: (body) => authFetch(`${API_BASE}/ai/chat`, { method: 'POST', body: JSON.stringify(body) }),
     updateCategoryDetails: (id, data) => authFetch(`${API_BASE}/categories/${id}/details`, {

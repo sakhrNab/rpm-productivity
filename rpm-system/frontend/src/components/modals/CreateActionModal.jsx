@@ -207,7 +207,8 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
                         key={proj.id}
                         className="dropdown-item"
                         onClick={() => {
-                          setFormData({ ...formData, project_id: proj.id });
+                          // A project belongs to a category — apply it automatically.
+                          setFormData({ ...formData, project_id: proj.id, category_id: proj.category_id || formData.category_id });
                           setShowProjectDropdown(false);
                         }}
                       >

@@ -463,6 +463,7 @@ CREATE TABLE IF NOT EXISTS ai_messages (
     content TEXT NOT NULL DEFAULT '',
     model TEXT,
     sources JSONB,
+    tools JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages (conversation_id, created_at);

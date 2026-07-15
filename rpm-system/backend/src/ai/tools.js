@@ -66,6 +66,36 @@ async function applyProposal(pool, userId, kind, payload = {}) {
       );
       return { ok: true, ...r.rows[0], link: linkForProject(r.rows[0].project_id) };
     }
+    case 'update_action': {
+      const { action_id, title, notes, scheduled_date, duration_minutes, is_starred } = payload;
+      const r = await pool.query(
+        `UPDATE actions SET
+            title = COALESCE($1, title),
+            notes = COALESCE($2, notes),
+            scheduled_date = COALESCE($3, scheduled_date),
+            duration_minutes = COALESCE($4, duration_minutes),
+            is_starred = COALESCE($5, is_starred)
+          WHERE id = $6 AND user_id = $7
+          RETURNING id, title, scheduled_date, project_id`,
+        [
+          title ?? null, notes ?? null, scheduled_date || null,
+          (duration_minutes === undefined ? null : duration_minutes),
+          (is_starred === undefined ? null : is_starred),
+          action_id, userId,
+        ]
+      );
+      if (!r.rows[0]) return { ok: false, error: 'action not found' };
+      return { ok: true, ...r.rows[0], link: linkForProject(r.rows[0].project_id) };
+    }
+    case 'delete_action': {
+      const { action_id } = payload;
+      const r = await pool.query(
+        'DELETE FROM actions WHERE id = $1 AND user_id = $2 RETURNING id, title',
+        [action_id, userId]
+      );
+      if (!r.rows[0]) return { ok: false, error: 'action not found' };
+      return { ok: true, deleted: true, ...r.rows[0] };
+    }
     case 'update_key_result': {
       const { key_result_id, current_value } = payload;
       const r = await pool.query(
@@ -91,6 +121,8 @@ const KIND_LABEL = {
   complete_action: (p) => (p.completed === false ? 'Reopen an action' : 'Complete an action'),
   create_rpm_block: (p) => `Create RPM block “${p.result_title || ''}”`,
   update_key_result: (p) => `Update key result → ${p.current_value}`,
+  update_action: (p) => `Edit action${p.title ? ` → “${p.title}”` : ''}`,
+  delete_action: () => 'Delete an action',
 };
 
 function proposalLink(kind, payload) {
@@ -114,7 +146,7 @@ function buildTools(ai, pool, userId, autoMode = false) {
     },
   });
 
-  return {
+  const tools = {
     list_projects: tool({
       description: "List the user's projects with their ids.",
       inputSchema: jsonSchema({ type: 'object', properties: {}, additionalProperties: false }),
@@ -165,6 +197,32 @@ function buildTools(ai, pool, userId, autoMode = false) {
       additionalProperties: false,
     }),
   };
+
+  // Editing and deleting actions are only offered when NOT in auto mode — they
+  // always require the user's explicit approval, never silent execution.
+  if (!autoMode) {
+    tools.update_action = writeTool('update_action', 'Edit an existing action (title, notes, date, duration, star).', {
+      type: 'object',
+      properties: {
+        action_id: { type: 'string' },
+        title: { type: 'string' },
+        notes: { type: 'string' },
+        scheduled_date: { type: 'string', description: 'YYYY-MM-DD' },
+        duration_minutes: { type: 'number' },
+        is_starred: { type: 'boolean' },
+      },
+      required: ['action_id'],
+      additionalProperties: false,
+    });
+    tools.delete_action = writeTool('delete_action', 'Delete an action permanently. Always requires approval.', {
+      type: 'object',
+      properties: { action_id: { type: 'string' } },
+      required: ['action_id'],
+      additionalProperties: false,
+    });
+  }
+
+  return tools;
 }
 
 module.exports = { buildTools, applyProposal };
