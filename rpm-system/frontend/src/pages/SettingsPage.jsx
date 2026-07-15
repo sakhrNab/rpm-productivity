@@ -1,8 +1,10 @@
 import { useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
-import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink } from 'lucide-react';
+import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe } from 'lucide-react';
 import './SettingsPage.css';
+
+const PROVIDER_LABEL = { anthropic: 'Claude', openai: 'OpenAI', zhipu: 'z.ai (GLM)', deepseek: 'DeepSeek' };
 
 const PROVIDERS = [
   { id: 'anthropic', label: 'Claude (Anthropic)', hint: 'sk-ant-…', url: 'https://console.anthropic.com/settings/keys' },
@@ -18,6 +20,8 @@ function SettingsPage() {
   const [storageEnabled, setStorageEnabled] = useState(true);
   const [drafts, setDrafts] = useState({});          // provider -> input value
   const [savingId, setSavingId] = useState(null);
+  const [models, setModels] = useState([]);
+  const [defaultModel, setDefaultModel] = useState(localStorage.getItem('ai.modelKey') || '');
 
   const load = () => {
     api.getAiKeys()
@@ -28,8 +32,16 @@ function SettingsPage() {
         setStorageEnabled(!!data.storageEnabled);
       })
       .catch(() => showToast('Failed to load key settings', 'error'));
+    api.getAiModels().then(d => setModels(d.models || [])).catch(() => {});
   };
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const configuredProviders = new Set(Object.values(status).filter(p => p.configured).map(p => p.provider));
+  const availableModels = models.filter(m => configuredProviders.has(m.provider));
+  const chooseDefault = (key) => {
+    setDefaultModel(key);
+    if (key) { localStorage.setItem('ai.modelKey', key); showToast('Default model set', 'success'); }
+  };
 
   const save = async (provider) => {
     const key = (drafts[provider] || '').trim();
@@ -131,6 +143,39 @@ function SettingsPage() {
           Keys are stored encrypted and only decrypted server-side to make requests. We show only the last 4 characters.
         </div>
       </section>
+
+      {availableModels.length > 0 && (
+        <section className="settings-section settings-default-model">
+          <div className="settings-section-head">
+            <Sparkles size={18} />
+            <div>
+              <h2>Default AI model</h2>
+              <p>The model the Assistant opens with. Change it any time from the Assistant too.</p>
+            </div>
+          </div>
+          <select
+            className="form-input settings-model-select"
+            value={availableModels.some(m => m.key === defaultModel) ? defaultModel : ''}
+            onChange={e => chooseDefault(e.target.value)}
+          >
+            <option value="" disabled>Choose a default model…</option>
+            {['anthropic', 'openai', 'zhipu', 'deepseek'].map(prov => {
+              const provModels = availableModels.filter(m => m.provider === prov);
+              if (!provModels.length) return null;
+              return (
+                <optgroup key={prov} label={PROVIDER_LABEL[prov]}>
+                  {provModels.map(m => (
+                    <option key={m.key} value={m.key}>{m.label}{m.webSearch ? '  🌐' : ''}</option>
+                  ))}
+                </optgroup>
+              );
+            })}
+          </select>
+          <div className="settings-note">
+            <Globe size={14} /> Models marked 🌐 support web search. If you pick one without it, the Assistant will tell you and the web-search toggle stays off for that model.
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -212,3 +212,26 @@
   .asst-settings-link { margin: 0; border: none; white-space: nowrap; }
   .asst-main { min-height: 70vh; }
 }
+
+/* Collapsible model families */
+.asst-model-fam { margin-bottom: 2px; }
+.asst-model-fam-head {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  padding: 7px 10px; border-radius: var(--radius-sm);
+  color: var(--text-secondary); font-size: 0.85rem; font-weight: 600; text-align: left;
+}
+.asst-model-fam-head:hover:not(:disabled) { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+.asst-model-fam-head:disabled { opacity: 0.4; cursor: not-allowed; }
+.asst-model-fam-head.has-sel { color: var(--accent-cyan); }
+.asst-model-fam-name { flex: 1; min-width: 0; }
+.asst-model-fam-count {
+  font-size: 0.68rem; color: var(--text-muted); background: rgba(255,255,255,0.06);
+  border-radius: 999px; padding: 1px 7px;
+}
+.asst-model-sub { padding-left: 28px; }
+
+.asst-ws-hint {
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  width: 100%; margin-top: 8px; font-size: 0.78rem; color: var(--text-muted);
+}
+.asst-ws-hint svg { color: var(--accent-orange); }

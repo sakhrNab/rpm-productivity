@@ -5,8 +5,8 @@ import remarkGfm from 'remark-gfm';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
 import {
-  Send, Globe, Plus, Trash2, MessageSquare, Sparkles, ChevronDown,
-  Settings as SettingsIcon, Zap, Wand2, Check, X, ExternalLink
+  Send, Globe, Plus, Trash2, MessageSquare, Sparkles, ChevronDown, ChevronRight,
+  Settings as SettingsIcon, Zap, Wand2, Check, X, ExternalLink, Info
 } from 'lucide-react';
 import './AssistantPage.css';
 
@@ -53,6 +53,7 @@ function AssistantPage() {
   const [rpmMode, setRpmMode] = useState(() => localStorage.getItem('ai.rpmMode') !== 'off');
   const [autoMode, setAutoMode] = useState(() => localStorage.getItem('ai.autoMode') === 'on');
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [openFamilies, setOpenFamilies] = useState({});
 
   const [conversations, setConversations] = useState([]);
   const [conversationId, setConversationId] = useState(null);
@@ -346,19 +347,39 @@ function AssistantPage() {
                   const provModels = models.filter(m => m.provider === prov);
                   if (!provModels.length) return null;
                   const configured = configuredProviders.has(prov);
+                  const families = [...new Set(provModels.map(m => m.family))];
                   return (
                     <div key={prov} className="asst-model-group">
                       <div className="asst-model-group-label">
                         {PROVIDER_LABEL[prov]}
                         {!configured && <span className="asst-nokey">needs key</span>}
                       </div>
-                      {provModels.map(m => (
-                        <button key={m.key} className={`asst-model-item ${m.key === modelKey ? 'active' : ''}`} disabled={!configured}
-                          onClick={() => { setModelKey(m.key); setModelMenuOpen(false); }}>
-                          {m.label}
-                          {m.webSearch && <Globe size={12} className="asst-model-web" />}
-                        </button>
-                      ))}
+                      {families.map(fam => {
+                        const famModels = provModels.filter(m => m.family === fam);
+                        const famKey = `${prov}/${fam}`;
+                        const hasSelected = famModels.some(m => m.key === modelKey);
+                        const open = openFamilies[famKey] !== undefined ? openFamilies[famKey] : hasSelected;
+                        return (
+                          <div key={famKey} className="asst-model-fam">
+                            <button
+                              className={`asst-model-fam-head ${hasSelected ? 'has-sel' : ''}`}
+                              disabled={!configured}
+                              onClick={() => setOpenFamilies(o => ({ ...o, [famKey]: !open }))}
+                            >
+                              {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                              <span className="asst-model-fam-name">{fam}</span>
+                              <span className="asst-model-fam-count">{famModels.length}</span>
+                            </button>
+                            {open && famModels.map(m => (
+                              <button key={m.key} className={`asst-model-item asst-model-sub ${m.key === modelKey ? 'active' : ''}`} disabled={!configured}
+                                onClick={() => { setModelKey(m.key); setModelMenuOpen(false); }}>
+                                {m.label}
+                                {m.webSearch && <Globe size={12} className="asst-model-web" />}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}
@@ -380,6 +401,9 @@ function AssistantPage() {
               <Globe size={15} /> Web {webSearch ? 'on' : 'off'}
             </button>
           </div>
+          {selectedModel && !selectedModel.webSearch && (
+            <div className="asst-ws-hint"><Info size={12} /> {selectedModel.label} has no web search — pick a model with the <Globe size={11} /> icon to use it.</div>
+          )}
         </header>
 
         <div className="asst-messages" ref={scrollRef}>
