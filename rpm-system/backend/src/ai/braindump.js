@@ -11,6 +11,12 @@ const { runChat, AiError } = require('./service');
 
 const CAT_COLORS = ['#FF6B6B', '#4ECDC4', '#FFD166', '#A78BFA', '#F472B6', '#60A5FA', '#34D399', '#FB923C', '#F87171', '#22D3EE'];
 
+// Existing-id fields must be real UUIDs. A model may mistakenly put a temp id
+// (e.g. "c1") in categoryId/projectId/actionId — treat those as "not existing"
+// instead of letting Postgres throw on an invalid uuid and roll back the plan.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(v) { return typeof v === 'string' && UUID_RE.test(v); }
+
 async function loadExisting(pool, userId) {
   const [cats, projs] = await Promise.all([
     pool.query('SELECT id, name FROM categories WHERE user_id = $1 AND is_active = true ORDER BY sort_order', [userId]),
@@ -127,8 +133,9 @@ async function applyPlan({ pool, userId, operations }) {
   const errors = [];
   let catColorIx = 0;
 
-  const ownsCategory = async (id) => id && (await client.query('SELECT 1 FROM categories WHERE id = $1 AND user_id = $2', [id, userId])).rowCount > 0;
+  const ownsCategory = async (id) => isUuid(id) && (await client.query('SELECT 1 FROM categories WHERE id = $1 AND user_id = $2', [id, userId])).rowCount > 0;
   const projectCategory = async (id) => {
+    if (!isUuid(id)) return null;
     if (projCat[id]) return projCat[id];
     const r = await client.query('SELECT category_id FROM projects WHERE id = $1 AND user_id = $2', [id, userId]);
     if (!r.rows[0]) return null;
@@ -203,7 +210,7 @@ async function applyPlan({ pool, userId, operations }) {
           [userId, categoryId, projectId, title.slice(0, 500), Number(o.priority) || 0, sched, Number(o.duration_minutes) || 5, within7Days(sched, today)]);
         applied.actions++;
       } else if (o.op === 'update_action') {
-        if (!o.actionId) { errors.push('Skipped an update with no action id.'); continue; }
+        if (!isUuid(o.actionId)) { errors.push('Skipped an update — invalid action id.'); continue; }
         const r = await client.query(
           `UPDATE actions SET
              title = COALESCE($1, title),
