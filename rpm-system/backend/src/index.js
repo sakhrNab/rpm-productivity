@@ -13,6 +13,7 @@ const { applyProposal } = require('./ai/tools');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan } = require('./ai/braindump');
 const { recordUsage, getUsageSummary } = require('./ai/usage');
+const { computeForecasts, logKrProgress } = require('./forecast');
 const notifications = require('./notifications');
 const telegram = require('./telegram');
 const push = require('./push');
@@ -765,6 +766,10 @@ app.put('/api/key-results/:id', authenticateToken, async (req, res) => {
       values
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Key result not found' });
+    // Log progress changes so goal forecasts learn the real trend over time.
+    if ('current_value' in updates && updates.current_value !== '' && updates.current_value != null) {
+      logKrProgress(pool, id, updates.current_value);
+    }
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating key result:', error);
@@ -1287,6 +1292,12 @@ app.post('/api/ai/braindump/apply', authenticateToken, async (req, res) => {
     console.error('[ai] braindump apply error:', error.message);
     res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
   }
+});
+
+// Goal forecasting — projects each key result forward from real pace (no AI).
+app.get('/api/forecast', authenticateToken, async (req, res) => {
+  try { res.json(await computeForecasts(pool, req.userId)); }
+  catch (error) { console.error('[forecast] error:', error.message); res.status(500).json({ error: 'Failed' }); }
 });
 
 // AI usage + estimated cost summary (per user, last N days).

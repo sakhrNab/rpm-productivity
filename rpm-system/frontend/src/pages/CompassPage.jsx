@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import Markdown from '../components/Markdown';
 import UsageBadge from '../components/UsageBadge';
+import ForecastPanel from '../components/ForecastPanel';
 import { useToast } from '../components/ToastProvider';
 import { getCompassState, subscribeCompass, runCompassRequest, patchCompassAction } from '../utils/compassStore';
 import './CompassPage.css';
@@ -276,6 +277,8 @@ function CompassPage() {
           </section>
         </aside>
       </div>
+
+      <ForecastPanel />
     </div>
   );
 }

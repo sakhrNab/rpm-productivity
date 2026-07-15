@@ -552,3 +552,14 @@ CREATE TABLE IF NOT EXISTS ai_usage (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_ai_usage_user_time ON ai_usage(user_id, created_at);
+
+-- =====================================================
+-- KEY-RESULT PROGRESS LOG (feeds goal forecasting; more points = sharper trend)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS kr_progress_log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    key_result_id UUID NOT NULL REFERENCES key_results(id) ON DELETE CASCADE,
+    value NUMERIC(15, 2),
+    recorded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_kr_progress_log ON kr_progress_log(key_result_id, recorded_at);

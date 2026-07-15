@@ -154,6 +154,7 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       method: 'POST', body: JSON.stringify(body)
     }).then(r => r.json()),
     getAiUsage: (days = 30) => authFetch(`${API_BASE}/ai/usage?days=${days}`).then(r => r.json()),
+    getForecast: () => authFetch(`${API_BASE}/forecast`).then(r => r.json()),
     getNotifPrefs: () => authFetch(`${API_BASE}/notifications/prefs`).then(r => r.json()),
     saveNotifPrefs: (patch) => authFetch(`${API_BASE}/notifications/prefs`, {
       method: 'PUT', body: JSON.stringify(patch)
