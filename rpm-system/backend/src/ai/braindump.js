@@ -10,6 +10,7 @@
 const { runChat, AiError } = require('./service');
 const { buildRpmContext } = require('./context');
 const { recordUsage } = require('./usage');
+const { computeForecasts } = require('../forecast');
 
 const CAT_COLORS = ['#FF6B6B', '#4ECDC4', '#FFD166', '#A78BFA', '#F472B6', '#60A5FA', '#34D399', '#FB923C', '#F87171', '#22D3EE'];
 
@@ -127,6 +128,62 @@ async function generatePlan({ pool, userId, modelKey, text }) {
   const operations = Array.isArray(plan.operations) ? plan.operations.filter(o => o && ALLOWED_OPS.has(o.op)).slice(0, 200) : [];
   const notes = Array.isArray(plan.notes) ? plan.notes.filter(n => typeof n === 'string' && n.trim()).slice(0, 3) : [];
   return { summary: plan.summary || '', notes, operations, existing, today, usage };
+}
+
+// Draft catch-up actions for a slipping key result (returns a braindump-shaped plan
+// so the same preview → approve → applyPlan engine handles it).
+async function draftFix({ pool, userId, modelKey, keyResultId }) {
+  const { rows } = await pool.query(
+    `SELECT kr.id, kr.title, kr.current_value, kr.target_value, kr.unit,
+            to_char(kr.target_date, 'YYYY-MM-DD') AS target_date, kr.project_id, p.name AS project_name
+       FROM key_results kr JOIN projects p ON p.id = kr.project_id
+      WHERE kr.id = $1 AND p.user_id = $2`, [keyResultId, userId]);
+  const kr = rows[0];
+  if (!kr) throw new AiError('not_found', 'Key result not found.');
+
+  let fc = null;
+  try { const all = await computeForecasts(pool, userId); fc = (all.keyResults || []).find(k => k.id === keyResultId); } catch { /* ignore */ }
+  const today = new Date().toISOString().slice(0, 10);
+  const [existing, ctx] = await Promise.all([loadExisting(pool, userId), buildRpmContext(pool, userId)]);
+
+  const status = fc ? `It's ${fc.status.replace('_', ' ')}: at ${fc.rate_per_week}/wk you'd reach ${fc.projected_final}/${fc.target} by ${fc.target_date} (${fc.days_remaining} days left) — you need ~${fc.required_per_week}/wk.`
+    : `Currently ${kr.current_value}/${kr.target_value} ${kr.unit || ''}, due ${kr.target_date || 'no date'}.`;
+
+  const system = `You are the RPM planning engine drafting a CATCH-UP PLAN for one behind-pace key result.
+Today is ${today}. Below is the user's real RPM data — work with it.
+
+=== USER'S RPM DATA ===
+${ctx.text}
+=== END DATA ===
+
+Output ONLY one JSON object (no markdown) shaped:
+{ "summary": "one line", "notes": ["short, optional"], "operations": [ { "op": "create_action", "projectId": "<the target project id>", "title": "...", "priority": 3, "scheduled_date": "YYYY-MM-DD", "duration_minutes": 60 } ] }
+Rules:
+- Produce ONLY create_action operations (and update_action if reprioritising an existing task). No new categories/projects/key-results.
+- Attach every action to the target project via "projectId". Schedule them across the days from ${today} to the deadline, front-loaded, so the pace actually recovers.
+- Be concrete and specific to THIS key result and the user's real projects/actions above — not generic filler. 3-6 actions.
+- priority 0-3 (use 3 for the ones that move the number most). Dates "YYYY-MM-DD".`;
+
+  const user = `Draft a realistic catch-up plan for the key result "${kr.title}" (project "${kr.project_name}", projectId ${kr.project_id}).
+${status}
+What specific actions, scheduled between now and the deadline, would get it back toward ${kr.target_value} ${kr.unit || ''}?`;
+
+  let raw = '', rawUsage = null;
+  for await (const ev of runChat({ pool, userId, modelKey, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], webSearch: false, rpm: false, autoMode: false })) {
+    if (ev.type === 'text') raw += ev.text;
+    else if (ev.type === 'usage') rawUsage = ev.usage;
+    else if (ev.type === 'error') throw new AiError('ai_error', ev.message || 'AI request failed');
+  }
+  const usage = rawUsage ? await recordUsage(pool, { userId, modelKey, feature: 'fix', usage: rawUsage }) : null;
+
+  let plan;
+  try { plan = parsePlan(raw); }
+  catch { throw new AiError('bad_plan', 'The model returned an unreadable plan — try again, or a different model.'); }
+  const operations = Array.isArray(plan.operations)
+    ? plan.operations.filter(o => o && (o.op === 'create_action' || o.op === 'update_action')).slice(0, 30)
+    : [];
+  const notes = Array.isArray(plan.notes) ? plan.notes.filter(n => typeof n === 'string' && n.trim()).slice(0, 3) : [];
+  return { summary: plan.summary || `Catch-up plan for “${kr.title}”`, notes, operations, existing, today, usage };
 }
 
 function within7Days(dateStr, today) {
@@ -258,4 +315,4 @@ async function applyPlan({ pool, userId, operations }) {
   return { applied, errors };
 }
 
-module.exports = { generatePlan, applyPlan };
+module.exports = { generatePlan, applyPlan, draftFix };

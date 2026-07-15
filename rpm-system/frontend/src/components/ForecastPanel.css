@@ -50,3 +50,15 @@
 @media (max-width: 560px) {
   .fc-item-title { white-space: normal; }
 }
+
+/* Draft-a-fix button on slipping goals */
+.fc-fix {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 9px;
+  padding: 5px 11px; border-radius: 999px; font-size: 0.76rem; font-weight: 600;
+  background: linear-gradient(120deg, rgba(124,107,245,0.18), rgba(78,205,196,0.16));
+  border: 1px solid var(--border-primary); color: var(--text-primary); cursor: pointer;
+  transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+.fc-fix:hover:not(:disabled) { border-color: var(--accent-cyan); transform: translateY(-1px); }
+.fc-fix:disabled { opacity: 0.6; cursor: default; }
+.fc-fix .spin { animation: fc-spin 0.9s linear infinite; }

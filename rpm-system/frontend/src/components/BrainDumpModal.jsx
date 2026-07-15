@@ -61,13 +61,13 @@ function opTitle(o) {
   return o.name || o.title || (o.op === 'update_action' ? (o.reason || 'Update task') : 'Item');
 }
 
-export default function BrainDumpModal({ onClose, onApplied }) {
+export default function BrainDumpModal({ onClose, onApplied, initialPlan = null, title = 'Brain Dump' }) {
   const { api } = useContext(AuthContext);
   const { showToast } = useToast();
   const [text, setText] = useState('');
-  const [phase, setPhase] = useState('input'); // input | loading | preview | applying
-  const [plan, setPlan] = useState(null);
-  const [selected, setSelected] = useState(() => new Set());
+  const [phase, setPhase] = useState(initialPlan ? 'preview' : 'input'); // input | loading | preview | applying
+  const [plan, setPlan] = useState(initialPlan);
+  const [selected, setSelected] = useState(() => new Set(initialPlan ? (initialPlan.operations || []).map((_, i) => i) : []));
   const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
   const recognitionRef = useRef(null);
@@ -157,7 +157,7 @@ export default function BrainDumpModal({ onClose, onApplied }) {
     <div className="bd-overlay" onMouseDown={onClose}>
       <div className="bd-modal" onMouseDown={e => e.stopPropagation()} role="dialog" aria-label="Brain Dump">
         <header className="bd-head">
-          <div className="bd-head-title"><Sparkles size={18} /> Brain Dump</div>
+          <div className="bd-head-title"><Sparkles size={18} /> {title}</div>
           <button className="bd-close" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </header>
 
@@ -239,7 +239,7 @@ export default function BrainDumpModal({ onClose, onApplied }) {
               })}
             </div>
             <div className="bd-actions bd-preview-actions">
-              <button className="btn btn-ghost" onClick={() => { setPhase('input'); }} disabled={phase === 'applying'}>Back</button>
+              <button className="btn btn-ghost" onClick={() => { if (initialPlan) onClose(); else setPhase('input'); }} disabled={phase === 'applying'}>{initialPlan ? 'Cancel' : 'Back'}</button>
               <div className="bd-actions-right">
                 {plan.usage && <UsageBadge usage={plan.usage} />}
                 <span className="bd-count">{selectedCount} of {plan.operations.length} selected</span>

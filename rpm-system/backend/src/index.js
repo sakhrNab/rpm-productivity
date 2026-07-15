@@ -11,7 +11,7 @@ const { isConfigured: aiKeysConfigured } = require('./ai/crypto');
 const { runChat, AiError } = require('./ai/service');
 const { applyProposal } = require('./ai/tools');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
-const { generatePlan, applyPlan } = require('./ai/braindump');
+const { generatePlan, applyPlan, draftFix } = require('./ai/braindump');
 const { recordUsage, getUsageSummary } = require('./ai/usage');
 const { computeForecasts, logKrProgress } = require('./forecast');
 const notifications = require('./notifications');
@@ -1298,6 +1298,19 @@ app.post('/api/ai/braindump/apply', authenticateToken, async (req, res) => {
 app.get('/api/forecast', authenticateToken, async (req, res) => {
   try { res.json(await computeForecasts(pool, req.userId)); }
   catch (error) { console.error('[forecast] error:', error.message); res.status(500).json({ error: 'Failed' }); }
+});
+
+// Draft AI catch-up actions for a slipping key result (proposal — nothing applied).
+app.post('/api/forecast/fix', authenticateToken, async (req, res) => {
+  try {
+    const { keyResultId, modelKey } = req.body;
+    if (!keyResultId) return res.status(400).json({ error: 'keyResultId is required' });
+    if (!modelKey) return res.status(400).json({ error: 'modelKey is required' });
+    res.json(await draftFix({ pool, userId: req.userId, modelKey, keyResultId }));
+  } catch (error) {
+    console.error('[forecast] fix error:', error.message);
+    res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
+  }
 });
 
 // AI usage + estimated cost summary (per user, last N days).

@@ -1,6 +1,8 @@
 import { useState, useEffect, useContext } from 'react';
-import { TrendingUp, RefreshCw } from 'lucide-react';
+import { TrendingUp, RefreshCw, Wand2, Loader2 } from 'lucide-react';
 import { AuthContext } from '../App';
+import { useToast } from './ToastProvider';
+import BrainDumpModal from './BrainDumpModal';
 import './ForecastPanel.css';
 
 const STATUS = {
@@ -39,11 +41,31 @@ function line(f) {
 
 export default function ForecastPanel() {
   const { api } = useContext(AuthContext);
+  const { showToast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [fixingId, setFixingId] = useState(null);
+  const [fixPlan, setFixPlan] = useState(null);
 
   const load = () => { setLoading(true); api.getForecast().then(d => setData(d && !d.error ? d : null)).catch(() => {}).finally(() => setLoading(false)); };
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ask the AI to draft catch-up actions for a slipping goal → preview → approve.
+  const draftFix = async (k) => {
+    const modelKey = localStorage.getItem('ai.modelKey');
+    if (!modelKey) { showToast('Pick a default AI model in Settings first.', 'info'); return; }
+    setFixingId(k.id);
+    try {
+      const res = await api.forecastFix({ keyResultId: k.id, modelKey });
+      if (res.error) throw new Error(res.error);
+      if (!res.operations || !res.operations.length) { showToast('No catch-up actions came back — try again.', 'info'); return; }
+      setFixPlan(res);
+    } catch (e) {
+      const msg = e.message || 'Failed to draft a fix';
+      if (/no longer available|unknown model/i.test(msg)) localStorage.removeItem('ai.modelKey');
+      showToast(msg, 'error');
+    } finally { setFixingId(null); }
+  };
 
   const krs = data?.keyResults || [];
   const s = data?.summary || {};
@@ -92,10 +114,24 @@ export default function ForecastPanel() {
                   )}
                 </div>
                 <div className="fc-item-line">{line(f)}</div>
+                {(st.cls === 'warn' || st.cls === 'bad') && (
+                  <button type="button" className="fc-fix" onClick={() => draftFix(f)} disabled={fixingId === f.id}>
+                    {fixingId === f.id ? <><Loader2 size={13} className="spin" /> Drafting…</> : <><Wand2 size={13} /> Draft a fix</>}
+                  </button>
+                )}
               </li>
             );
           })}
         </ul>
+      )}
+
+      {fixPlan && (
+        <BrainDumpModal
+          initialPlan={fixPlan}
+          title="Catch-up plan"
+          onClose={() => setFixPlan(null)}
+          onApplied={() => { setFixPlan(null); load(); }}
+        />
       )}
     </section>
   );
