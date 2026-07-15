@@ -5,9 +5,11 @@ import remarkGfm from 'remark-gfm';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
 import UsageBadge from '../components/UsageBadge';
+import { sttSupported, ttsSupported, startListening, stopListening, speak, cancelSpeak } from '../utils/speech';
 import {
   Send, Globe, Plus, Trash2, MessageSquare, Sparkles, ChevronDown, ChevronRight,
-  Settings as SettingsIcon, Zap, Wand2, Check, X, ExternalLink, Info
+  Settings as SettingsIcon, Zap, Wand2, Check, X, ExternalLink, Info,
+  Mic, Volume2, VolumeX, Radio, Square
 } from 'lucide-react';
 import './AssistantPage.css';
 
@@ -61,6 +63,10 @@ function AssistantPage() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
+  const [speakReplies, setSpeakReplies] = useState(() => localStorage.getItem('asst.speak') === '1');
+  const [convMode, setConvMode] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
 
   const scrollRef = useRef(null);
 
@@ -153,14 +159,16 @@ function AssistantPage() {
   };
   const dismissProposal = (mi, ti) => updateTool(mi, ti, { status: 'dismissed' }, true);
 
-  const send = async () => {
-    const text = input.trim();
+  const send = async (override) => {
+    const text = (typeof override === 'string' ? override : input).trim();
     if (!text || streaming) return;
     if (!modelKey) { showToast('Pick a model first', 'error'); return; }
 
+    cancelSpeak();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: text }, { role: 'assistant', content: '', sources: null, tools: [] }]);
     setStreaming(true);
+    let full = '';
 
     try {
       const res = await api.aiChatStream({ conversationId, modelKey, message: text, webSearch, rpmMode, autoMode });
@@ -184,6 +192,7 @@ function AssistantPage() {
             return next;
           });
         } else if (ev.type === 'delta') {
+          full += ev.text;
           setMessages(prev => {
             const next = [...prev];
             next[next.length - 1] = { ...next[next.length - 1], content: next[next.length - 1].content + ev.text };
@@ -260,10 +269,42 @@ function AssistantPage() {
       });
     } finally {
       setStreaming(false);
+      if (speakReplies && full.trim()) {
+        setSpeaking(true);
+        speak(full, { onEnd: () => { setSpeaking(false); if (convMode) startVoice(); } });
+      } else if (convMode) {
+        startVoice();
+      }
     }
   };
 
   const onKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
+
+  // Voice ("Jarvis"): speak to the assistant; it can speak back and keep the conversation going.
+  const startVoice = () => {
+    if (!sttSupported()) { showToast('Voice input isn’t supported on this browser.', 'info'); return; }
+    if (streaming) return;
+    cancelSpeak(); setSpeaking(false);
+    setListening(true);
+    startListening({
+      onInterim: (t) => setInput(t),
+      onFinal: (t) => { if (t) send(t); else setInput(''); },
+      onEnd: () => setListening(false),
+      onError: (err) => { setListening(false); if (err !== 'no-speech' && err !== 'aborted' && err !== 'unsupported') showToast('Voice: ' + err, 'error'); },
+    });
+  };
+  const stopVoice = () => { stopListening(); setListening(false); };
+  const toggleConv = () => {
+    setConvMode(v => {
+      const nv = !v;
+      if (nv) { if (!speakReplies) { setSpeakReplies(true); localStorage.setItem('asst.speak', '1'); } if (!streaming) startVoice(); }
+      else { stopVoice(); cancelSpeak(); }
+      return nv;
+    });
+  };
+  const toggleSpeak = () => setSpeakReplies(v => { const nv = !v; localStorage.setItem('asst.speak', nv ? '1' : '0'); if (!nv) cancelSpeak(); return nv; });
+
+  useEffect(() => () => { stopListening(); cancelSpeak(); }, []); // cleanup on unmount
 
   const noModels = models.length > 0 && availableModels.length === 0;
 
@@ -453,12 +494,43 @@ function AssistantPage() {
           ))}
         </div>
 
+        {(sttSupported() || ttsSupported()) && (
+          <div className="asst-voicebar">
+            {ttsSupported() && (
+              <button type="button" className={`asst-voice-toggle ${speakReplies ? 'on' : ''}`} onClick={toggleSpeak} title="Read replies aloud">
+                {speakReplies ? <Volume2 size={14} /> : <VolumeX size={14} />} Speak replies
+              </button>
+            )}
+            {sttSupported() && (
+              <button type="button" className={`asst-voice-toggle ${convMode ? 'on' : ''}`} onClick={toggleConv} title="Hands-free conversation">
+                <Radio size={14} /> Conversation
+              </button>
+            )}
+            {speaking && (
+              <button type="button" className="asst-voice-toggle stop" onClick={() => { cancelSpeak(); setSpeaking(false); }}>
+                <Square size={12} /> Stop speaking
+              </button>
+            )}
+          </div>
+        )}
         <div className="asst-composer">
           <textarea className="asst-input"
-            placeholder={selectedModel ? `Message ${selectedModel.label}…` : 'Select a model to begin…'}
+            placeholder={listening ? 'Listening…' : (selectedModel ? `Message ${selectedModel.label}…` : 'Select a model to begin…')}
             value={input} onChange={e => setInput(e.target.value)} onKeyDown={onKeyDown} rows={1}
             disabled={!modelKey || streaming} />
-          <button className="btn btn-primary asst-send" onClick={send} disabled={!input.trim() || streaming || !modelKey}>
+          {sttSupported() && (
+            <button
+              type="button"
+              className={`btn asst-mic ${listening ? 'live' : ''}`}
+              onClick={() => (listening ? stopVoice() : startVoice())}
+              disabled={streaming || !modelKey}
+              title={listening ? 'Stop listening' : 'Speak'}
+              aria-label={listening ? 'Stop listening' : 'Speak'}
+            >
+              <Mic size={16} />
+            </button>
+          )}
+          <button className="btn btn-primary asst-send" onClick={() => send()} disabled={!input.trim() || streaming || !modelKey}>
             <Send size={16} />
           </button>
         </div>
