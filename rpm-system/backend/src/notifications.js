@@ -70,10 +70,14 @@ async function buildDigest(pool, userId, tz, includeOverdue) {
   )).rows;
   let overdue = [];
   if (includeOverdue) {
+    // to_char, not the raw DATE: pg returns DATE as a JS Date, and String(date).slice(0,10)
+    // renders "Wed Jul 15" instead of "2026-07-15". Oldest first = most rotten first.
     overdue = (await pool.query(
-      `SELECT title, scheduled_date FROM v_actions_full
-        WHERE user_id = $1 AND scheduled_date < $2 AND is_cancelled = false AND is_completed = false
-        ORDER BY scheduled_date DESC LIMIT 25`,
+      `SELECT title, to_char(scheduled_date, 'YYYY-MM-DD') AS scheduled_date,
+              ($2::date - scheduled_date) AS days_late
+         FROM v_actions_full
+        WHERE user_id = $1 AND scheduled_date < $2::date AND is_cancelled = false AND is_completed = false
+        ORDER BY scheduled_date LIMIT 25`,
       [userId, today]
     )).rows;
   }
@@ -112,12 +116,13 @@ async function sendUserDigest(pool, user, prefs) {
 const CHIEF_RISK = new Set(['at_risk', 'off_track', 'stalled', 'overdue']);
 
 async function buildChief(pool, userId, tz) {
-  const { todayTasks } = await buildDigest(pool, userId, tz, false);
+  // includeOverdue: the carried-over list is part of the briefing now.
+  const { todayTasks, overdue } = await buildDigest(pool, userId, tz, true);
   let forecast = { summary: {}, keyResults: [] };
   try { forecast = await computeForecasts(pool, userId); } catch (e) { console.error('[chief] forecast:', e.message); }
   const atRisk = (forecast.keyResults || []).filter(k => CHIEF_RISK.has(k.status));
   const onTrack = (forecast.summary && forecast.summary.on_track) || 0;
-  return { todayTasks, atRisk, onTrack, forecast };
+  return { todayTasks, carried: overdue || [], atRisk, onTrack, forecast };
 }
 
 // Short "what to change" line for a slipping key result.
@@ -130,19 +135,26 @@ function chiefFixLine(k) {
 }
 
 async function sendChiefBriefing(pool, user, prefs) {
-  const { todayTasks, atRisk, onTrack } = await buildChief(pool, user.id, prefs.timezone);
+  const { todayTasks, carried, atRisk, onTrack } = await buildChief(pool, user.id, prefs.timezone);
   const todayLabel = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: prefs.timezone || 'UTC' }).format(new Date());
   const url = APP_URL() + '/compass';
+  const dayUrl = APP_URL() + '/my-day';
   const out = {};
 
   if (prefs.email_enabled && user.email) {
-    try { out.email = await sendChiefEmail({ to: user.email, name: user.name, appUrl: url, todayLabel, today: todayTasks, atRisk, onTrack }); }
+    try { out.email = await sendChiefEmail({ to: user.email, name: user.name, appUrl: url, dayUrl, todayLabel, today: todayTasks, carried, atRisk, onTrack }); }
     catch (e) { console.error('[chief] email:', e.message); }
   }
   if (prefs.telegram_enabled && prefs.telegram_chat_id) {
     const esc = (s) => String(s || '').replace(/[<>&]/g, '');
     const lines = [`🧭 <b>Chief of Staff — ${esc(todayLabel)}</b>`, ''];
     lines.push(`📋 <b>Today:</b> ${todayTasks.length} task${todayTasks.length === 1 ? '' : 's'} planned.`);
+    if (carried.length) {
+      lines.push('', `📌 <b>Carried over (${carried.length}) — nothing was moved for you:</b>`);
+      for (const c of carried.slice(0, 5)) lines.push(`• ${esc(c.title)} — ${c.days_late}d late`);
+      if (carried.length > 5) lines.push(`  …and ${carried.length - 5} more`);
+      lines.push(`<a href="${dayUrl}">Triage them in My Day →</a>`);
+    }
     if (atRisk.length) {
       lines.push('', `⚠️ <b>${atRisk.length} goal${atRisk.length === 1 ? '' : 's'} need attention:</b>`);
       for (const k of atRisk.slice(0, 5)) lines.push('• ' + esc(chiefFixLine(k)));
@@ -155,9 +167,12 @@ async function sendChiefBriefing(pool, user, prefs) {
   }
   if (prefs.webpush_enabled) {
     try {
+      const bits = [`${todayTasks.length} today`];
+      if (carried.length) bits.push(`${carried.length} carried over`);
+      bits.push(atRisk.length ? `${atRisk.length} goal${atRisk.length === 1 ? '' : 's'} need attention` : 'goals on track');
       out.push = await push.sendToUser(pool, user.id, {
         title: '🧭 Your Chief of Staff briefing',
-        body: atRisk.length ? `${atRisk.length} goal${atRisk.length === 1 ? '' : 's'} need attention · ${todayTasks.length} today` : `${todayTasks.length} tasks today · goals on track`,
+        body: bits.join(' · '),
         url,
       });
     } catch (e) { console.error('[chief] push:', e.message); }

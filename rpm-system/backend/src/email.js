@@ -280,8 +280,18 @@ function chiefFixHtml(k) {
     <div style="color:#9aa7bd;font-size:12.5px;margin-top:2px;">${escapeHtml(detail)}</div></td></tr>`;
 }
 
-async function sendChiefBriefing({ to, name, appUrl, todayLabel, today = [], atRisk = [], onTrack = 0 }) {
+async function sendChiefBriefing({ to, name, appUrl, dayUrl, todayLabel, today = [], carried = [], atRisk = [], onTrack = 0 }) {
   const hi = name ? `Good morning, ${escapeHtml(name)}.` : 'Good morning.';
+  const carriedHtml = carried.length
+    ? `<h2 style="margin:22px 0 8px;font-size:16px;color:#ffb74d;">📌 Carried over (${carried.length})</h2>
+       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${carried.slice(0, 10).map(c => `
+         <tr><td style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#e6ecf7;font-size:14px;">
+           ${escapeHtml(c.title)}
+           <span style="color:#ffb74d;font-size:12px;font-weight:700;"> — ${c.days_late}d late</span>
+         </td></tr>`).join('')}${carried.length > 10 ? `<tr><td style="padding:6px 0;color:#7f8ba3;font-size:12px;">…and ${carried.length - 10} more</td></tr>` : ''}
+       </table>
+       <p style="margin:8px 0 0;color:#7f8ba3;font-size:12.5px;">Nothing was moved for you — <a href="${dayUrl || appUrl}" style="color:#4ecdc4;">triage them in My Day</a> (do it today, reschedule, or drop it).</p>`
+    : '';
   const goalsHtml = atRisk.length
     ? `<h2 style="margin:20px 0 8px;font-size:16px;color:#ffd166;">⚠️ ${atRisk.length} goal${atRisk.length === 1 ? '' : 's'} need attention</h2>
        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${atRisk.map(chiefFixHtml).join('')}</table>`
@@ -302,6 +312,7 @@ async function sendChiefBriefing({ to, name, appUrl, todayLabel, today = [], atR
       </td></tr>
       <tr><td style="padding:8px 40px 0;">
         ${goalsHtml}
+        ${carriedHtml}
         <h2 style="margin:22px 0 8px;font-size:16px;color:#fff;">📋 Today (${today.length})</h2>
         ${todayHtml}
       </td></tr>
@@ -312,8 +323,11 @@ async function sendChiefBriefing({ to, name, appUrl, todayLabel, today = [], atR
     <div style="max-width:560px;color:#4a5568;font-size:11px;padding:16px 8px;">Your Chief of Staff briefing. Turn it off in Settings → Reminders.</div>
   </td></tr></table>
 </body></html>`;
-  const text = `${hi}\n\n${atRisk.length ? 'Goals needing attention:\n' + atRisk.map(k => '- ' + k.title).join('\n') : 'Goals on track.'}\n\nToday (${today.length}):\n${today.map(t => '- ' + t.title).join('\n') || '(nothing scheduled)'}\n\nOpen: ${appUrl}`;
-  return sendGeneric({ to, subject: atRisk.length ? `🧭 ${atRisk.length} goal${atRisk.length === 1 ? '' : 's'} need attention today` : `🧭 Your day — goals on track`, html, text });
+  const text = `${hi}\n\n${atRisk.length ? 'Goals needing attention:\n' + atRisk.map(k => '- ' + k.title).join('\n') : 'Goals on track.'}${carried.length ? `\n\nCarried over (${carried.length}) — nothing was moved for you:\n` + carried.slice(0, 10).map(c => `- ${c.title} (${c.days_late}d late)`).join('\n') : ''}\n\nToday (${today.length}):\n${today.map(t => '- ' + t.title).join('\n') || '(nothing scheduled)'}\n\nOpen: ${appUrl}`;
+  const subject = atRisk.length
+    ? `🧭 ${atRisk.length} goal${atRisk.length === 1 ? '' : 's'} need attention today`
+    : carried.length ? `🧭 ${carried.length} task${carried.length === 1 ? '' : 's'} carried over` : `🧭 Your day — goals on track`;
+  return sendGeneric({ to, subject, html, text });
 }
 
 async function sendReminder({ to, name, title, appUrl }) {
