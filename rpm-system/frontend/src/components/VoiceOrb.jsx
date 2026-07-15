@@ -3,8 +3,15 @@ import { createPortal } from 'react-dom';
 import { Mic, X, Loader2, Radio, Zap } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { useToast } from './ToastProvider';
-import { sttSupported, ttsSupported, startListening, stopListening, speak, cancelSpeak, startWakeWord, stopWakeWord } from '../utils/speech';
+import Markdown from './Markdown';
+import {
+  sttSupported, ttsSupported, startListening, stopListening, speak, speakChunk, cancelSpeak,
+  startWakeWord, stopWakeWord, onVoicesReady, getVoiceName, setVoiceName as saveVoiceName,
+} from '../utils/speech';
 import './VoiceOrb.css';
+
+// Flush speech at a sentence end or a line break (so bullets/headings speak too).
+const SENTENCE = /^[\s\S]*?(?:[.!?…](?:["')\]]+)?\s|\n+)/;
 
 const GREETS = ['Yes?', "I'm listening.", 'Go ahead.', 'What do you need?'];
 const timeGreet = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning.' : h < 18 ? 'Good afternoon.' : 'Good evening.'; };
@@ -21,11 +28,15 @@ export default function VoiceOrb() {
   const [reply, setReply] = useState('');
   const [conv, setConv] = useState(false); // hands-free conversation mode
   const [wake, setWake] = useState(() => localStorage.getItem('orb.wake') === '1'); // "Hey RPM"
+  const [voices, setVoices] = useState([]);
+  const [voice, setVoice] = useState(() => getVoiceName());
   const convId = useRef(null);
   const convRef = useRef(false);
   const firstRef = useRef(true);
 
   useEffect(() => { convRef.current = conv; }, [conv]);
+  // getVoices() populates asynchronously in Chrome.
+  useEffect(() => onVoicesReady(setVoices), []);
   useEffect(() => () => { stopListening(); stopWakeWord(); cancelSpeak(); }, []);
 
   // Greet first, then listen — so it feels like it's talking to you, not just recording.
@@ -55,6 +66,22 @@ export default function VoiceOrb() {
     if (!modelKey) { setState('idle'); showToast('Pick a default AI model in Settings first.', 'info'); return; }
     setState('thinking'); setReply('');
     let full = '';
+    // Speak sentence-by-sentence as the reply streams, instead of waiting for it all.
+    const canSpeak = ttsSupported();
+    let buf = '', pending = 0, streamDone = false, started = false;
+    const finishIfDone = () => {
+      if (streamDone && pending === 0) { if (convRef.current) listen(); else setState('idle'); }
+    };
+    const flush = (chunk) => {
+      if (!canSpeak || !chunk.trim()) return;
+      if (!started) { started = true; setState('speaking'); }
+      pending++;
+      speakChunk(chunk, { onEnd: () => { pending--; finishIfDone(); } });
+    };
+    const drain = () => {
+      let m;
+      while ((m = buf.match(SENTENCE))) { const s = m[0]; buf = buf.slice(s.length); flush(s); }
+    };
     try {
       const res = await api.aiChatStream({ conversationId: convId.current, modelKey, message: text, webSearch: false, rpmMode: true, autoMode: true });
       if (!res.ok || !res.body) { let m = 'Request failed'; try { m = (await res.json()).error || m; } catch { /* ignore */ } throw new Error(m); }
@@ -72,16 +99,16 @@ export default function VoiceOrb() {
           if (!line) continue;
           let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
           if (ev.type === 'meta' && ev.conversationId) convId.current = ev.conversationId;
-          else if (ev.type === 'delta') { full += ev.text; setReply(full); }
+          else if (ev.type === 'delta') { full += ev.text; setReply(full); buf += ev.text; drain(); }
           else if (ev.type === 'tool_result') acted = true;
           else if (ev.type === 'error') full += (full ? '\n' : '') + '⚠️ ' + (ev.message || 'error');
         }
       }
       if (acted && refreshData) refreshData();
-      if (ttsSupported() && full.trim()) {
-        setState('speaking');
-        speak(full, { onEnd: () => { if (convRef.current) listen(); else setState('idle'); } });
-      } else setState('idle');
+      streamDone = true;
+      if (buf.trim()) { flush(buf); buf = ''; }
+      if (!started) { if (convRef.current) listen(); else setState('idle'); } // nothing spoken
+      else finishIfDone();
     } catch (e) {
       setState('idle');
       setReply('⚠️ ' + (e.message || 'Something went wrong'));
@@ -141,8 +168,21 @@ export default function VoiceOrb() {
           </div>
           {transcript && <div className="vorb-you">“{transcript}”</div>}
           {reply
-            ? <div className="vorb-reply">{reply}</div>
+            ? <div className="vorb-reply"><Markdown>{reply}</Markdown></div>
             : (!transcript && <div className="vorb-hint">Ask me anything — “what should I focus on today?”, “add a task to call the plumber tomorrow”, “how's my fitness goal tracking?”</div>)}
+          {ttsSupported() && voices.length > 0 && (
+            <select
+              className="vorb-voice form-input"
+              value={voice}
+              onChange={(e) => { setVoice(e.target.value); saveVoiceName(e.target.value); cancelSpeak(); speak('This is my voice now.'); }}
+              title="Pick a voice"
+            >
+              <option value="">Voice: auto (best available)</option>
+              {voices
+                .filter(v => (v.lang || '').toLowerCase().startsWith((navigator.language || 'en').slice(0, 2).toLowerCase()))
+                .map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+            </select>
+          )}
         </div>
       )}
       <div className="vorb-chips">

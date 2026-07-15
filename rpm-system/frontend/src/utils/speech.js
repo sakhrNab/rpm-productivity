@@ -107,18 +107,72 @@ function stripForSpeech(md) {
     .trim();
 }
 
-export function speak(text, { onEnd } = {}) {
+// ---- Voice selection ----
+// The browser default is usually the most robotic one available. Prefer the
+// higher-quality neural/premium voices most systems ship with.
+const VOICE_KEY = 'tts.voice';
+const PREFERRED = [
+  /google\s+(uk|us)?\s*english/i, /natural/i, /premium/i, /enhanced/i,
+  /samantha/i, /ava/i, /allison/i, /aria/i, /jenny/i, /guy/i, /siri/i, /alex/i,
+];
+
+export function listVoices() {
+  if (!ttsSupported()) return [];
+  try { return window.speechSynthesis.getVoices() || []; } catch { return []; }
+}
+// getVoices() populates asynchronously in Chrome — call back when ready.
+export function onVoicesReady(cb) {
+  if (!ttsSupported()) return () => {};
+  if (listVoices().length) { cb(listVoices()); return () => {}; }
+  const h = () => cb(listVoices());
+  window.speechSynthesis.addEventListener('voiceschanged', h);
+  return () => window.speechSynthesis.removeEventListener('voiceschanged', h);
+}
+export function getVoiceName() { try { return localStorage.getItem(VOICE_KEY) || ''; } catch { return ''; } }
+export function setVoiceName(name) { try { localStorage.setItem(VOICE_KEY, name || ''); } catch { /* noop */ } }
+
+export function pickVoice() {
+  const voices = listVoices();
+  if (!voices.length) return null;
+  const saved = getVoiceName();
+  if (saved) { const v = voices.find(x => x.name === saved); if (v) return v; }
+  const lang = (navigator.language || 'en-US').slice(0, 2).toLowerCase();
+  const mine = voices.filter(v => (v.lang || '').toLowerCase().startsWith(lang));
+  const pool = mine.length ? mine : voices;
+  for (const p of PREFERRED) { const v = pool.find(x => p.test(x.name)); if (v) return v; }
+  return pool.find(v => v.default) || pool[0] || null;
+}
+
+function makeUtterance(text) {
+  const u = new SpeechSynthesisUtterance(text.slice(0, 4000));
+  const v = pickVoice();
+  if (v) { u.voice = v; u.lang = v.lang || navigator.language || 'en-US'; }
+  else u.lang = navigator.language || 'en-US';
+  u.rate = 1.05; u.pitch = 1.02;
+  return u;
+}
+
+// Queue a chunk WITHOUT cancelling what's already speaking — lets us start talking
+// on the first sentence while the rest of the reply is still streaming in.
+export function speakChunk(text, { onEnd } = {}) {
   if (!ttsSupported()) { onEnd && onEnd(); return; }
   const clean = stripForSpeech(text);
   if (!clean) { onEnd && onEnd(); return; }
   try {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(clean.slice(0, 4000));
-    u.rate = 1.03; u.pitch = 1; u.lang = navigator.language || 'en-US';
+    const u = makeUtterance(clean);
     u.onend = () => onEnd && onEnd();
     u.onerror = () => onEnd && onEnd();
     window.speechSynthesis.speak(u);
   } catch { onEnd && onEnd(); }
+}
+
+// One-shot: cancel anything queued, then speak.
+export function speak(text, { onEnd } = {}) {
+  if (!ttsSupported()) { onEnd && onEnd(); return; }
+  const clean = stripForSpeech(text);
+  if (!clean) { onEnd && onEnd(); return; }
+  try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+  speakChunk(clean, { onEnd });
 }
 
 export function cancelSpeak() { try { if (ttsSupported()) window.speechSynthesis.cancel(); } catch { /* noop */ } }

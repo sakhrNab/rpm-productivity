@@ -115,3 +115,14 @@
 .vorb.armed .vorb-ring { opacity: 1; border-color: rgba(78,205,196,0.35); animation: vorb-armed 2.6s ease-out infinite; }
 @keyframes vorb-armed { 0% { opacity: 0.5; transform: scale(0.95); } 100% { opacity: 0; transform: scale(1.35); } }
 @media (prefers-reduced-motion: reduce) { .vorb.armed .vorb-ring { animation: none; } }
+
+/* Rendered markdown reply + voice picker */
+.vorb-reply .asst-md { font-size: 0.88rem; line-height: 1.5; }
+.vorb-reply .asst-md > *:first-child { margin-top: 0; }
+.vorb-reply .asst-md > *:last-child { margin-bottom: 0; }
+.vorb-reply .asst-md h1, .vorb-reply .asst-md h2, .vorb-reply .asst-md h3 { font-size: 0.95rem; margin: 8px 0 4px; }
+.vorb-reply .asst-md ul, .vorb-reply .asst-md ol { padding-left: 1.1rem; margin: 4px 0; }
+.vorb-reply .asst-md li { margin: 2px 0; }
+.vorb-reply .asst-md table { font-size: 0.78rem; }
+.vorb-reply .asst-md-tablewrap { overflow-x: auto; }
+.vorb-voice { width: 100%; margin-top: 10px; font-size: 0.74rem; padding: 5px 26px 5px 8px; background-position: right 8px center; }
