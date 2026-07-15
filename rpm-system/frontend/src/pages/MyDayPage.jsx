@@ -1,20 +1,37 @@
 import { useState, useEffect, useContext } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Sparkles, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import ActionRow from '../components/ActionRow';
+import Markdown from '../components/Markdown';
+import { useToast } from '../components/ToastProvider';
 import './MyDayPage.css';
 
 function MyDayPage() {
   const { categories, refreshData } = useContext(AppContext);
   const { api } = useContext(AuthContext);
+  const { showToast } = useToast();
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showActionModal, setShowActionModal] = useState(false);
   const [editingAction, setEditingAction] = useState(null);
   const [dragId, setDragId] = useState(null);
+  const [suggest, setSuggest] = useState(null); // { loading, text, error } | null
   const today = format(new Date(), 'yyyy-MM-dd');
+
+  const runSuggest = async () => {
+    const modelKey = localStorage.getItem('ai.modelKey');
+    if (!modelKey) { showToast('Pick a default AI model in Settings first.', 'info'); return; }
+    setSuggest({ loading: true });
+    try {
+      const res = await api.aiSuggestPlan({ modelKey, start_date: today, end_date: today });
+      if (res.error) throw new Error(res.error);
+      setSuggest({ text: res.text });
+    } catch (e) {
+      setSuggest({ error: e.message || 'Failed to get suggestions' });
+    }
+  };
 
   const handleDragOver = (e, overId) => {
     e.preventDefault();
@@ -77,6 +94,13 @@ function MyDayPage() {
     }
   };
 
+  const changePriority = async (action, priority) => {
+    const prev = action.priority || 0;
+    patchAction(action.id, { priority });
+    try { await api.updateAction(action.id, { priority }); }
+    catch (error) { console.error('Failed to set priority:', error); patchAction(action.id, { priority: prev }); }
+  };
+
   const handleEdit = (action) => {
     setEditingAction(action);
     setShowActionModal(true);
@@ -109,15 +133,31 @@ function MyDayPage() {
           <h1 className="page-title">My Day</h1>
           <p className="md-date">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
         </div>
-        <button 
-          type="button"
-          className="btn btn-primary"
-          onClick={() => setShowActionModal(true)}
-        >
-          <Plus size={16} />
-          Add Action
-        </button>
+        <div className="md-header-actions">
+          <button type="button" className="btn btn-secondary" onClick={runSuggest} disabled={suggest?.loading}>
+            <Sparkles size={16} />
+            {suggest?.loading ? 'Thinking…' : 'AI suggestions'}
+          </button>
+          <button type="button" className="btn btn-primary" onClick={() => setShowActionModal(true)}>
+            <Plus size={16} />
+            Add Action
+          </button>
+        </div>
       </div>
+
+      {suggest && (
+        <div className="md-suggest">
+          <div className="md-suggest-head">
+            <span><Sparkles size={15} /> AI suggestions</span>
+            <button type="button" className="md-suggest-close" onClick={() => setSuggest(null)} aria-label="Close"><X size={15} /></button>
+          </div>
+          <div className="md-suggest-body">
+            {suggest.loading && <p className="md-suggest-muted">Reviewing your tasks and priorities…</p>}
+            {suggest.error && <p className="md-suggest-error">{suggest.error}</p>}
+            {suggest.text && <Markdown>{suggest.text}</Markdown>}
+          </div>
+        </div>
+      )}
 
       <div className="actions-list md-actions-list">
         <div className="actions-header">
@@ -146,6 +186,7 @@ function MyDayPage() {
                 onToggleStar={toggleStar}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onChangePriority={changePriority}
               />
             </div>
           ))

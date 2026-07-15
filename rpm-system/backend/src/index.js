@@ -10,7 +10,7 @@ const aiKeys = require('./ai/keys');
 const { isConfigured: aiKeysConfigured } = require('./ai/crypto');
 const { runChat, AiError } = require('./ai/service');
 const { applyProposal } = require('./ai/tools');
-const { runCompass } = require('./ai/coach');
+const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -1220,6 +1220,20 @@ app.post('/api/ai/apply', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[ai] apply error:', error);
     res.status(500).json({ error: 'Failed to apply' });
+  }
+});
+
+// AI suggestions for a day/week task list — how to tackle + do priorities make sense.
+app.post('/api/ai/suggest-plan', authenticateToken, async (req, res) => {
+  try {
+    const { modelKey, start_date, end_date } = req.body;
+    if (!modelKey) return res.status(400).json({ error: 'Pick a default AI model in Settings first.' });
+    if (!start_date || !end_date) return res.status(400).json({ error: 'start_date and end_date are required' });
+    const result = await runPlanSuggestions({ pool, userId: req.userId, modelKey, startDate: start_date, endDate: end_date });
+    res.json(result);
+  } catch (error) {
+    console.error('[ai] suggest-plan error:', error);
+    res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
   }
 });
 

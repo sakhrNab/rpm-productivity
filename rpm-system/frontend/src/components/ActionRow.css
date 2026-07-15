@@ -32,3 +32,36 @@
 .ar-dep { display: inline-flex; align-items: center; gap: 3px; }
 .ar-dep-blocked { color: var(--accent-red); }
 .ar-dep-blocks { color: var(--accent-orange); }
+
+/* Inline priority picker */
+.ar-prio-wrap { position: relative; display: inline-flex; }
+.ar-prio-btn { cursor: pointer; border: 1px solid transparent; }
+.ar-prio-btn.ar-prio-none { color: var(--text-muted); background: rgba(255,255,255,0.05); border-color: var(--border-primary); }
+.ar-prio-btn:hover { filter: brightness(1.15); }
+.ar-prio-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 40;
+  background: var(--bg-card); border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg); padding: 4px; min-width: 110px;
+}
+.ar-prio-opt {
+  display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+  padding: 6px 10px; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);
+}
+.ar-prio-opt:hover { background: rgba(255,255,255,0.06); }
+.ar-prio-opt.active { background: rgba(78,205,196,0.12); }
+.ar-prio-opt.ar-prio-high { color: var(--accent-red); }
+.ar-prio-opt.ar-prio-med { color: var(--accent-orange); }
+.ar-prio-opt.ar-prio-low { color: var(--accent-cyan); }
+.ar-prio-opt.ar-prio-none { color: var(--text-muted); }
+
+/* Category + project labels */
+.ar-cat {
+  display: inline-flex; align-items: center;
+  font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  padding: 1px 8px; border-radius: 999px; border: 1px solid transparent;
+}
+.ar-proj {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 0.7rem; font-weight: 600;
+  padding: 1px 8px; border-radius: 999px; border: 1px solid transparent;
+}

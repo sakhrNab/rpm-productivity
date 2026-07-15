@@ -10,3 +10,22 @@
 .md-drag-row { cursor: grab; border-radius: var(--radius-md); transition: opacity var(--transition-fast); }
 .md-drag-row:active { cursor: grabbing; }
 .md-drag-row.dragging { opacity: 0.45; }
+
+/* Header actions + AI suggestions panel (shared by My Day & My Week) */
+.md-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.md-suggest {
+  background: var(--bg-secondary); border: 1px solid rgba(149,117,205,0.35);
+  border-radius: var(--radius-lg); margin-bottom: var(--spacing-lg); overflow: hidden;
+}
+.md-suggest-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: rgba(149,117,205,0.12);
+  color: var(--accent-purple); font-weight: 700; font-size: 0.82rem;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.md-suggest-head span { display: inline-flex; align-items: center; gap: 6px; }
+.md-suggest-close { color: var(--text-muted); display: inline-flex; }
+.md-suggest-close:hover { color: var(--text-primary); }
+.md-suggest-body { padding: 16px; }
+.md-suggest-muted { color: var(--text-muted); }
+.md-suggest-error { color: var(--accent-red); }

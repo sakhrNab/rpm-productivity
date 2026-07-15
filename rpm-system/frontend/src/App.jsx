@@ -142,6 +142,9 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     aiCoachCompass: (body) => authFetch(`${API_BASE}/ai/coach/compass`, {
       method: 'POST', body: JSON.stringify(body)
     }).then(r => r.json()),
+    aiSuggestPlan: (body) => authFetch(`${API_BASE}/ai/suggest-plan`, {
+      method: 'POST', body: JSON.stringify(body)
+    }).then(r => r.json()),
     aiApplyProposal: (body) => authFetch(`${API_BASE}/ai/apply`, {
       method: 'POST', body: JSON.stringify(body)
     }).then(r => r.json()),
