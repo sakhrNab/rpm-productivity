@@ -505,3 +505,31 @@ CREATE TABLE IF NOT EXISTS app_config (
     plain TEXT,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Web push subscriptions (Phase 3)
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (user_id, endpoint)
+);
+
+-- Custom user reminders (Phase 4): one-off or recurring
+CREATE TABLE IF NOT EXISTS reminders (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    action_id UUID REFERENCES actions(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'once',      -- once | daily | weekly
+    remind_at TIMESTAMPTZ,                   -- for once
+    remind_time TEXT,                        -- HH:MM for daily/weekly
+    remind_dow SMALLINT,                     -- 0-6 for weekly (0=Sun)
+    timezone TEXT DEFAULT 'UTC',
+    is_done BOOLEAN DEFAULT false,
+    last_fired_date DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders (user_id);

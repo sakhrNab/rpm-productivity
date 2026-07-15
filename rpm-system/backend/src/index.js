@@ -13,6 +13,7 @@ const { applyProposal } = require('./ai/tools');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const notifications = require('./notifications');
 const telegram = require('./telegram');
+const push = require('./push');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -1356,6 +1357,44 @@ app.post('/api/telegram/webhook', async (req, res) => {
     await telegram.handleUpdate(pool, req.body, (actionId) => pool.query('UPDATE actions SET is_completed = true WHERE id = $1', [actionId]));
     res.sendStatus(200);
   } catch (error) { console.error('[telegram] webhook:', error); res.sendStatus(200); }
+});
+
+// ============================================================
+// Web push (Phase 3)
+// ============================================================
+app.get('/api/push/public-key', authenticateToken, async (req, res) => {
+  try { res.json({ publicKey: await push.getPublicKey(pool), subscribed: await push.hasSubscription(pool, req.userId) }); }
+  catch (error) { console.error('[push] public-key:', error); res.status(500).json({ error: 'Failed' }); }
+});
+app.post('/api/push/subscribe', authenticateToken, async (req, res) => {
+  try {
+    await push.saveSubscription(pool, req.userId, req.body.subscription);
+    await notifications.upsertPrefs(pool, req.userId, { webpush_enabled: true });
+    res.json({ success: true });
+  } catch (error) { console.error('[push] subscribe:', error); res.status(400).json({ error: error.message || 'Failed' }); }
+});
+app.post('/api/push/unsubscribe', authenticateToken, async (req, res) => {
+  try {
+    if (req.body.endpoint) await push.removeSubscription(pool, req.userId, req.body.endpoint);
+    if (!(await push.hasSubscription(pool, req.userId))) await notifications.upsertPrefs(pool, req.userId, { webpush_enabled: false });
+    res.json({ success: true });
+  } catch (error) { console.error('[push] unsubscribe:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+// ============================================================
+// Custom reminders (Phase 4)
+// ============================================================
+app.get('/api/reminders', authenticateToken, async (req, res) => {
+  try { res.json(await notifications.listReminders(pool, req.userId)); }
+  catch (error) { console.error('[reminders] list:', error); res.status(500).json({ error: 'Failed' }); }
+});
+app.post('/api/reminders', authenticateToken, async (req, res) => {
+  try { res.status(201).json(await notifications.createReminder(pool, req.userId, req.body)); }
+  catch (error) { console.error('[reminders] create:', error); res.status(400).json({ error: error.message || 'Failed' }); }
+});
+app.delete('/api/reminders/:id', authenticateToken, async (req, res) => {
+  try { await notifications.deleteReminder(pool, req.userId, req.params.id); res.json({ success: true }); }
+  catch (error) { console.error('[reminders] delete:', error); res.status(500).json({ error: 'Failed' }); }
 });
 
 app.listen(PORT, '0.0.0.0', () => {

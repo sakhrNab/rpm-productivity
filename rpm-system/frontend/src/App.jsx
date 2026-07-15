@@ -155,6 +155,12 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     removeTelegramBot: () => authFetch(`${API_BASE}/telegram/bot`, { method: 'DELETE' }).then(r => r.json()),
     telegramConnect: () => authFetch(`${API_BASE}/telegram/connect`, { method: 'POST' }).then(r => r.json()),
     telegramDisconnect: () => authFetch(`${API_BASE}/telegram/disconnect`, { method: 'POST' }).then(r => r.json()),
+    pushPublicKey: () => authFetch(`${API_BASE}/push/public-key`).then(r => r.json()),
+    pushSubscribe: (subscription) => authFetch(`${API_BASE}/push/subscribe`, { method: 'POST', body: JSON.stringify({ subscription }) }).then(r => r.json()),
+    pushUnsubscribe: (endpoint) => authFetch(`${API_BASE}/push/unsubscribe`, { method: 'POST', body: JSON.stringify({ endpoint }) }).then(r => r.json()),
+    getReminders: () => authFetch(`${API_BASE}/reminders`).then(r => r.json()),
+    createReminder: (data) => authFetch(`${API_BASE}/reminders`, { method: 'POST', body: JSON.stringify(data) }).then(r => r.json()),
+    deleteReminder: (id) => authFetch(`${API_BASE}/reminders/${id}`, { method: 'DELETE' }).then(r => r.json()),
     aiApplyProposal: (body) => authFetch(`${API_BASE}/ai/apply`, {
       method: 'POST', body: JSON.stringify(body)
     }).then(r => r.json()),

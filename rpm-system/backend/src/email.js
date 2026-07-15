@@ -268,4 +268,14 @@ async function sendDigest({ to, name, appUrl, todayLabel, today = [], overdue = 
   return sendGeneric({ to, subject: `Your RPM day — ${today.length} task${today.length === 1 ? '' : 's'}${overdue.length ? `, ${overdue.length} overdue` : ''}`, html, text });
 }
 
-module.exports = { sendInvitation, sendWelcome, sendContactAdded, sendAccountability, sendDigest };
+async function sendReminder({ to, name, title, appUrl }) {
+  const html = notifyShell({
+    eyebrowColor: 'linear-gradient(135deg,#ffb74d,#ff69b4 55%,#9575cd)',
+    heading: `⏰ ${escapeHtml(title)}`,
+    bodyHtml: `<p style="margin:0 0 14px;">${name ? 'Hi ' + escapeHtml(name) + ',' : 'Hi,'} a quick reminder you set in RPM.</p>`,
+    ctaUrl: appUrl, ctaLabel: 'Open RPM',
+  });
+  return sendGeneric({ to, subject: `⏰ Reminder: ${title}`, html, text: `Reminder: ${title}\n\nOpen RPM: ${appUrl}` });
+}
+
+module.exports = { sendInvitation, sendWelcome, sendContactAdded, sendAccountability, sendDigest, sendReminder };

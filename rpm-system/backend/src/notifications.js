@@ -1,8 +1,12 @@
 // Notifications — Phase 1: daily email digest + overdue reminders, on a simple
 // in-process scheduler. Opt-in: only users with a notification_prefs row get sent to.
 
-const { sendDigest } = require('./email');
+const { sendDigest, sendReminder } = require('./email');
 const telegram = require('./telegram');
+const push = require('./push');
+
+const APP_URL = () => process.env.FRONTEND_URL || 'https://rpm.aiwaverider.com';
+const DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
 const DEFAULT_PREFS = {
   email_enabled: true, telegram_enabled: false, webpush_enabled: false,
@@ -14,13 +18,13 @@ function nowInTz(tz) {
     const parts = Object.fromEntries(
       new Intl.DateTimeFormat('en-CA', {
         timeZone: tz || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', hour12: false,
+        hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
       }).formatToParts(new Date()).map(p => [p.type, p.value])
     );
-    return { dateStr: `${parts.year}-${parts.month}-${parts.day}`, hhmm: `${parts.hour}:${parts.minute}` };
+    return { dateStr: `${parts.year}-${parts.month}-${parts.day}`, hhmm: `${parts.hour}:${parts.minute}`, dow: DOW[parts.weekday] };
   } catch {
     const d = new Date();
-    return { dateStr: d.toISOString().slice(0, 10), hhmm: d.toISOString().slice(11, 16) };
+    return { dateStr: d.toISOString().slice(0, 10), hhmm: d.toISOString().slice(11, 16), dow: d.getUTCDay() };
   }
 }
 
@@ -81,7 +85,81 @@ async function sendUserDigest(pool, user, prefs) {
     try { out.telegram = await telegram.sendDigestTelegram(pool, prefs.telegram_chat_id, { todayLabel, today: todayTasks, overdue }); }
     catch (e) { console.error('[notifications] telegram digest error:', e.message); out.telegram = { sent: false }; }
   }
+  if (prefs.webpush_enabled) {
+    try {
+      out.push = await push.sendToUser(pool, user.id, {
+        title: '📋 Your RPM day',
+        body: `${todayTasks.length} today${overdue.length ? `, ${overdue.length} overdue` : ''}`,
+        url: APP_URL() + '/my-day',
+      });
+    } catch (e) { console.error('[notifications] push digest error:', e.message); }
+  }
   return out;
+}
+
+// ---- Custom reminders (Phase 4) ----
+async function listReminders(pool, userId) {
+  const { rows } = await pool.query(
+    `SELECT r.*, a.title AS action_title FROM reminders r
+       LEFT JOIN actions a ON a.id = r.action_id
+      WHERE r.user_id = $1 AND r.is_done = false
+      ORDER BY COALESCE(r.remind_at, NOW()), r.created_at`,
+    [userId]
+  );
+  return rows;
+}
+async function createReminder(pool, userId, data) {
+  const { title, kind = 'once', remind_at, remind_time, remind_dow, action_id, timezone } = data;
+  if (!title || !String(title).trim()) throw new Error('Title is required');
+  const r = await pool.query(
+    `INSERT INTO reminders (user_id, action_id, title, kind, remind_at, remind_time, remind_dow, timezone)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [userId, action_id || null, String(title).trim(), kind, remind_at || null, remind_time || null,
+     (remind_dow === undefined || remind_dow === null || remind_dow === '') ? null : remind_dow, timezone || 'UTC']
+  );
+  return r.rows[0];
+}
+async function deleteReminder(pool, userId, id) {
+  await pool.query('DELETE FROM reminders WHERE id = $1 AND user_id = $2', [id, userId]);
+}
+
+async function deliverReminder(pool, r) {
+  const prefs = await getPrefs(pool, r.user_id);
+  const url = APP_URL() + '/my-day';
+  if (prefs.email_enabled && r.email) {
+    try { await sendReminder({ to: r.email, name: r.name, title: r.title, appUrl: url }); } catch (e) { console.error('[reminders] email:', e.message); }
+  }
+  if (prefs.telegram_enabled && prefs.telegram_chat_id) {
+    try { await telegram.notify(pool, prefs.telegram_chat_id, `⏰ <b>Reminder:</b> ${String(r.title).replace(/[<>&]/g, '')}`); } catch (e) { console.error('[reminders] tg:', e.message); }
+  }
+  if (prefs.webpush_enabled) {
+    try { await push.sendToUser(pool, r.user_id, { title: '⏰ RPM Reminder', body: r.title, url }); } catch (e) { console.error('[reminders] push:', e.message); }
+  }
+}
+
+async function fireDueReminders(pool) {
+  // One-off reminders whose time has passed.
+  const once = await pool.query(
+    `SELECT r.*, u.email, u.name FROM reminders r JOIN users u ON u.id = r.user_id
+      WHERE r.kind = 'once' AND r.is_done = false AND r.remind_at IS NOT NULL AND r.remind_at <= NOW()`);
+  for (const r of once.rows) {
+    try { await deliverReminder(pool, r); await pool.query('UPDATE reminders SET is_done = true WHERE id = $1', [r.id]); }
+    catch (e) { console.error('[reminders] once fire:', e.message); }
+  }
+  // Recurring reminders (daily / weekly) at their local time, once per day.
+  const rec = await pool.query(
+    `SELECT r.*, u.email, u.name FROM reminders r JOIN users u ON u.id = r.user_id
+      WHERE r.kind IN ('daily','weekly') AND r.is_done = false`);
+  for (const r of rec.rows) {
+    try {
+      const { dateStr, hhmm, dow } = nowInTz(r.timezone);
+      if (r.last_fired_date && String(r.last_fired_date).slice(0, 10) === dateStr) continue;
+      if (hhmm < (r.remind_time || '09:00')) continue;
+      if (r.kind === 'weekly' && Number(r.remind_dow) !== dow) continue;
+      await deliverReminder(pool, r);
+      await pool.query('UPDATE reminders SET last_fired_date = $2 WHERE id = $1', [r.id, dateStr]);
+    } catch (e) { console.error('[reminders] rec fire:', e.message); }
+  }
 }
 
 // One scheduler tick: send digests that are due and not yet sent today.
@@ -105,6 +183,7 @@ async function tick(pool) {
       console.error('[notifications] digest error for', p.user_id, err.message);
     }
   }
+  await fireDueReminders(pool);
 }
 
 function startScheduler(pool) {
@@ -115,4 +194,7 @@ function startScheduler(pool) {
   console.log('[notifications] scheduler started (5-min ticks)');
 }
 
-module.exports = { getPrefs, upsertPrefs, sendUserDigest, startScheduler, DEFAULT_PREFS };
+module.exports = {
+  getPrefs, upsertPrefs, sendUserDigest, startScheduler, DEFAULT_PREFS,
+  listReminders, createReminder, deleteReminder,
+};

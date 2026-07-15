@@ -151,7 +151,15 @@ async function sendDigestTelegram(pool, chatId, { todayLabel, today = [], overdu
   return { sent: true };
 }
 
+// Generic message to a linked chat (used by custom reminders).
+async function notify(pool, chatId, text) {
+  const token = await getToken(pool);
+  if (!token || !chatId) return { sent: false };
+  try { await sendMessage(token, chatId, text); return { sent: true }; }
+  catch (e) { console.error('[telegram] notify:', e.message); return { sent: false }; }
+}
+
 module.exports = {
   configureBot, removeBot, isBotConfigured, getBotUsername, getWebhookSecret,
-  startLink, handleUpdate, sendDigestTelegram, getToken,
+  startLink, handleUpdate, sendDigestTelegram, getToken, notify,
 };

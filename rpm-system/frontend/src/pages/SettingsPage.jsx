@@ -1,10 +1,18 @@
 import { useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
-import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe, Bell, Send, Info, Mail, Smartphone } from 'lucide-react';
+import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe, Bell, Send, Info, Mail, Smartphone, Plus, Clock } from 'lucide-react';
+import { subscribeToPush, unsubscribeFromPush, pushSupported } from '../utils/push';
 import './SettingsPage.css';
 
 const PROVIDER_LABEL = { anthropic: 'Claude', openai: 'OpenAI', zhipu: 'z.ai (GLM)', deepseek: 'DeepSeek' };
+const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function describeReminder(r) {
+  if (r.kind === 'daily') return `every day at ${r.remind_time || '09:00'}`;
+  if (r.kind === 'weekly') return `${DOW_LABELS[r.remind_dow] || ''} at ${r.remind_time || '09:00'}`;
+  if (r.remind_at) { try { return new Date(r.remind_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); } catch { return 'once'; } }
+  return 'once';
+}
 
 const PROVIDERS = [
   { id: 'anthropic', label: 'Claude (Anthropic)', hint: 'sk-ant-…', url: 'https://console.anthropic.com/settings/keys' },
@@ -30,6 +38,11 @@ function SettingsPage() {
   const [botToken, setBotToken] = useState('');
   const [tgBusy, setTgBusy] = useState(false);
   const [tab, setTab] = useState('api');     // 'api' | 'reminders'
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [reminders, setReminders] = useState([]);
+  const [newRem, setNewRem] = useState({ title: '', kind: 'once', remind_at: '', remind_time: '09:00', remind_dow: 1 });
+  const [addingRem, setAddingRem] = useState(false);
 
   const load = () => {
     api.getAiKeys()
@@ -50,8 +63,40 @@ function SettingsPage() {
       setPrefs({ ...p, timezone: tz });
     }).catch(() => {});
     api.telegramStatus().then(setTg).catch(() => {});
+    if (pushSupported()) api.pushPublicKey().then(d => setPushOn(!!d.subscribed)).catch(() => {});
+    api.getReminders().then(setReminders).catch(() => {});
   };
   const loadTg = () => api.telegramStatus().then(setTg).catch(() => {});
+  const loadReminders = () => api.getReminders().then(setReminders).catch(() => {});
+
+  const enablePush = async () => {
+    setPushBusy(true);
+    try { await subscribeToPush(api); setPushOn(true); showToast('Web push enabled on this device.', 'success'); }
+    catch (e) { showToast(e.message || 'Could not enable push', 'error'); }
+    finally { setPushBusy(false); }
+  };
+  const disablePush = async () => {
+    setPushBusy(true);
+    try { await unsubscribeFromPush(api); setPushOn(false); showToast('Web push disabled on this device.', 'info'); }
+    catch { showToast('Failed to disable', 'error'); }
+    finally { setPushBusy(false); }
+  };
+  const addReminder = async () => {
+    if (!newRem.title.trim()) return;
+    setAddingRem(true);
+    try {
+      const payload = { title: newRem.title.trim(), kind: newRem.kind, timezone: prefs?.timezone || 'UTC' };
+      if (newRem.kind === 'once') payload.remind_at = newRem.remind_at ? new Date(newRem.remind_at).toISOString() : null;
+      else { payload.remind_time = newRem.remind_time; if (newRem.kind === 'weekly') payload.remind_dow = Number(newRem.remind_dow); }
+      const r = await api.createReminder(payload);
+      if (r.error) throw new Error(r.error);
+      setNewRem({ title: '', kind: 'once', remind_at: '', remind_time: '09:00', remind_dow: 1 });
+      loadReminders();
+      showToast('Reminder added', 'success');
+    } catch (e) { showToast(e.message || 'Failed to add reminder', 'error'); }
+    finally { setAddingRem(false); }
+  };
+  const removeReminder = async (id) => { await api.deleteReminder(id); loadReminders(); };
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If the saved default points to a model that no longer exists, clear it.
@@ -385,15 +430,51 @@ function SettingsPage() {
             </div>
           )}
 
-          {/* Web push (coming soon) */}
+          {/* Web push */}
           <div className="settings-remind-row">
             <div className="settings-remind-main">
               <Smartphone size={16} />
               <div>
-                <div className="settings-remind-title">Web push <span className="settings-soon">Coming soon</span></div>
-                <div className="settings-remind-sub">Browser notifications (add to Home Screen on iPhone).</div>
+                <div className="settings-remind-title">Web push {pushOn && <span className="settings-badge ok"><Check size={12} /> On</span>}</div>
+                <div className="settings-remind-sub">Browser notifications (on iPhone, add RPM to your Home Screen first).</div>
               </div>
             </div>
+            {pushSupported() ? (
+              pushOn
+                ? <button className="btn btn-secondary" onClick={disablePush} disabled={pushBusy}>{pushBusy ? '…' : 'Disable'}</button>
+                : <button className="btn btn-primary" onClick={enablePush} disabled={pushBusy}>{pushBusy ? 'Enabling…' : 'Enable'}</button>
+            ) : <span className="settings-soon">Not supported here</span>}
+          </div>
+
+          {/* Custom reminders */}
+          <div className="settings-custom-rem">
+            <h3 className="settings-subhead"><Clock size={15} /> Your reminders</h3>
+            {reminders.length === 0 && <p className="settings-remind-sub">No custom reminders yet.</p>}
+            {reminders.map(r => (
+              <div key={r.id} className="settings-rem-item">
+                <span className="settings-rem-title">{r.title}</span>
+                <span className="settings-rem-when">{describeReminder(r)}</span>
+                <button className="settings-rem-del" onClick={() => removeReminder(r.id)} aria-label="Delete reminder"><Trash2 size={14} /></button>
+              </div>
+            ))}
+            <div className="settings-rem-form">
+              <input className="form-input settings-rem-title-in" placeholder="Remind me to…" value={newRem.title} onChange={e => setNewRem({ ...newRem, title: e.target.value })} />
+              <select className="form-input settings-rem-kind" value={newRem.kind} onChange={e => setNewRem({ ...newRem, kind: e.target.value })}>
+                <option value="once">Once</option>
+                <option value="daily">Every day</option>
+                <option value="weekly">Every week</option>
+              </select>
+              {newRem.kind === 'once'
+                ? <input type="datetime-local" className="form-input" value={newRem.remind_at} onChange={e => setNewRem({ ...newRem, remind_at: e.target.value })} />
+                : <input type="time" className="form-input settings-time" value={newRem.remind_time} onChange={e => setNewRem({ ...newRem, remind_time: e.target.value })} />}
+              {newRem.kind === 'weekly' && (
+                <select className="form-input settings-rem-dow" value={newRem.remind_dow} onChange={e => setNewRem({ ...newRem, remind_dow: e.target.value })}>
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => <option key={i} value={i}>{d}</option>)}
+                </select>
+              )}
+              <button className="btn btn-primary" onClick={addReminder} disabled={addingRem || !newRem.title.trim()}><Plus size={15} /> Add</button>
+            </div>
+            <p className="settings-remind-sub">Sent via your enabled channels above (email / Telegram / web push).</p>
           </div>
 
           <div className="settings-remind-actions">
