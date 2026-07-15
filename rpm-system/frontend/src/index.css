@@ -2632,3 +2632,7 @@ h1, .page-title, .project-title, .category-title, .dashboard-title, .cd-title, .
   font-size: clamp(2.3rem, 1.5rem + 2.8vw, 3.35rem);
   text-shadow: 0 2px 34px rgba(255, 105, 180, 0.16);
 }
+
+/* Logo is the home button — keep it a real tap target on phones (the wordmark
+   is hidden under 420px, leaving only the mark). */
+.navbar-brand { min-height: 44px; display: inline-flex; align-items: center; padding-right: 4px; }

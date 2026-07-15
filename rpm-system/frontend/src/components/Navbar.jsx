@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Target, Calendar, CalendarDays, Sun, Users, FolderKanban, Grid3X3,
   Plus, Zap, Blocks, FolderPlus, Tag, UserPlus, ChevronDown,
-  LogOut, Menu, X, Sparkles, Settings, Compass, Bell
+  LogOut, Menu, X, Sparkles, Settings, Bell
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from './modals/CreateActionModal';
@@ -49,11 +49,10 @@ function Navbar() {
     { path: '/calendar', icon: Calendar, label: 'Calendar' },
     { path: '/my-week', icon: CalendarDays, label: 'My Week' },
     { path: '/my-day', icon: Sun, label: 'My Day' },
-    { path: '/compass', icon: Compass, label: 'Compass' },
-    { path: '/reminders', icon: Bell, label: 'Reminders' },
-    { path: '/people', icon: Users, label: 'People' },
-    { path: '/projects', icon: FolderKanban, label: 'Projects' },
     { path: '/categories', icon: Grid3X3, label: 'Categories' },
+    { path: '/projects', icon: FolderKanban, label: 'Projects' },
+    { path: '/people', icon: Users, label: 'People' },
+    { path: '/reminders', icon: Bell, label: 'Reminders' },
     { path: '/assistant', icon: Sparkles, label: 'Assistant' },
   ];
 
@@ -102,7 +101,9 @@ function Navbar() {
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
 
-        <Link to="/" className="navbar-brand">
+        {/* Logo = home. Always close the mobile drawer, even when already on "/",
+            where the pathname wouldn't change and the drawer would stay open. */}
+        <Link to="/" className="navbar-brand" onClick={() => setMobileOpen(false)} aria-label="Go to home">
           <Target size={24} />
           <span>RPM</span>
         </Link>
