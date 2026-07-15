@@ -29,6 +29,31 @@
   color: var(--text-muted);
 }
 
+/* Day cells + event pills (static layout in CSS so it can go responsive) */
+.cal-day { min-height: 100px; padding: 8px; cursor: pointer; }
+.cal-daynum { margin-bottom: 4px; }
+.cal-event {
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grab;
+}
+
+/* Phone: fit the whole 7-day month without horizontal scroll */
+@media (max-width: 640px) {
+  .cal-month-title { margin: 0 8px; font-size: 1.35rem; }
+  .cal-grid { min-width: 0; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .cal-day-header { padding: 6px 1px; font-size: 0.6rem; }
+  .cal-day { min-height: 58px; padding: 3px 2px; }
+  .cal-daynum { font-size: 0.72rem; margin-bottom: 2px; }
+  .cal-event { font-size: 0.54rem; padding: 1px 2px; border-radius: 2px; }
+  .cal-more { font-size: 0.55rem; }
+}
+
 .cal-more {
   font-size: 0.7rem;
   color: var(--text-muted);

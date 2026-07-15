@@ -37,4 +37,7 @@
 
 @media (max-width: 560px) {
   .usage-cards { grid-template-columns: 1fr; }
+  .usage-dash-head { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .usage-dash-head h3 { font-size: 0.95rem; white-space: nowrap; }
+  .usage-range { align-self: stretch; justify-content: space-between; }
 }

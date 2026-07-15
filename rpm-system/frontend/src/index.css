@@ -720,6 +720,13 @@ input::placeholder, textarea::placeholder {
   .page-header { flex-wrap: wrap; gap: var(--spacing-sm); }
 }
 
+/* Very small phones: drop the brand wordmark so the avatar never clips */
+@media (max-width: 420px) {
+  .navbar-brand span { display: none; }
+  .navbar-actions { gap: 5px; }
+  .create-menu .btn-primary { padding: 8px; }
+}
+
 /* RPM Blocks */
 .rpm-blocks-container {
   background: var(--bg-secondary);

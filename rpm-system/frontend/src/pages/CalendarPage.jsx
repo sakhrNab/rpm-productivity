@@ -123,6 +123,7 @@ function CalendarPage() {
             return (
               <div
                 key={day.toISOString()}
+                className="cal-day"
                 onDragOver={(e) => { if (dragId) { e.preventDefault(); setDropKey(dayStr); } }}
                 onDragLeave={() => setDropKey(k => (k === dayStr ? null : k))}
                 onDrop={(e) => {
@@ -136,24 +137,24 @@ function CalendarPage() {
                   setShowActionModal(true);
                 }}
                 style={{
-                  minHeight: '100px',
-                  padding: '8px',
                   background: isDropTarget ? 'var(--bg-card-hover)' : (isToday ? 'var(--bg-card-hover)' : 'var(--bg-secondary)'),
                   boxShadow: isDropTarget ? 'inset 0 0 0 2px var(--accent-pink)' : 'none',
-                  cursor: 'pointer',
                   opacity: isCurrentMonth ? 1 : 0.5
                 }}
               >
-                <div style={{ 
-                  fontWeight: isToday ? 700 : 400,
-                  color: isToday ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                  marginBottom: '4px'
-                }}>
+                <div
+                  className="cal-daynum"
+                  style={{
+                    fontWeight: isToday ? 700 : 400,
+                    color: isToday ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                  }}
+                >
                   {format(day, 'd')}
                 </div>
                 {dayActions.slice(0, 3).map(action => (
                   <div
                     key={action.id}
+                    className="cal-event"
                     title="Drag to another day, or click to edit"
                     draggable
                     onDragStart={(e) => { e.stopPropagation(); setDragId(action.id); e.dataTransfer.effectAllowed = 'move'; }}
@@ -165,15 +166,7 @@ function CalendarPage() {
                       setShowActionModal(true);
                     }}
                     style={{
-                      fontSize: '0.75rem',
-                      padding: '2px 4px',
                       background: action.category_color || 'var(--accent-pink)',
-                      borderRadius: '2px',
-                      marginBottom: '2px',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      cursor: 'grab',
                       opacity: dragId === action.id ? 0.4 : (action.is_completed ? 0.7 : 1),
                       textDecoration: action.is_completed ? 'line-through' : 'none'
                     }}

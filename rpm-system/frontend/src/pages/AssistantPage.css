@@ -238,3 +238,10 @@
 
 /* Per-message token/cost badge */
 .asst-usage { margin-top: 8px; }
+
+/* ---------- Mobile: stack the assistant, keep chat usable ---------- */
+@media (max-width: 820px) {
+  .asst { grid-template-columns: 1fr; height: auto; min-height: 0; gap: var(--spacing-md); }
+  .asst-sidebar { max-height: 150px; }
+  .asst-messages { max-height: 62vh; }
+}
