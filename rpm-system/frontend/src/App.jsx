@@ -12,6 +12,7 @@ import MyDayPage from './pages/MyDayPage';
 import CompassPage from './pages/CompassPage';
 import RemindersPage from './pages/RemindersPage';
 import AssistantPage from './pages/AssistantPage';
+import VoiceOrb from './components/VoiceOrb';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -549,6 +550,7 @@ function AppContent() {
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
+      <VoiceOrb />
     </AppContext.Provider>
   );
 }
