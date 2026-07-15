@@ -156,6 +156,25 @@ async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm, auto
       if (Array.isArray(s)) for (const x of s) if (x.url) sources.push({ url: x.url, title: x.title || x.url });
     } catch { /* no sources */ }
   }
+
+  // Token usage for cost tracking (best-effort; field names vary by SDK version).
+  try {
+    const u = await result.usage;
+    if (u) {
+      const usage = {
+        input: u.inputTokens ?? u.promptTokens ?? 0,
+        output: u.outputTokens ?? u.completionTokens ?? 0,
+        cached: u.cachedInputTokens ?? u.cacheReadTokens ?? 0,
+      };
+      try {
+        const pm = await result.providerMetadata;
+        const c = pm?.anthropic?.cacheReadInputTokens ?? pm?.openai?.cachedPromptTokens;
+        if (c != null) usage.cached = c;
+      } catch { /* no provider metadata */ }
+      yield { type: 'usage', usage };
+    }
+  } catch { /* usage unavailable */ }
+
   yield { type: 'sources', sources };
 }
 

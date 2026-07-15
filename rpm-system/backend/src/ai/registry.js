@@ -42,8 +42,47 @@ const MODELS = [
 
 const BY_KEY = Object.fromEntries(MODELS.map(m => [m.key, m]));
 
+// ESTIMATED prices in USD per 1,000,000 tokens: { in, out, cache }.
+// `cache` = price for cached-input (prompt-cache read) tokens. These are best-effort
+// public estimates and can drift — update as providers change pricing. Cost shown in
+// the app is labelled "estimated". Unknown models fall back to DEFAULT_PRICE.
+const DEFAULT_PRICE = { in: 1, out: 5, cache: 0.5 };
+const PRICING = {
+  'anthropic/claude-opus-4-8':  { in: 15,   out: 75,  cache: 1.5 },
+  'anthropic/claude-sonnet-5':  { in: 3,    out: 15,  cache: 0.3 },
+  'anthropic/claude-haiku-4-5': { in: 0.8,  out: 4,   cache: 0.08 },
+  'anthropic/claude-fable-5':   { in: 1,    out: 5,   cache: 0.1 },
+  'openai/gpt-5.6':             { in: 1.25, out: 10,  cache: 0.125 },
+  'openai/gpt-5.6-terra':       { in: 1.25, out: 10,  cache: 0.125 },
+  'openai/gpt-5.6-luna':        { in: 0.6,  out: 5,   cache: 0.06 },
+  'openai/gpt-5.5':             { in: 1.25, out: 10,  cache: 0.125 },
+  'openai/gpt-5.4':             { in: 1.25, out: 10,  cache: 0.125 },
+  'openai/gpt-5':               { in: 1.25, out: 10,  cache: 0.125 },
+  'openai/gpt-5-mini':          { in: 0.25, out: 2,   cache: 0.025 },
+  'openai/gpt-4o-mini':         { in: 0.15, out: 0.6, cache: 0.075 },
+  'zhipu/glm-5.2':              { in: 0.6,  out: 2.2, cache: 0.11 },
+  'zhipu/glm-5':                { in: 0.6,  out: 2.2, cache: 0.11 },
+  'zhipu/glm-4.6':              { in: 0.6,  out: 2.2, cache: 0.11 },
+  'zhipu/glm-4.5-air':          { in: 0.2,  out: 1.1, cache: 0.03 },
+  'deepseek/deepseek-v4-pro':   { in: 0.28, out: 0.42, cache: 0.028 },
+  'deepseek/deepseek-v4-flash': { in: 0.14, out: 0.28, cache: 0.014 },
+};
+
+function priceFor(key) { return PRICING[key] || DEFAULT_PRICE; }
+
+// Estimate USD cost from a usage object { input, output, cached }. Cached tokens are
+// a subset of input priced at the cache rate; the rest of input is at the full rate.
+function estimateCost(key, usage = {}) {
+  const p = priceFor(key);
+  const input = Math.max(0, Number(usage.input) || 0);
+  const output = Math.max(0, Number(usage.output) || 0);
+  const cached = Math.min(input, Math.max(0, Number(usage.cached) || 0));
+  const nonCached = Math.max(0, input - cached);
+  return (nonCached * p.in + cached * p.cache + output * p.out) / 1e6;
+}
+
 function getModelEntry(key) { return BY_KEY[key] || null; }
 function providerLabel(provider) { return PROVIDERS[provider]?.label || provider; }
 function allProviders() { return Object.keys(PROVIDERS); }
 
-module.exports = { MODELS, PROVIDERS, getModelEntry, providerLabel, allProviders };
+module.exports = { MODELS, PROVIDERS, getModelEntry, providerLabel, allProviders, priceFor, estimateCost };

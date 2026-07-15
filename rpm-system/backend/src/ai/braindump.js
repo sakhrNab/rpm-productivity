@@ -9,6 +9,7 @@
 
 const { runChat, AiError } = require('./service');
 const { buildRpmContext } = require('./context');
+const { recordUsage } = require('./usage');
 
 const CAT_COLORS = ['#FF6B6B', '#4ECDC4', '#FFD166', '#A78BFA', '#F472B6', '#60A5FA', '#34D399', '#FB923C', '#F87171', '#22D3EE'];
 
@@ -111,10 +112,13 @@ async function generatePlan({ pool, userId, modelKey, text }) {
   ];
 
   let raw = '';
+  let rawUsage = null;
   for await (const ev of runChat({ pool, userId, modelKey, messages, webSearch: false, rpm: false, autoMode: false })) {
     if (ev.type === 'text') raw += ev.text;
+    else if (ev.type === 'usage') rawUsage = ev.usage;
     else if (ev.type === 'error') throw new AiError('ai_error', ev.message || 'AI request failed');
   }
+  const usage = rawUsage ? await recordUsage(pool, { userId, modelKey, feature: 'braindump', usage: rawUsage }) : null;
 
   let plan;
   try { plan = parsePlan(raw); }
@@ -122,7 +126,7 @@ async function generatePlan({ pool, userId, modelKey, text }) {
 
   const operations = Array.isArray(plan.operations) ? plan.operations.filter(o => o && ALLOWED_OPS.has(o.op)).slice(0, 200) : [];
   const notes = Array.isArray(plan.notes) ? plan.notes.filter(n => typeof n === 'string' && n.trim()).slice(0, 3) : [];
-  return { summary: plan.summary || '', notes, operations, existing, today };
+  return { summary: plan.summary || '', notes, operations, existing, today, usage };
 }
 
 function within7Days(dateStr, today) {

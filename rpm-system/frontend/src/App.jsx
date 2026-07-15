@@ -153,6 +153,7 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     aiBrainDumpApply: (body) => authFetch(`${API_BASE}/ai/braindump/apply`, {
       method: 'POST', body: JSON.stringify(body)
     }).then(r => r.json()),
+    getAiUsage: (days = 30) => authFetch(`${API_BASE}/ai/usage?days=${days}`).then(r => r.json()),
     getNotifPrefs: () => authFetch(`${API_BASE}/notifications/prefs`).then(r => r.json()),
     saveNotifPrefs: (patch) => authFetch(`${API_BASE}/notifications/prefs`, {
       method: 'PUT', body: JSON.stringify(patch)

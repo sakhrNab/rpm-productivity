@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
+import UsageBadge from '../components/UsageBadge';
 import {
   Send, Globe, Plus, Trash2, MessageSquare, Sparkles, ChevronDown, ChevronRight,
   Settings as SettingsIcon, Zap, Wand2, Check, X, ExternalLink, Info
@@ -213,6 +214,12 @@ function AssistantPage() {
           setMessages(prev => {
             const next = [...prev];
             next[next.length - 1] = { ...next[next.length - 1], sources: ev.sources };
+            return next;
+          });
+        } else if (ev.type === 'usage') {
+          setMessages(prev => {
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], usage: ev.usage };
             return next;
           });
         } else if (ev.type === 'error') {
@@ -438,6 +445,9 @@ function AssistantPage() {
                     <a key={j} href={s.url} target="_blank" rel="noopener noreferrer" className="asst-source">{s.title || s.url}</a>
                   ))}
                 </div>
+              )}
+              {m.role === 'assistant' && m.usage && (
+                <div className="asst-usage"><UsageBadge usage={m.usage} /></div>
               )}
             </div>
           ))}

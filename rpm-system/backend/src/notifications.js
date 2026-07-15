@@ -4,6 +4,7 @@
 const { sendDigest, sendReminder } = require('./email');
 const telegram = require('./telegram');
 const push = require('./push');
+const { pruneOldUsage } = require('./ai/usage');
 
 const APP_URL = () => process.env.FRONTEND_URL || 'https://rpm.aiwaverider.com';
 const DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
@@ -234,6 +235,16 @@ async function tick(pool) {
   }
   await fireDueReminders(pool);
   await fireTaskTimeReminders(pool);
+  await maybePruneUsage(pool);
+}
+
+// Prune the AI usage log at most once per calendar day.
+let lastUsagePruneDate = null;
+async function maybePruneUsage(pool) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (lastUsagePruneDate === today) return;
+  lastUsagePruneDate = today;
+  await pruneOldUsage(pool);
 }
 
 function startScheduler(pool) {

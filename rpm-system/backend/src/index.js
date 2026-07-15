@@ -12,6 +12,7 @@ const { runChat, AiError } = require('./ai/service');
 const { applyProposal } = require('./ai/tools');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan } = require('./ai/braindump');
+const { recordUsage, getUsageSummary } = require('./ai/usage');
 const notifications = require('./notifications');
 const telegram = require('./telegram');
 const push = require('./push');
@@ -1135,6 +1136,7 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
 
     let full = '';
     let sources = [];
+    let rawUsage = null;
     const toolEvents = []; // persisted so proposals survive leaving the chat
     try {
       for await (const ev of runChat({ pool, userId: req.userId, modelKey, messages, webSearch: !!webSearch, rpm: rpmMode !== false, autoMode: !!autoMode })) {
@@ -1146,12 +1148,18 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
           }
           send({ type: 'tool_result', name: ev.name, result: ev.result });
         }
+        else if (ev.type === 'usage') { rawUsage = ev.usage; }
         else if (ev.type === 'sources') { sources = ev.sources || []; if (sources.length) send({ type: 'sources', sources }); }
         else if (ev.type === 'error') send({ type: 'error', message: ev.message });
       }
     } catch (err) {
       console.error('[ai] chat stream error:', err);
       send({ type: 'error', code: err.code || 'stream_error', message: err.message || 'AI request failed' });
+    }
+
+    if (rawUsage) {
+      const u = await recordUsage(pool, { userId: req.userId, modelKey, feature: 'chat', usage: rawUsage });
+      send({ type: 'usage', usage: u });
     }
 
     const saved = await pool.query(
@@ -1278,6 +1286,17 @@ app.post('/api/ai/braindump/apply', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[ai] braindump apply error:', error.message);
     res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
+  }
+});
+
+// AI usage + estimated cost summary (per user, last N days).
+app.get('/api/ai/usage', authenticateToken, async (req, res) => {
+  try {
+    const days = Number(req.query.days) || 30;
+    res.json(await getUsageSummary(pool, req.userId, days));
+  } catch (error) {
+    console.error('[ai] usage summary error:', error.message);
+    res.status(500).json({ error: 'Failed' });
   }
 });
 

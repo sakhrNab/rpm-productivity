@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import Markdown from '../components/Markdown';
+import UsageBadge from '../components/UsageBadge';
 import { useToast } from '../components/ToastProvider';
 import './CompassPage.css';
 
@@ -31,7 +32,7 @@ function CompassPage() {
     try {
       const res = await api.aiCoachCompass({ modelKey });
       if (res.error) throw new Error(res.error);
-      const payload = { text: res.text, context: res.context, sources: res.sources || [], generatedAt: new Date().toISOString(), dateStr: todayStr };
+      const payload = { text: res.text, context: res.context, sources: res.sources || [], usage: res.usage || null, generatedAt: new Date().toISOString(), dateStr: todayStr };
       try { localStorage.setItem(CACHE_KEY, JSON.stringify(payload)); } catch { /* quota */ }
       setState({ status: 'ready', ...payload });
     } catch (e) {
@@ -82,6 +83,7 @@ function CompassPage() {
         </div>
         {hasContent && (
           <div className="compass-head-right">
+            {state.status === 'ready' && state.usage && <UsageBadge usage={state.usage} />}
             {state.status === 'ready' && state.generatedAt && (
               <span className="compass-generated">Updated {whenLabel(state.generatedAt)}</span>
             )}

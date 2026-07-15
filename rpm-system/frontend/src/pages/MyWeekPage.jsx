@@ -6,6 +6,7 @@ import CreateActionModal from '../components/modals/CreateActionModal';
 import ActionRow from '../components/ActionRow';
 import SortableActionGroups from '../components/SortableActionGroups';
 import Markdown from '../components/Markdown';
+import UsageBadge from '../components/UsageBadge';
 import { useToast } from '../components/ToastProvider';
 import { sortActions, groupActions } from '../utils/actionSort';
 import './MyWeekPage.css';
@@ -88,7 +89,7 @@ function MyWeekPage() {
     try {
       const res = await api.aiSuggestPlan({ modelKey, start_date: weekStart, end_date: weekEnd });
       if (res.error) throw new Error(res.error);
-      setSuggest({ text: res.text, proposals: (res.proposals || []).map(p => ({ ...p })) });
+      setSuggest({ text: res.text, proposals: (res.proposals || []).map(p => ({ ...p })), usage: res.usage });
     } catch (e) {
       const msg = e.message || 'Failed to get suggestions';
       if (/no longer available|unknown model/i.test(msg)) localStorage.removeItem('ai.modelKey');
@@ -132,7 +133,10 @@ function MyWeekPage() {
         <div className="md-suggest">
           <div className="md-suggest-head">
             <span><Sparkles size={15} /> AI suggestions</span>
-            <button type="button" className="md-suggest-close" onClick={() => setSuggest(null)} aria-label="Close"><X size={15} /></button>
+            <span className="md-suggest-head-right">
+              {suggest.usage && <UsageBadge usage={suggest.usage} />}
+              <button type="button" className="md-suggest-close" onClick={() => setSuggest(null)} aria-label="Close"><X size={15} /></button>
+            </span>
           </div>
           <div className="md-suggest-body">
             {suggest.loading && <p className="md-suggest-muted">Reviewing your week and priorities…</p>}

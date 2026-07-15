@@ -235,3 +235,6 @@
   width: 100%; margin-top: 8px; font-size: 0.78rem; color: var(--text-muted);
 }
 .asst-ws-hint svg { color: var(--accent-orange); }
+
+/* Per-message token/cost badge */
+.asst-usage { margin-top: 8px; }

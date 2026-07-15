@@ -8,7 +8,7 @@
 const ZAI_URL = 'https://api.z.ai/api/paas/v4/chat/completions';
 
 async function* streamZai({ apiKey, model, messages, webSearch }) {
-  const body = { model, messages, stream: true };
+  const body = { model, messages, stream: true, stream_options: { include_usage: true } };
   if (webSearch) {
     body.tools = [{ type: 'web_search', web_search: { enable: true, search_result: true } }];
   }
@@ -26,6 +26,7 @@ async function* streamZai({ apiKey, model, messages, webSearch }) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   const sources = [];
+  let usage = null;
   let buffer = '';
 
   while (true) {
@@ -41,6 +42,7 @@ async function* streamZai({ apiKey, model, messages, webSearch }) {
       if (!data || data === '[DONE]') continue;
       let json;
       try { json = JSON.parse(data); } catch { continue; }
+      if (json.usage) usage = { input: json.usage.prompt_tokens || 0, output: json.usage.completion_tokens || 0, cached: json.usage.prompt_tokens_details?.cached_tokens || 0 };
       const delta = json.choices?.[0]?.delta;
       if (delta?.content) yield { type: 'text', text: delta.content };
       const refs = json.web_search || delta?.web_search;
@@ -52,6 +54,7 @@ async function* streamZai({ apiKey, model, messages, webSearch }) {
       }
     }
   }
+  if (usage) yield { type: 'usage', usage };
   yield { type: 'sources', sources };
 }
 

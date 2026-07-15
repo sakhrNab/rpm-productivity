@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { AuthContext } from '../App';
 import { useToast } from './ToastProvider';
+import UsageBadge from './UsageBadge';
 import './BrainDumpModal.css';
 
 const PRIO = { 1: 'Low', 2: 'Med', 3: 'High' };
@@ -240,6 +241,7 @@ export default function BrainDumpModal({ onClose, onApplied }) {
             <div className="bd-actions bd-preview-actions">
               <button className="btn btn-ghost" onClick={() => { setPhase('input'); }} disabled={phase === 'applying'}>Back</button>
               <div className="bd-actions-right">
+                {plan.usage && <UsageBadge usage={plan.usage} />}
                 <span className="bd-count">{selectedCount} of {plan.operations.length} selected</span>
                 <button className="btn btn-primary" onClick={apply} disabled={phase === 'applying' || !selectedCount}>
                   {phase === 'applying' ? <><Loader2 size={16} className="bd-spin" /> Adding…</> : <><Check size={16} /> Approve &amp; add</>}

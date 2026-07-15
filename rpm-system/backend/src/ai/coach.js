@@ -3,6 +3,7 @@
 // Reuses the unified runChat layer.
 
 const { runChat } = require('./service');
+const { recordUsage } = require('./usage');
 
 async function buildContext(pool, userId, today) {
   const actions = (await pool.query(
@@ -53,11 +54,14 @@ async function runCompass({ pool, userId, modelKey, webSearch = false }) {
   ];
   let text = '';
   const sources = [];
+  let rawUsage = null;
   for await (const ev of runChat({ pool, userId, modelKey, messages, webSearch })) {
     if (ev.type === 'text') text += ev.text;
     else if (ev.type === 'sources') sources.push(...ev.sources);
+    else if (ev.type === 'usage') rawUsage = ev.usage;
   }
-  return { context: ctx, text, sources };
+  const usage = rawUsage ? await recordUsage(pool, { userId, modelKey, feature: 'compass', usage: rawUsage }) : null;
+  return { context: ctx, text, sources, usage };
 }
 
 const PRIO = { 0: '—', 1: 'Low', 2: 'Med', 3: 'High' };
@@ -106,12 +110,15 @@ ${krLines}`;
 
   let text = '';
   const proposals = [];
+  let rawUsage = null;
   for await (const ev of runChat({ pool, userId, modelKey, messages: [{ role: 'user', content: user }], webSearch: false, rpm: true, autoMode: false })) {
     if (ev.type === 'text') text += ev.text;
     else if (ev.type === 'tool_result' && ev.result && ev.result.proposed) proposals.push(ev.result);
+    else if (ev.type === 'usage') rawUsage = ev.usage;
     else if (ev.type === 'error') throw new Error(ev.message || 'AI request failed');
   }
-  return { text, proposals };
+  const usage = rawUsage ? await recordUsage(pool, { userId, modelKey, feature: 'suggestions', usage: rawUsage }) : null;
+  return { text, proposals, usage };
 }
 
 module.exports = { runCompass, runPlanSuggestions };

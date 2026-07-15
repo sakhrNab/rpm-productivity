@@ -36,7 +36,8 @@
   color: var(--accent-purple); font-weight: 700; font-size: 0.82rem;
   text-transform: uppercase; letter-spacing: 0.05em;
 }
-.md-suggest-head span { display: inline-flex; align-items: center; gap: 6px; }
+.md-suggest-head > span { display: inline-flex; align-items: center; gap: 6px; }
+.md-suggest-head-right { gap: 10px; }
 .md-suggest-close { color: var(--text-muted); display: inline-flex; }
 .md-suggest-close:hover { color: var(--text-primary); }
 .md-suggest-body { padding: 16px; }

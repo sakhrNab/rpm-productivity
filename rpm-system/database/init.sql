@@ -535,3 +535,20 @@ CREATE TABLE IF NOT EXISTS reminders (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders (user_id);
+
+-- =====================================================
+-- AI USAGE / COST LOG (per-call token accounting; pruned after ~1 year)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS ai_usage (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    model VARCHAR(80),
+    provider VARCHAR(30),
+    feature VARCHAR(30),
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    cached_tokens INTEGER DEFAULT 0,
+    cost_usd NUMERIC(12, 6) DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_user_time ON ai_usage(user_id, created_at);

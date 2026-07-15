@@ -2,8 +2,9 @@ import { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
-import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe, Bell, Send, Info, Mail, Smartphone, Plus, Clock } from 'lucide-react';
+import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe, Bell, Send, Info, Mail, Smartphone, Plus, Clock, BarChart3 } from 'lucide-react';
 import { subscribeToPush, unsubscribeFromPush, pushSupported } from '../utils/push';
+import UsageDashboard from '../components/UsageDashboard';
 import './SettingsPage.css';
 
 const PROVIDER_LABEL = { anthropic: 'Claude', openai: 'OpenAI', zhipu: 'z.ai (GLM)', deepseek: 'DeepSeek' };
@@ -211,7 +212,16 @@ function SettingsPage() {
         <button type="button" className={`settings-tab ${tab === 'reminders' ? 'active' : ''}`} onClick={() => setTab('reminders')}>
           <Bell size={15} /> Reminders {tg?.connected && <span className="settings-tab-dot" />}
         </button>
+        <button type="button" className={`settings-tab ${tab === 'usage' ? 'active' : ''}`} onClick={() => setTab('usage')}>
+          <BarChart3 size={15} /> Usage
+        </button>
       </div>
+
+      {tab === 'usage' && (
+        <section className="settings-section">
+          <UsageDashboard />
+        </section>
+      )}
 
       {tab === 'api' && (<>
       <section className="settings-section">
