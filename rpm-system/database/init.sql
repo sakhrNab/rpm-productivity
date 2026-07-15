@@ -480,3 +480,18 @@ CREATE TABLE IF NOT EXISTS action_dependencies (
 );
 CREATE INDEX IF NOT EXISTS idx_action_deps_action ON action_dependencies (action_id);
 CREATE INDEX IF NOT EXISTS idx_action_deps_dep ON action_dependencies (depends_on_action_id);
+
+-- Notification preferences (Phase 1: email digest + overdue). More channels later.
+CREATE TABLE IF NOT EXISTS notification_prefs (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    email_enabled BOOLEAN DEFAULT true,
+    telegram_enabled BOOLEAN DEFAULT false,
+    webpush_enabled BOOLEAN DEFAULT false,
+    digest_enabled BOOLEAN DEFAULT true,
+    digest_time TEXT DEFAULT '08:00',
+    overdue_enabled BOOLEAN DEFAULT true,
+    timezone TEXT DEFAULT 'UTC',
+    last_digest_date DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);

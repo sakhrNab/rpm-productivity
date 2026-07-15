@@ -224,4 +224,48 @@ async function sendAccountability({ to, recipientName, inviterName, actionTitle,
   });
 }
 
-module.exports = { sendInvitation, sendWelcome, sendContactAdded, sendAccountability };
+// Daily digest of today's tasks + overdue.
+const PRIO_TAG = { 3: ['High', '#ff6b6b'], 2: ['Med', '#ffb74d'], 1: ['Low', '#4ecdc4'] };
+function taskRow(t) {
+  const tag = PRIO_TAG[t.priority];
+  const badge = tag ? `<span style="font-size:11px;font-weight:700;color:${tag[1]};border:1px solid ${tag[1]}66;border-radius:999px;padding:1px 7px;margin-right:8px;">${tag[0]}</span>` : '';
+  const meta = [t.project_name, t.category_name].filter(Boolean).join(' · ');
+  return `<tr><td style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#e6ecf7;font-size:15px;">${badge}${escapeHtml(t.title)}${meta ? ` <span style="color:#7f8ba3;font-size:12px;">— ${escapeHtml(meta)}</span>` : ''}</td></tr>`;
+}
+
+async function sendDigest({ to, name, appUrl, todayLabel, today = [], overdue = [] }) {
+  const hi = name ? `Good morning, ${escapeHtml(name)}!` : 'Good morning!';
+  const todayHtml = today.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${today.map(taskRow).join('')}</table>`
+    : `<p style="margin:0;color:#7f8ba3;">Nothing scheduled today — a clear runway. 🎯</p>`;
+  const overdueHtml = overdue.length
+    ? `<h2 style="margin:24px 0 8px;font-size:16px;color:#ff8a8a;">⏰ Overdue (${overdue.length})</h2>
+       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${overdue.map(t => `<tr><td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#e6ecf7;font-size:14px;">${escapeHtml(t.title)} <span style="color:#7f8ba3;font-size:12px;">— was ${String(t.scheduled_date).slice(0, 10)}</span></td></tr>`).join('')}</table>`
+    : '';
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a1120;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a1120;padding:32px 12px;"><tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#0f1d38;border:1px solid rgba(255,255,255,0.08);border-radius:20px;overflow:hidden;">
+      <tr><td style="background:linear-gradient(135deg,#4ecdc4,#6b8dd6 55%,#9575cd);height:6px;line-height:6px;font-size:6px;">&nbsp;</td></tr>
+      <tr><td style="padding:32px 40px 8px;">
+        <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#4ecdc4;font-weight:700;">AI Waverider · RPM</div>
+        <h1 style="margin:12px 0 4px;font-size:24px;color:#fff;font-weight:800;">${hi}</h1>
+        <p style="margin:0;color:#7f8ba3;font-size:13px;">${escapeHtml(todayLabel || '')}</p>
+      </td></tr>
+      <tr><td style="padding:16px 40px 0;">
+        <h2 style="margin:0 0 8px;font-size:16px;color:#fff;">📋 Today (${today.length})</h2>
+        ${todayHtml}
+        ${overdueHtml}
+      </td></tr>
+      <tr><td align="center" style="padding:26px 40px 34px;">
+        <a href="${appUrl}" style="display:inline-block;background:linear-gradient(135deg,#4ecdc4,#6b8dd6);color:#04121a;text-decoration:none;font-weight:800;font-size:16px;padding:14px 32px;border-radius:999px;">Open My Day →</a>
+      </td></tr>
+    </table>
+    <div style="max-width:560px;color:#4a5568;font-size:11px;padding:16px 8px;">You get this because daily digest is on. Turn it off in Settings → Reminders.</div>
+  </td></tr></table>
+</body></html>`;
+  const text = `${name ? 'Good morning, ' + name + '!' : 'Good morning!'}\n\nToday (${today.length}):\n${today.map(t => '- ' + t.title).join('\n') || '(nothing scheduled)'}${overdue.length ? '\n\nOverdue (' + overdue.length + '):\n' + overdue.map(t => '- ' + t.title).join('\n') : ''}\n\nOpen: ${appUrl}`;
+  return sendGeneric({ to, subject: `Your RPM day — ${today.length} task${today.length === 1 ? '' : 's'}${overdue.length ? `, ${overdue.length} overdue` : ''}`, html, text });
+}
+
+module.exports = { sendInvitation, sendWelcome, sendContactAdded, sendAccountability, sendDigest };

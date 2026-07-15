@@ -11,6 +11,7 @@ const { isConfigured: aiKeysConfigured } = require('./ai/crypto');
 const { runChat, AiError } = require('./ai/service');
 const { applyProposal } = require('./ai/tools');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
+const notifications = require('./notifications');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -1250,4 +1251,36 @@ app.post('/api/ai/coach/compass', authenticateToken, async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`RPM Backend running on port ${PORT}`));
+// ============================================================
+// Notifications — reminder preferences + digest
+// ============================================================
+app.get('/api/notifications/prefs', authenticateToken, async (req, res) => {
+  try { res.json(await notifications.getPrefs(pool, req.userId)); }
+  catch (error) { console.error('[notifications] get prefs:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.put('/api/notifications/prefs', authenticateToken, async (req, res) => {
+  try {
+    const allowed = ['email_enabled', 'telegram_enabled', 'webpush_enabled', 'digest_enabled', 'digest_time', 'overdue_enabled', 'timezone'];
+    const patch = {};
+    for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
+    res.json(await notifications.upsertPrefs(pool, req.userId, patch));
+  } catch (error) { console.error('[notifications] put prefs:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+// Send the digest to myself right now (preview / test).
+app.post('/api/notifications/test-digest', authenticateToken, async (req, res) => {
+  try {
+    const prefs = await notifications.getPrefs(pool, req.userId);
+    const u = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [req.userId]);
+    if (!u.rows[0]?.email) return res.status(400).json({ error: 'No email on your account.' });
+    const result = await notifications.sendUserDigest(pool, u.rows[0], prefs);
+    if (!result || result.sent === false) return res.status(502).json({ error: 'Email could not be sent (SMTP).' });
+    res.json({ success: true });
+  } catch (error) { console.error('[notifications] test digest:', error); res.status(500).json({ error: 'Failed to send digest' }); }
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`RPM Backend running on port ${PORT}`);
+  notifications.startScheduler(pool);
+});
