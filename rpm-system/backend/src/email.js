@@ -268,6 +268,54 @@ async function sendDigest({ to, name, appUrl, todayLabel, today = [], overdue = 
   return sendGeneric({ to, subject: `Your RPM day — ${today.length} task${today.length === 1 ? '' : 's'}${overdue.length ? `, ${overdue.length} overdue` : ''}`, html, text });
 }
 
+// Proactive Chief-of-Staff briefing: plan + which goals are slipping + the fix.
+function chiefFixHtml(k) {
+  const need = k.required_per_week != null ? `${k.required_per_week}/wk` : '';
+  let detail;
+  if (k.status === 'overdue') detail = `past its ${k.target_date} deadline at ${k.current}/${k.target}`;
+  else if (k.status === 'stalled') detail = `no progress yet — needs ${need} to hit ${k.target} by ${k.target_date}`;
+  else detail = `at ${k.rate_per_week}/wk you land ${k.projected_final}/${k.target}${k.delta_days > 0 ? ` (${k.delta_days}d late)` : ''} — need ${need}`;
+  return `<tr><td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+    <div style="color:#ffd166;font-size:14px;font-weight:700;">${escapeHtml(k.title)}</div>
+    <div style="color:#9aa7bd;font-size:12.5px;margin-top:2px;">${escapeHtml(detail)}</div></td></tr>`;
+}
+
+async function sendChiefBriefing({ to, name, appUrl, todayLabel, today = [], atRisk = [], onTrack = 0 }) {
+  const hi = name ? `Good morning, ${escapeHtml(name)}.` : 'Good morning.';
+  const goalsHtml = atRisk.length
+    ? `<h2 style="margin:20px 0 8px;font-size:16px;color:#ffd166;">⚠️ ${atRisk.length} goal${atRisk.length === 1 ? '' : 's'} need attention</h2>
+       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${atRisk.map(chiefFixHtml).join('')}</table>`
+    : `<h2 style="margin:20px 0 8px;font-size:16px;color:#7bd88f;">✅ Goals on track${onTrack ? ` (${onTrack})` : ''}</h2>
+       <p style="margin:0;color:#7f8ba3;font-size:13px;">No key result is projected to miss its date right now. Keep the pace.</p>`;
+  const todayHtml = today.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${today.map(taskRow).join('')}</table>`
+    : `<p style="margin:0;color:#7f8ba3;">Nothing scheduled today.</p>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a1120;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a1120;padding:32px 12px;"><tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#0f1d38;border:1px solid rgba(255,255,255,0.08);border-radius:20px;overflow:hidden;">
+      <tr><td style="background:linear-gradient(135deg,#4ecdc4,#6b8dd6 55%,#9575cd);height:6px;line-height:6px;font-size:6px;">&nbsp;</td></tr>
+      <tr><td style="padding:32px 40px 8px;">
+        <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#4ecdc4;font-weight:700;">🧭 Chief of Staff</div>
+        <h1 style="margin:12px 0 4px;font-size:24px;color:#fff;font-weight:800;">${hi}</h1>
+        <p style="margin:0;color:#7f8ba3;font-size:13px;">${escapeHtml(todayLabel || '')} · here's your day and where your goals stand.</p>
+      </td></tr>
+      <tr><td style="padding:8px 40px 0;">
+        ${goalsHtml}
+        <h2 style="margin:22px 0 8px;font-size:16px;color:#fff;">📋 Today (${today.length})</h2>
+        ${todayHtml}
+      </td></tr>
+      <tr><td align="center" style="padding:26px 40px 34px;">
+        <a href="${appUrl}" style="display:inline-block;background:linear-gradient(135deg,#4ecdc4,#6b8dd6);color:#04121a;text-decoration:none;font-weight:800;font-size:16px;padding:14px 32px;border-radius:999px;">Open your Compass →</a>
+      </td></tr>
+    </table>
+    <div style="max-width:560px;color:#4a5568;font-size:11px;padding:16px 8px;">Your Chief of Staff briefing. Turn it off in Settings → Reminders.</div>
+  </td></tr></table>
+</body></html>`;
+  const text = `${hi}\n\n${atRisk.length ? 'Goals needing attention:\n' + atRisk.map(k => '- ' + k.title).join('\n') : 'Goals on track.'}\n\nToday (${today.length}):\n${today.map(t => '- ' + t.title).join('\n') || '(nothing scheduled)'}\n\nOpen: ${appUrl}`;
+  return sendGeneric({ to, subject: atRisk.length ? `🧭 ${atRisk.length} goal${atRisk.length === 1 ? '' : 's'} need attention today` : `🧭 Your day — goals on track`, html, text });
+}
+
 async function sendReminder({ to, name, title, appUrl }) {
   const html = notifyShell({
     eyebrowColor: 'linear-gradient(135deg,#ffb74d,#ff69b4 55%,#9575cd)',
@@ -278,4 +326,4 @@ async function sendReminder({ to, name, title, appUrl }) {
   return sendGeneric({ to, subject: `⏰ Reminder: ${title}`, html, text: `Reminder: ${title}\n\nOpen RPM: ${appUrl}` });
 }
 
-module.exports = { sendInvitation, sendWelcome, sendContactAdded, sendAccountability, sendDigest, sendReminder };
+module.exports = { sendInvitation, sendWelcome, sendContactAdded, sendAccountability, sendDigest, sendReminder, sendChiefBriefing };

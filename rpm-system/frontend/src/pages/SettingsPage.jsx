@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
-import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe, Bell, Send, Info, Mail, Smartphone, Plus, Clock, BarChart3 } from 'lucide-react';
+import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe, Bell, Send, Info, Mail, Smartphone, Plus, Clock, BarChart3, Compass } from 'lucide-react';
 import { subscribeToPush, unsubscribeFromPush, pushSupported } from '../utils/push';
 import UsageDashboard from '../components/UsageDashboard';
 import './SettingsPage.css';
@@ -124,7 +124,8 @@ function SettingsPage() {
       const saved = await api.saveNotifPrefs({
         email_enabled: prefs.email_enabled, digest_enabled: prefs.digest_enabled,
         digest_time: prefs.digest_time || '08:00', overdue_enabled: prefs.overdue_enabled,
-        task_time_enabled: prefs.task_time_enabled, timezone: prefs.timezone || 'UTC',
+        task_time_enabled: prefs.task_time_enabled, chief_enabled: prefs.chief_enabled,
+        chief_time: prefs.chief_time || '07:30', timezone: prefs.timezone || 'UTC',
       });
       setPrefs(p => ({ ...p, ...saved }));
       showToast('Reminder settings saved', 'success');
@@ -139,6 +140,16 @@ function SettingsPage() {
       showToast('Test digest sent to your email.', 'success');
     } catch (e) { showToast(e.message || 'Failed to send test digest', 'error'); }
     finally { setTesting(false); }
+  };
+  const [testingChief, setTestingChief] = useState(false);
+  const sendChiefTest = async () => {
+    setTestingChief(true);
+    try {
+      const r = await api.sendTestChief();
+      if (r.error) throw new Error(r.error);
+      showToast('Chief of Staff briefing sent to your enabled channels.', 'success');
+    } catch (e) { showToast(e.message || 'Failed to send briefing', 'error'); }
+    finally { setTestingChief(false); }
   };
 
   const saveBot = async () => {
@@ -336,6 +347,32 @@ function SettingsPage() {
               <p>Get a morning digest of your day and overdue tasks. More channels coming.</p>
             </div>
           </div>
+
+          {/* Chief of Staff — proactive briefing */}
+          <div className="settings-remind-row settings-chief-row">
+            <div className="settings-remind-main">
+              <Compass size={16} />
+              <div>
+                <div className="settings-remind-title">Chief of Staff briefing</div>
+                <div className="settings-remind-sub">Each morning it messages you first — your plan plus which goals are slipping and the fix — on your enabled channels (email / Telegram / web push).</div>
+              </div>
+            </div>
+            <label className="settings-switch">
+              <input type="checkbox" checked={!!prefs.chief_enabled} onChange={e => setPref({ chief_enabled: e.target.checked })} />
+              <span />
+            </label>
+          </div>
+          {prefs.chief_enabled && (
+            <div className="settings-remind-detail">
+              <label className="settings-remind-check">
+                Send at
+                <input type="time" className="form-input settings-time" value={prefs.chief_time || '07:30'} onChange={e => setPref({ chief_time: e.target.value })} />
+              </label>
+              <button type="button" className="btn btn-secondary" onClick={sendChiefTest} disabled={testingChief}>
+                <Send size={15} /> {testingChief ? 'Sending…' : 'Send me a test briefing now'}
+              </button>
+            </div>
+          )}
 
           {/* Email */}
           <div className="settings-remind-row">

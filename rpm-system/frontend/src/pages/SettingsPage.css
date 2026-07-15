@@ -113,3 +113,7 @@
 .settings-rem-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
 .settings-rem-title-in { flex: 1 1 180px; min-width: 140px; }
 .settings-rem-kind, .settings-rem-dow { width: auto; cursor: pointer; }
+
+/* Chief of Staff briefing — highlighted row */
+.settings-chief-row { background: linear-gradient(135deg, rgba(78,205,196,0.08), rgba(167,139,250,0.06)); border: 1px solid var(--border-primary); border-radius: 12px; padding: 12px 14px; }
+.settings-chief-row .settings-remind-main svg { color: var(--accent-cyan); }

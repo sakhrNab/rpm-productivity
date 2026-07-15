@@ -1,10 +1,11 @@
 // Notifications — Phase 1: daily email digest + overdue reminders, on a simple
 // in-process scheduler. Opt-in: only users with a notification_prefs row get sent to.
 
-const { sendDigest, sendReminder } = require('./email');
+const { sendDigest, sendReminder, sendChiefBriefing: sendChiefEmail } = require('./email');
 const telegram = require('./telegram');
 const push = require('./push');
 const { pruneOldUsage } = require('./ai/usage');
+const { computeForecasts } = require('./forecast');
 
 const APP_URL = () => process.env.FRONTEND_URL || 'https://rpm.aiwaverider.com';
 const DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
@@ -12,7 +13,7 @@ const DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 const DEFAULT_PREFS = {
   email_enabled: true, telegram_enabled: false, webpush_enabled: false,
   digest_enabled: true, digest_time: '08:00', overdue_enabled: true,
-  task_time_enabled: false, timezone: 'UTC',
+  task_time_enabled: false, chief_enabled: false, chief_time: '07:30', timezone: 'UTC',
 };
 
 // "HH:MM" -> minutes since midnight (null-safe).
@@ -46,12 +47,13 @@ async function upsertPrefs(pool, userId, patch) {
   const cur = await getPrefs(pool, userId);
   const v = { ...DEFAULT_PREFS, ...cur, ...patch };
   await pool.query(
-    `INSERT INTO notification_prefs (user_id, email_enabled, telegram_enabled, webpush_enabled, digest_enabled, digest_time, overdue_enabled, task_time_enabled, timezone, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+    `INSERT INTO notification_prefs (user_id, email_enabled, telegram_enabled, webpush_enabled, digest_enabled, digest_time, overdue_enabled, task_time_enabled, chief_enabled, chief_time, timezone, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
      ON CONFLICT (user_id) DO UPDATE SET
        email_enabled=$2, telegram_enabled=$3, webpush_enabled=$4, digest_enabled=$5,
-       digest_time=$6, overdue_enabled=$7, task_time_enabled=$8, timezone=$9, updated_at=NOW()`,
-    [userId, v.email_enabled, v.telegram_enabled, v.webpush_enabled, v.digest_enabled, v.digest_time, v.overdue_enabled, v.task_time_enabled, v.timezone]
+       digest_time=$6, overdue_enabled=$7, task_time_enabled=$8, chief_enabled=$9,
+       chief_time=$10, timezone=$11, updated_at=NOW()`,
+    [userId, v.email_enabled, v.telegram_enabled, v.webpush_enabled, v.digest_enabled, v.digest_time, v.overdue_enabled, v.task_time_enabled, v.chief_enabled, v.chief_time, v.timezone]
   );
   return getPrefs(pool, userId);
 }
@@ -102,6 +104,63 @@ async function sendUserDigest(pool, user, prefs) {
         url: APP_URL() + '/my-day',
       });
     } catch (e) { console.error('[notifications] push digest error:', e.message); }
+  }
+  return out;
+}
+
+// ---- Chief of Staff: proactive daily briefing (plan + goals slipping + fix) ----
+const CHIEF_RISK = new Set(['at_risk', 'off_track', 'stalled', 'overdue']);
+
+async function buildChief(pool, userId, tz) {
+  const { todayTasks } = await buildDigest(pool, userId, tz, false);
+  let forecast = { summary: {}, keyResults: [] };
+  try { forecast = await computeForecasts(pool, userId); } catch (e) { console.error('[chief] forecast:', e.message); }
+  const atRisk = (forecast.keyResults || []).filter(k => CHIEF_RISK.has(k.status));
+  const onTrack = (forecast.summary && forecast.summary.on_track) || 0;
+  return { todayTasks, atRisk, onTrack, forecast };
+}
+
+// Short "what to change" line for a slipping key result.
+function chiefFixLine(k) {
+  const need = k.required_per_week != null ? `${k.required_per_week}/wk` : null;
+  if (k.status === 'overdue') return `${k.title} — past its ${k.target_date} deadline at ${k.current}/${k.target}.`;
+  if (k.status === 'stalled') return `${k.title} — no progress yet; needs ${need} to hit ${k.target} by ${k.target_date}.`;
+  const late = k.delta_days != null && k.delta_days > 0 ? `${k.delta_days}d late` : 'short of target';
+  return `${k.title} — at ${k.rate_per_week}/wk you land ${k.projected_final}/${k.target} (${late}). Need ${need}.`;
+}
+
+async function sendChiefBriefing(pool, user, prefs) {
+  const { todayTasks, atRisk, onTrack } = await buildChief(pool, user.id, prefs.timezone);
+  const todayLabel = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: prefs.timezone || 'UTC' }).format(new Date());
+  const url = APP_URL() + '/compass';
+  const out = {};
+
+  if (prefs.email_enabled && user.email) {
+    try { out.email = await sendChiefEmail({ to: user.email, name: user.name, appUrl: url, todayLabel, today: todayTasks, atRisk, onTrack }); }
+    catch (e) { console.error('[chief] email:', e.message); }
+  }
+  if (prefs.telegram_enabled && prefs.telegram_chat_id) {
+    const esc = (s) => String(s || '').replace(/[<>&]/g, '');
+    const lines = [`🧭 <b>Chief of Staff — ${esc(todayLabel)}</b>`, ''];
+    lines.push(`📋 <b>Today:</b> ${todayTasks.length} task${todayTasks.length === 1 ? '' : 's'} planned.`);
+    if (atRisk.length) {
+      lines.push('', `⚠️ <b>${atRisk.length} goal${atRisk.length === 1 ? '' : 's'} need attention:</b>`);
+      for (const k of atRisk.slice(0, 5)) lines.push('• ' + esc(chiefFixLine(k)));
+    } else {
+      lines.push('', `✅ Goals on track${onTrack ? ` (${onTrack})` : ''} — keep the pace.`);
+    }
+    lines.push('', `<a href="${url}">Open your Compass →</a>`);
+    try { out.telegram = await telegram.notify(pool, prefs.telegram_chat_id, lines.join('\n')); }
+    catch (e) { console.error('[chief] telegram:', e.message); }
+  }
+  if (prefs.webpush_enabled) {
+    try {
+      out.push = await push.sendToUser(pool, user.id, {
+        title: '🧭 Your Chief of Staff briefing',
+        body: atRisk.length ? `${atRisk.length} goal${atRisk.length === 1 ? '' : 's'} need attention · ${todayTasks.length} today` : `${todayTasks.length} tasks today · goals on track`,
+        url,
+      });
+    } catch (e) { console.error('[chief] push:', e.message); }
   }
   return out;
 }
@@ -252,9 +311,34 @@ async function tick(pool) {
       console.error('[notifications] digest error for', p.user_id, err.message);
     }
   }
+  await fireChiefBriefings(pool);
   await fireDueReminders(pool);
   await fireTaskTimeReminders(pool);
   await maybePruneUsage(pool);
+}
+
+// Proactive Chief-of-Staff briefing: once/day at chief_time (per tz), de-duped.
+async function fireChiefBriefings(pool) {
+  const { rows } = await pool.query(
+    `SELECT p.*, to_char(p.last_chief_date, 'YYYY-MM-DD') AS last_chief_ymd, u.email, u.name
+       FROM notification_prefs p
+       JOIN users u ON u.id = p.user_id
+      WHERE p.chief_enabled = true
+        AND ((p.email_enabled = true AND u.email IS NOT NULL)
+             OR (p.telegram_enabled = true AND p.telegram_chat_id IS NOT NULL)
+             OR (p.webpush_enabled = true))`
+  );
+  for (const p of rows) {
+    try {
+      const { dateStr, hhmm } = nowInTz(p.timezone);
+      if (p.last_chief_ymd && p.last_chief_ymd === dateStr) continue;
+      if (hhmm < (p.chief_time || '07:30')) continue;
+      await sendChiefBriefing(pool, { id: p.user_id, email: p.email, name: p.name }, p);
+      await pool.query('UPDATE notification_prefs SET last_chief_date = $2 WHERE user_id = $1', [p.user_id, dateStr]);
+    } catch (err) {
+      console.error('[chief] briefing error for', p.user_id, err.message);
+    }
+  }
 }
 
 // Prune the AI usage log at most once per calendar day.
@@ -275,6 +359,6 @@ function startScheduler(pool) {
 }
 
 module.exports = {
-  getPrefs, upsertPrefs, sendUserDigest, startScheduler, DEFAULT_PREFS,
+  getPrefs, upsertPrefs, sendUserDigest, sendChiefBriefing, startScheduler, DEFAULT_PREFS,
   listReminders, createReminder, deleteReminder, updateReminder,
 };

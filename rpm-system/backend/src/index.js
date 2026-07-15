@@ -1321,7 +1321,7 @@ app.get('/api/notifications/prefs', authenticateToken, async (req, res) => {
 
 app.put('/api/notifications/prefs', authenticateToken, async (req, res) => {
   try {
-    const allowed = ['email_enabled', 'telegram_enabled', 'webpush_enabled', 'digest_enabled', 'digest_time', 'overdue_enabled', 'task_time_enabled', 'timezone'];
+    const allowed = ['email_enabled', 'telegram_enabled', 'webpush_enabled', 'digest_enabled', 'digest_time', 'overdue_enabled', 'task_time_enabled', 'chief_enabled', 'chief_time', 'timezone'];
     const patch = {};
     for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
     res.json(await notifications.upsertPrefs(pool, req.userId, patch));
@@ -1338,6 +1338,16 @@ app.post('/api/notifications/test-digest', authenticateToken, async (req, res) =
     if (!result || result.sent === false) return res.status(502).json({ error: 'Email could not be sent (SMTP).' });
     res.json({ success: true });
   } catch (error) { console.error('[notifications] test digest:', error); res.status(500).json({ error: 'Failed to send digest' }); }
+});
+
+// Send a Chief-of-Staff briefing to yourself now (uses whichever channels you have on).
+app.post('/api/notifications/test-chief', authenticateToken, async (req, res) => {
+  try {
+    const prefs = await notifications.getPrefs(pool, req.userId);
+    const u = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [req.userId]);
+    const out = await notifications.sendChiefBriefing(pool, u.rows[0], prefs);
+    res.json({ success: true, sent: out });
+  } catch (error) { console.error('[chief] test briefing:', error); res.status(500).json({ error: 'Failed to send briefing' }); }
 });
 
 // ============================================================
