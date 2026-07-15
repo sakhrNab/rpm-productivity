@@ -34,7 +34,24 @@
   color: var(--text-muted);
   font-size: 0.9rem;
 }
-.compass-refresh { margin-left: auto; flex-shrink: 0; }
+.compass-head-right { margin-left: auto; display: flex; align-items: center; gap: 0.7rem; flex-shrink: 0; }
+.compass-generated { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+.compass-refresh { flex-shrink: 0; }
+
+/* Idle invite (no cached read yet) */
+.compass-invite { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.85rem; padding: 1.5rem 1rem 0.5rem; }
+.compass-invite svg { color: var(--accent-cyan); opacity: 0.85; }
+.compass-invite p { margin: 0; color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; max-width: 380px; }
+.compass-cta-big { display: inline-flex; align-items: center; gap: 0.45rem; }
+.compass-invite-note { font-size: 0.78rem; color: var(--text-muted); }
+
+/* Stale (cached from a previous day) */
+.compass-stale { font-size: 0.82rem; color: var(--text-muted); margin: 0 0 0.6rem; }
+.compass-stale-btn { background: none; border: none; padding: 0; color: var(--accent-cyan); cursor: pointer; font-size: 0.82rem; text-decoration: underline; }
+
+/* Actionable CTA under the guidance */
+.compass-act { margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid var(--border-primary); }
+.compass-act .compass-cta { display: inline-flex; align-items: center; gap: 0.4rem; }
 .compass-refresh .spin { animation: compass-spin 0.9s linear infinite; }
 @keyframes compass-spin { to { transform: rotate(360deg); } }
 

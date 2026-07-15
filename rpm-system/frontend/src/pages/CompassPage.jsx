@@ -12,27 +12,53 @@ import './CompassPage.css';
 function CompassPage() {
   const { api } = useContext(AuthContext);
   const { showToast } = useToast();
-  const [state, setState] = useState({ status: 'idle' }); // idle | loading | ready | error | no-model
+  const [state, setState] = useState({ status: 'init' }); // init | idle | loading | ready | error | no-model
   const today = new Date();
+  const todayStr = format(today, 'yyyy-MM-dd');
+  const CACHE_KEY = 'compass.cache.v1';
 
+  const loadCache = () => {
+    try { const c = JSON.parse(localStorage.getItem(CACHE_KEY)); return c && c.text != null ? c : null; }
+    catch { return null; }
+  };
+
+  // Only calls the AI when the user asks — the result is cached and shown on return
+  // visits, so opening the page never spends tokens on its own.
   const run = async () => {
     const modelKey = localStorage.getItem('ai.modelKey');
     if (!modelKey) { setState({ status: 'no-model' }); return; }
-    setState({ status: 'loading' });
+    setState(s => ({ ...s, status: 'loading' }));
     try {
       const res = await api.aiCoachCompass({ modelKey });
       if (res.error) throw new Error(res.error);
-      setState({ status: 'ready', text: res.text, context: res.context, sources: res.sources || [] });
+      const payload = { text: res.text, context: res.context, sources: res.sources || [], generatedAt: new Date().toISOString(), dateStr: todayStr };
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(payload)); } catch { /* quota */ }
+      setState({ status: 'ready', ...payload });
     } catch (e) {
       const msg = e.message || 'Failed to read your compass';
       if (/no longer available|unknown model/i.test(msg)) { localStorage.removeItem('ai.modelKey'); setState({ status: 'no-model' }); return; }
-      setState({ status: 'error', error: msg });
+      setState(s => ({ ...s, status: 'error', error: msg }));
       showToast(msg, 'error');
     }
   };
 
-  // Auto-run once on mount if a default model is configured.
-  useEffect(() => { run(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // On open: show the last cached compass instantly; never auto-call the AI.
+  useEffect(() => {
+    const c = loadCache();
+    setState(c ? { status: 'ready', ...c } : { status: 'idle' });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const whenLabel = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const diff = (today - d) / 1000;
+    if (diff < 90) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400 && d.getDate() === today.getDate()) return `${Math.floor(diff / 3600)}h ago`;
+    return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  };
+  const isStale = state.status === 'ready' && state.dateStr && state.dateStr !== todayStr;
+  const hasContent = state.status === 'ready' || state.status === 'loading' || state.status === 'error';
 
   const ctx = state.context;
   const actions = ctx?.actions || [];
@@ -54,21 +80,43 @@ function CompassPage() {
           <h1 className="compass-title">{greeting}. Here's your compass.</h1>
           <p className="compass-date">{format(today, 'EEEE, MMMM d')}</p>
         </div>
-        <button
-          type="button"
-          className="btn btn-secondary compass-refresh"
-          onClick={run}
-          disabled={state.status === 'loading'}
-        >
-          <RefreshCw size={15} className={state.status === 'loading' ? 'spin' : ''} />
-          {state.status === 'loading' ? 'Reading…' : 'Refresh'}
-        </button>
+        {hasContent && (
+          <div className="compass-head-right">
+            {state.status === 'ready' && state.generatedAt && (
+              <span className="compass-generated">Updated {whenLabel(state.generatedAt)}</span>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary compass-refresh"
+              onClick={run}
+              disabled={state.status === 'loading'}
+            >
+              <RefreshCw size={15} className={state.status === 'loading' ? 'spin' : ''} />
+              {state.status === 'loading' ? 'Reading…' : 'Refresh'}
+            </button>
+          </div>
+        )}
       </header>
 
       <div className="compass-grid">
         {/* Must-win / coach guidance */}
         <section className="compass-card compass-guidance">
           <div className="compass-card-head"><Sparkles size={16} /> Today's must-win</div>
+
+          {(state.status === 'idle' || state.status === 'init') && (
+            <div className="compass-invite">
+              <Compass size={30} />
+              <p>Get a focused read on today — your must-win, drawn from your goals and where your key results stand.</p>
+              <button type="button" className="btn btn-primary compass-cta-big" onClick={run}>
+                <Sparkles size={16} /> Read my compass
+              </button>
+              <span className="compass-invite-note">Runs only when you ask — your last read is kept here.</span>
+            </div>
+          )}
+
+          {isStale && (
+            <p className="compass-stale">Showing your read from {state.dateStr}. <button type="button" className="compass-stale-btn" onClick={run}>Refresh for today</button></p>
+          )}
 
           {state.status === 'loading' && (
             <div className="compass-loading">
@@ -107,6 +155,12 @@ function CompassPage() {
               ))}
             </div>
           )}
+
+          {state.status === 'ready' && state.text && (
+            <div className="compass-act">
+              <Link to="/my-day" className="btn btn-primary compass-cta">Go to My Day <ArrowRight size={15} /></Link>
+            </div>
+          )}
         </section>
 
         {/* Today at a glance */}
@@ -116,7 +170,9 @@ function CompassPage() {
               Today's actions
               {actions.length > 0 && <span className="compass-count">{doneCount}/{actions.length}</span>}
             </div>
-            {actions.length === 0 ? (
+            {!ctx ? (
+              <p className="compass-muted small">Read your compass to see today at a glance.</p>
+            ) : actions.length === 0 ? (
               <p className="compass-muted small">Nothing scheduled today.</p>
             ) : (
               <ul className="compass-list">
@@ -132,7 +188,9 @@ function CompassPage() {
 
           <section className="compass-card">
             <div className="compass-card-head"><Target size={15} /> Key results</div>
-            {krs.length === 0 ? (
+            {!ctx ? (
+              <p className="compass-muted small">—</p>
+            ) : krs.length === 0 ? (
               <p className="compass-muted small">No active key results.</p>
             ) : (
               <ul className="compass-kr">
