@@ -39,6 +39,60 @@ export function startListening({ onInterim, onFinal, onEnd, onError } = {}) {
 
 export function stopListening() { try { recognition && recognition.stop(); } catch { /* noop */ } }
 
+// ---- Wake word ("Hey RPM") ----
+// A separate always-on recognizer. Browsers only allow one active recognition at a
+// time, so the caller must stop this before startListening() and restart it after.
+// Chrome also ends recognition periodically, hence the auto-restart loop.
+let wakeRec = null;
+let wakeWanted = false;
+
+// Loose patterns — STT mangles "RPM" ("r p m", "are p m", "arpm"…).
+const WAKE_PATTERNS = [
+  /\bhey[,\s]*r\.?\s?p\.?\s?m\.?\b/i,
+  /\bhey[,\s]*(are|a)\s?p\.?\s?m\.?\b/i,
+  /\bhey[,\s]*rpm\b/i,
+  /\bokay[,\s]*rpm\b/i,
+];
+
+export function wakeWordActive() { return wakeWanted; }
+
+export function startWakeWord({ onWake, onError } = {}) {
+  const SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  if (!SR) { onError && onError('unsupported'); return false; }
+  wakeWanted = true;
+  const run = () => {
+    if (!wakeWanted) return;
+    try {
+      const rec = new SR();
+      rec.lang = navigator.language || 'en-US';
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript || '';
+          if (WAKE_PATTERNS.some(p => p.test(t))) { stopWakeWord(); onWake && onWake(); return; }
+        }
+      };
+      rec.onerror = (e) => {
+        const err = e.error || 'error';
+        // Permission denied → give up entirely; transient errors just restart via onend.
+        if (err === 'not-allowed' || err === 'service-not-allowed') { wakeWanted = false; onError && onError(err); }
+      };
+      rec.onend = () => { wakeRec = null; if (wakeWanted) setTimeout(run, 400); };
+      wakeRec = rec;
+      rec.start();
+    } catch { if (wakeWanted) setTimeout(run, 1200); }
+  };
+  run();
+  return true;
+}
+
+export function stopWakeWord() {
+  wakeWanted = false;
+  try { wakeRec && wakeRec.stop(); } catch { /* noop */ }
+  wakeRec = null;
+}
+
 // Strip markdown so the spoken version sounds natural.
 function stripForSpeech(md) {
   return String(md || '')

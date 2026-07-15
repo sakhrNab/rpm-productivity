@@ -1,10 +1,13 @@
 import { useState, useRef, useContext, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Mic, X, Loader2, Radio } from 'lucide-react';
+import { Mic, X, Loader2, Radio, Zap } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { useToast } from './ToastProvider';
-import { sttSupported, ttsSupported, startListening, stopListening, speak, cancelSpeak } from '../utils/speech';
+import { sttSupported, ttsSupported, startListening, stopListening, speak, cancelSpeak, startWakeWord, stopWakeWord } from '../utils/speech';
 import './VoiceOrb.css';
+
+const GREETS = ['Yes?', "I'm listening.", 'Go ahead.', 'What do you need?'];
+const timeGreet = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning.' : h < 18 ? 'Good afternoon.' : 'Good evening.'; };
 
 // Global "Jarvis" voice orb — present on every page. Tap to talk; it thinks, acts
 // (via the RPM agent), and speaks the reply while the orb animates its state.
@@ -17,11 +20,24 @@ export default function VoiceOrb() {
   const [transcript, setTranscript] = useState('');
   const [reply, setReply] = useState('');
   const [conv, setConv] = useState(false); // hands-free conversation mode
+  const [wake, setWake] = useState(() => localStorage.getItem('orb.wake') === '1'); // "Hey RPM"
   const convId = useRef(null);
   const convRef = useRef(false);
+  const firstRef = useRef(true);
 
   useEffect(() => { convRef.current = conv; }, [conv]);
-  useEffect(() => () => { stopListening(); cancelSpeak(); }, []);
+  useEffect(() => () => { stopListening(); stopWakeWord(); cancelSpeak(); }, []);
+
+  // Greet first, then listen — so it feels like it's talking to you, not just recording.
+  const activate = () => {
+    if (!sttSupported()) { showToast('Voice needs Chrome or Edge (with mic access).', 'info'); return; }
+    cancelSpeak();
+    setOpen(true); setReply(''); setTranscript('');
+    const greet = firstRef.current ? `${timeGreet()} What do you need?` : GREETS[Math.floor(Math.random() * GREETS.length)];
+    firstRef.current = false;
+    if (ttsSupported()) { setState('speaking'); speak(greet, { onEnd: () => listen() }); }
+    else listen();
+  };
 
   const listen = () => {
     if (!sttSupported()) { showToast('Voice needs Chrome or Edge (with mic access).', 'info'); return; }
@@ -72,8 +88,24 @@ export default function VoiceOrb() {
     }
   };
 
+  // "Hey RPM": only armed while idle — one recognizer at a time, and it must not
+  // hear the assistant speaking or compete with the command mic.
+  useEffect(() => {
+    if (!wake || state !== 'idle') { stopWakeWord(); return; }
+    startWakeWord({
+      onWake: () => activate(),
+      onError: (e) => {
+        if (e === 'not-allowed' || e === 'service-not-allowed') {
+          setWake(false); localStorage.setItem('orb.wake', '0');
+          showToast('Mic permission is needed for “Hey RPM”.', 'error');
+        }
+      },
+    });
+    return () => stopWakeWord();
+  }, [wake, state]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const orbClick = () => {
-    if (state === 'idle') listen();
+    if (state === 'idle') activate();
     else if (state === 'listening') stopListening();      // settles → onFinal → ask
     else if (state === 'speaking') { cancelSpeak(); setState('idle'); }
     // thinking: ignore
@@ -81,8 +113,15 @@ export default function VoiceOrb() {
   const close = () => { stopListening(); cancelSpeak(); setState('idle'); setOpen(false); };
   const toggleConv = () => setConv(v => {
     const nv = !v;
-    if (nv && state === 'idle') listen();
+    if (nv && state === 'idle') activate();
     if (!nv) { stopListening(); cancelSpeak(); }
+    return nv;
+  });
+  const toggleWake = () => setWake(v => {
+    const nv = !v;
+    localStorage.setItem('orb.wake', nv ? '1' : '0');
+    if (!nv) stopWakeWord();
+    else showToast('Listening for “Hey RPM” — your mic stays on.', 'info');
     return nv;
   });
 
@@ -97,7 +136,6 @@ export default function VoiceOrb() {
           <div className="vorb-panel-head">
             <span className="vorb-state">{label}</span>
             <div className="vorb-panel-actions">
-              <button className={`vorb-conv ${conv ? 'on' : ''}`} onClick={toggleConv} title="Hands-free conversation"><Radio size={13} /></button>
               <button className="vorb-close" onClick={close} aria-label="Close"><X size={14} /></button>
             </div>
           </div>
@@ -107,7 +145,19 @@ export default function VoiceOrb() {
             : (!transcript && <div className="vorb-hint">Ask me anything — “what should I focus on today?”, “add a task to call the plumber tomorrow”, “how's my fitness goal tracking?”</div>)}
         </div>
       )}
-      <button className={`vorb vorb-${state}`} onClick={orbClick} title={label} aria-label={label}>
+      <div className="vorb-chips">
+        {sttSupported() && (
+          <button className={`vorb-chip ${wake ? 'on' : ''}`} onClick={toggleWake} title={wake ? 'Wake word on — say “Hey RPM”. Mic stays on.' : 'Enable wake word: say “Hey RPM”'}>
+            <Zap size={11} /> Hey RPM
+          </button>
+        )}
+        {sttSupported() && (
+          <button className={`vorb-chip ${conv ? 'on' : ''}`} onClick={toggleConv} title="Hands-free conversation">
+            <Radio size={11} />
+          </button>
+        )}
+      </div>
+      <button className={`vorb vorb-${state} ${wake && state === 'idle' ? 'armed' : ''}`} onClick={orbClick} title={label} aria-label={label}>
         <span className="vorb-core" />
         <span className="vorb-ring" />
         <span className="vorb-ic">{state === 'thinking' ? <Loader2 size={20} className="vorb-spin" /> : <Mic size={20} />}</span>
