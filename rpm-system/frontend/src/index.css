@@ -2247,6 +2247,49 @@ textarea.form-input {
 }
 .form-input { text-overflow: ellipsis; }
 
+/* ============ Professional dropdowns (native <select>, styled) ============ */
+select.form-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 15px;
+}
+select.form-input:hover { border-color: var(--accent-cyan); }
+select.form-input:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.16);
+}
+/* The option list itself: dark, legible (honored by most Chromium/Firefox) */
+select.form-input option { background: var(--bg-secondary); color: var(--text-primary); }
+select.form-input option:checked { background: var(--bg-hover); }
+
+/* ============ Date / time pickers, themed to match ============ */
+input[type="date"].form-input,
+input[type="datetime-local"].form-input,
+input[type="time"].form-input,
+input[type="month"].form-input { cursor: pointer; }
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.55);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover {
+  filter: invert(1) opacity(0.95);
+  background: rgba(78, 205, 196, 0.18);
+}
+
 /* Labels + groups — a touch more air */
 .form-group { margin-bottom: var(--spacing-lg); }
 .form-label { margin-bottom: 7px; font-weight: 600; }

@@ -7,7 +7,7 @@ const { recordUsage } = require('./usage');
 
 async function buildContext(pool, userId, today) {
   const actions = (await pool.query(
-    `SELECT title, is_completed FROM actions
+    `SELECT id, title, is_completed, priority FROM actions
       WHERE user_id = $1 AND scheduled_date = $2 AND is_cancelled = false
       ORDER BY sort_order`,
     [userId, today]
