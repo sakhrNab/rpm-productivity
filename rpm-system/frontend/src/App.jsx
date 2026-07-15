@@ -9,6 +9,7 @@ import CalendarPage from './pages/CalendarPage';
 import PeoplePage from './pages/PeoplePage';
 import MyWeekPage from './pages/MyWeekPage';
 import MyDayPage from './pages/MyDayPage';
+import CompassPage from './pages/CompassPage';
 import AssistantPage from './pages/AssistantPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
@@ -529,6 +530,7 @@ function AppContent() {
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/my-week" element={<MyWeekPage />} />
           <Route path="/my-day" element={<MyDayPage />} />
+          <Route path="/compass" element={<CompassPage />} />
           <Route path="/people" element={<PeoplePage />} />
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/settings" element={<SettingsPage />} />

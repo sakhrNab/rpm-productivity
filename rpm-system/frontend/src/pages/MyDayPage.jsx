@@ -4,9 +4,10 @@ import { format } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import ActionRow from '../components/ActionRow';
+import SortableActionGroups from '../components/SortableActionGroups';
 import Markdown from '../components/Markdown';
 import { useToast } from '../components/ToastProvider';
-import { sortActions, groupActions, sameActionGroup } from '../utils/actionSort';
+import { sortActions, groupActions } from '../utils/actionSort';
 import './MyDayPage.css';
 
 function MyDayPage() {
@@ -17,7 +18,6 @@ function MyDayPage() {
   const [loading, setLoading] = useState(true);
   const [showActionModal, setShowActionModal] = useState(false);
   const [editingAction, setEditingAction] = useState(null);
-  const [dragId, setDragId] = useState(null);
   const [suggest, setSuggest] = useState(null);
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -53,25 +53,12 @@ function MyDayPage() {
     catch (error) { console.error('Failed to set priority:', error); patchAndSort(action.id, { priority: prev }); }
   };
 
-  // Drag reorder — only within the same group (same completion + priority).
-  const handleDragOver = (e, overId) => {
-    e.preventDefault();
-    if (!dragId || dragId === overId) return;
+  // Reorder (touch + mouse via dnd-kit) — persist the new order, optimistically.
+  const handleReorder = async (ids) => {
     setActions(prev => {
-      const dragged = prev.find(a => a.id === dragId);
-      const over = prev.find(a => a.id === overId);
-      if (!dragged || !over || !sameActionGroup(dragged, over)) return prev;
-      const from = prev.findIndex(a => a.id === dragId);
-      const to = prev.findIndex(a => a.id === overId);
-      const next = [...prev];
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      return next;
+      const map = new Map(prev.map(a => [a.id, a]));
+      return ids.map(id => map.get(id)).filter(Boolean);
     });
-  };
-  const handleDrop = async () => {
-    const ids = actions.map(a => a.id);
-    setDragId(null);
     try { await api.reorderActions(ids); }
     catch (error) { console.error('Failed to reorder actions:', error); loadActions(); }
   };
@@ -176,34 +163,20 @@ function MyDayPage() {
         {actions.length === 0 ? (
           <div className="empty-state"><p>No actions scheduled for today</p></div>
         ) : (
-          groups.map(group => (
-            <div key={group.gkey} className="md-group">
-              <div className={`md-group-head md-group-${group.cls}`}>
-                <span>{group.label}</span>
-                <span className="md-group-count">{group.items.length}</span>
-              </div>
-              {group.items.map(action => (
-                <div
-                  key={action.id}
-                  className={`md-drag-row ${dragId === action.id ? 'dragging' : ''}`}
-                  draggable
-                  onDragStart={(e) => { setDragId(action.id); e.dataTransfer.effectAllowed = 'move'; }}
-                  onDragOver={(e) => handleDragOver(e, action.id)}
-                  onDrop={(e) => { e.preventDefault(); handleDrop(); }}
-                  onDragEnd={handleDrop}
-                >
-                  <ActionRow
-                    action={action}
-                    onToggleComplete={toggleComplete}
-                    onToggleStar={toggleStar}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    onChangePriority={changePriority}
-                  />
-                </div>
-              ))}
-            </div>
-          ))
+          <SortableActionGroups
+            groups={groups}
+            onReorder={handleReorder}
+            renderRow={(action) => (
+              <ActionRow
+                action={action}
+                onToggleComplete={toggleComplete}
+                onToggleStar={toggleStar}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onChangePriority={changePriority}
+              />
+            )}
+          />
         )}
       </div>
 

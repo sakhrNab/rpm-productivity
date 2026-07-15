@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS projects (
     is_starred BOOLEAN DEFAULT false,
     is_archived BOOLEAN DEFAULT false,
     sort_order INTEGER DEFAULT 0,
+    reminded_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -490,6 +491,7 @@ CREATE TABLE IF NOT EXISTS notification_prefs (
     digest_enabled BOOLEAN DEFAULT true,
     digest_time TEXT DEFAULT '08:00',
     overdue_enabled BOOLEAN DEFAULT true,
+    task_time_enabled BOOLEAN DEFAULT false,
     timezone TEXT DEFAULT 'UTC',
     last_digest_date DATE,
     telegram_chat_id TEXT,

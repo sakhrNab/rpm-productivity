@@ -10,8 +10,16 @@ const DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
 const DEFAULT_PREFS = {
   email_enabled: true, telegram_enabled: false, webpush_enabled: false,
-  digest_enabled: true, digest_time: '08:00', overdue_enabled: true, timezone: 'UTC',
+  digest_enabled: true, digest_time: '08:00', overdue_enabled: true,
+  task_time_enabled: false, timezone: 'UTC',
 };
+
+// "HH:MM" -> minutes since midnight (null-safe).
+function hhmmToMin(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{1,2}):(\d{2})/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
 
 function nowInTz(tz) {
   try {
@@ -37,12 +45,12 @@ async function upsertPrefs(pool, userId, patch) {
   const cur = await getPrefs(pool, userId);
   const v = { ...DEFAULT_PREFS, ...cur, ...patch };
   await pool.query(
-    `INSERT INTO notification_prefs (user_id, email_enabled, telegram_enabled, webpush_enabled, digest_enabled, digest_time, overdue_enabled, timezone, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
+    `INSERT INTO notification_prefs (user_id, email_enabled, telegram_enabled, webpush_enabled, digest_enabled, digest_time, overdue_enabled, task_time_enabled, timezone, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
      ON CONFLICT (user_id) DO UPDATE SET
        email_enabled=$2, telegram_enabled=$3, webpush_enabled=$4, digest_enabled=$5,
-       digest_time=$6, overdue_enabled=$7, timezone=$8, updated_at=NOW()`,
-    [userId, v.email_enabled, v.telegram_enabled, v.webpush_enabled, v.digest_enabled, v.digest_time, v.overdue_enabled, v.timezone]
+       digest_time=$6, overdue_enabled=$7, task_time_enabled=$8, timezone=$9, updated_at=NOW()`,
+    [userId, v.email_enabled, v.telegram_enabled, v.webpush_enabled, v.digest_enabled, v.digest_time, v.overdue_enabled, v.task_time_enabled, v.timezone]
   );
   return getPrefs(pool, userId);
 }
@@ -162,6 +170,43 @@ async function fireDueReminders(pool) {
   }
 }
 
+// Per-task reminders: ping the user at each task's scheduled time (opt-in).
+// Fires once per action, within a 20-min window after its scheduled_time, in the
+// user's timezone. reminded_at de-dupes; it's cleared when a task is rescheduled.
+const TASK_WINDOW_MIN = 20;
+async function fireTaskTimeReminders(pool) {
+  const { rows: users } = await pool.query(
+    `SELECT p.*, u.email, u.name FROM notification_prefs p
+       JOIN users u ON u.id = p.user_id
+      WHERE p.task_time_enabled = true
+        AND (p.email_enabled = true OR p.telegram_enabled = true OR p.webpush_enabled = true)`
+  );
+  for (const p of users) {
+    try {
+      const { dateStr, hhmm } = nowInTz(p.timezone);
+      const nowMin = hhmmToMin(hhmm);
+      if (nowMin === null) continue;
+      const { rows: due } = await pool.query(
+        `SELECT id, title, scheduled_time FROM actions
+          WHERE user_id = $1 AND scheduled_date = $2 AND is_completed = false
+            AND is_cancelled = false AND scheduled_time IS NOT NULL AND reminded_at IS NULL`,
+        [p.user_id, dateStr]
+      );
+      for (const a of due) {
+        const taskMin = hhmmToMin(a.scheduled_time);
+        if (taskMin === null) continue;
+        const diff = nowMin - taskMin;
+        if (diff < 0 || diff > TASK_WINDOW_MIN) continue; // not in the fire window
+        await deliverReminder(pool, {
+          user_id: p.user_id, email: p.email, name: p.name,
+          title: `${a.title} — scheduled for ${String(a.scheduled_time).slice(0, 5)}`,
+        });
+        await pool.query('UPDATE actions SET reminded_at = NOW() WHERE id = $1', [a.id]);
+      }
+    } catch (e) { console.error('[reminders] task-time fire:', e.message); }
+  }
+}
+
 // One scheduler tick: send digests that are due and not yet sent today.
 async function tick(pool) {
   const { rows } = await pool.query(
@@ -184,6 +229,7 @@ async function tick(pool) {
     }
   }
   await fireDueReminders(pool);
+  await fireTaskTimeReminders(pool);
 }
 
 function startScheduler(pool) {

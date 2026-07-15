@@ -6,10 +6,23 @@
   max-width: 800px;
 }
 
-/* Drag-to-reorder rows */
-.md-drag-row { cursor: grab; border-radius: var(--radius-md); transition: opacity var(--transition-fast); }
-.md-drag-row:active { cursor: grabbing; }
-.md-drag-row.dragging { opacity: 0.45; }
+/* Drag-to-reorder rows (touch + mouse via a dedicated handle) */
+.md-drag-row { display: flex; align-items: stretch; gap: 2px; border-radius: var(--radius-md); transition: opacity var(--transition-fast); }
+.md-drag-row.dragging { opacity: 0.9; box-shadow: 0 8px 24px rgba(0,0,0,0.28); background: var(--bg-card); }
+.md-drag-row-body { flex: 1; min-width: 0; }
+.md-drag-handle {
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; width: 26px; padding: 0; margin: 0;
+  border: none; background: transparent; color: var(--text-muted);
+  cursor: grab; touch-action: none; border-radius: var(--radius-md);
+  opacity: 0.5; transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+.md-drag-row:hover .md-drag-handle { opacity: 1; }
+.md-drag-handle:hover { color: var(--accent-cyan); background: var(--bg-hover); }
+.md-drag-handle:active { cursor: grabbing; }
+.md-drag-handle:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: -2px; opacity: 1; }
+/* Handle stays reachable on touch where there's no hover */
+@media (hover: none) { .md-drag-handle { opacity: 0.8; } }
 
 /* Header actions + AI suggestions panel (shared by My Day & My Week) */
 .md-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }

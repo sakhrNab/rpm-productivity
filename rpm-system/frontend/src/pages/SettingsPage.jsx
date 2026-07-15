@@ -122,7 +122,7 @@ function SettingsPage() {
       const saved = await api.saveNotifPrefs({
         email_enabled: prefs.email_enabled, digest_enabled: prefs.digest_enabled,
         digest_time: prefs.digest_time || '08:00', overdue_enabled: prefs.overdue_enabled,
-        timezone: prefs.timezone || 'UTC',
+        task_time_enabled: prefs.task_time_enabled, timezone: prefs.timezone || 'UTC',
       });
       setPrefs(p => ({ ...p, ...saved }));
       showToast('Reminder settings saved', 'success');
@@ -360,6 +360,21 @@ function SettingsPage() {
               </label>
             </div>
           )}
+
+          {/* Per-task reminders (fires on whichever channels are enabled) */}
+          <div className="settings-remind-row">
+            <div className="settings-remind-main">
+              <Clock size={16} />
+              <div>
+                <div className="settings-remind-title">Remind me at each task's time</div>
+                <div className="settings-remind-sub">When a task has a scheduled time, get a nudge when it's due — on your enabled channels (email, Telegram, web push).</div>
+              </div>
+            </div>
+            <label className="settings-switch">
+              <input type="checkbox" checked={!!prefs.task_time_enabled} onChange={e => setPref({ task_time_enabled: e.target.checked })} />
+              <span />
+            </label>
+          </div>
 
           {/* Telegram */}
           <div className="settings-remind-row">

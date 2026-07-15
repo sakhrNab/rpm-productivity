@@ -611,6 +611,8 @@ app.put('/api/actions/:id', authenticateToken, async (req, res) => {
       if (allowedFields.includes(key)) { fields.push(`${key} = $${paramCount}`); values.push(nullableFields.has(key) && value === '' ? null : value); paramCount++; }
     }
     if (updates.is_completed === true) fields.push(`completed_at = CURRENT_TIMESTAMP`);
+    // Rescheduling clears the per-task reminder flag so it can fire again at the new time.
+    if ('scheduled_date' in updates || 'scheduled_time' in updates) fields.push(`reminded_at = NULL`);
     if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
     values.push(id, req.userId);
     const result = await pool.query(`UPDATE actions SET ${fields.join(', ')} WHERE id = $${paramCount} AND user_id = $${paramCount + 1} RETURNING *`, values);
@@ -1263,7 +1265,7 @@ app.get('/api/notifications/prefs', authenticateToken, async (req, res) => {
 
 app.put('/api/notifications/prefs', authenticateToken, async (req, res) => {
   try {
-    const allowed = ['email_enabled', 'telegram_enabled', 'webpush_enabled', 'digest_enabled', 'digest_time', 'overdue_enabled', 'timezone'];
+    const allowed = ['email_enabled', 'telegram_enabled', 'webpush_enabled', 'digest_enabled', 'digest_time', 'overdue_enabled', 'task_time_enabled', 'timezone'];
     const patch = {};
     for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
     res.json(await notifications.upsertPrefs(pool, req.userId, patch));
