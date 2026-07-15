@@ -156,6 +156,8 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     }).then(r => r.json()),
     getAiUsage: (days = 30) => authFetch(`${API_BASE}/ai/usage?days=${days}`).then(r => r.json()),
     getForecast: () => authFetch(`${API_BASE}/forecast`).then(r => r.json()),
+    getOverdueActions: (today) => authFetch(`${API_BASE}/actions/overdue?today=${today}`).then(r => r.json()),
+    triageOverdue: (body) => authFetch(`${API_BASE}/actions/triage`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
     forecastFix: (body) => authFetch(`${API_BASE}/forecast/fix`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
     getNotifPrefs: () => authFetch(`${API_BASE}/notifications/prefs`).then(r => r.json()),
     saveNotifPrefs: (patch) => authFetch(`${API_BASE}/notifications/prefs`, {

@@ -186,6 +186,63 @@ What specific actions, scheduled between now and the deadline, would get it back
   return { summary: plan.summary || `Catch-up plan for “${kr.title}”`, notes, operations, existing, today, usage };
 }
 
+// Triage carried-over tasks: propose move-to-today / reschedule / drop for each.
+// Returns a braindump-shaped plan so the same preview → approve → applyPlan runs it.
+async function triageOverdue({ pool, userId, modelKey, today }) {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(today || '') ? today : new Date().toISOString().slice(0, 10);
+  const { rows: late } = await pool.query(
+    `SELECT id, title, to_char(scheduled_date, 'YYYY-MM-DD') AS scheduled_date, priority,
+            ($2::date - scheduled_date) AS days_late, project_name, category_name
+       FROM v_actions_full
+      WHERE user_id = $1 AND scheduled_date IS NOT NULL AND scheduled_date < $2::date
+        AND is_completed = false AND is_cancelled = false
+      ORDER BY scheduled_date LIMIT 40`, [userId, day]);
+  if (!late.length) return { summary: 'Nothing has been carried over — you’re clean.', notes: [], operations: [], existing: await loadExisting(pool, userId), today: day, usage: null };
+
+  const ctx = await buildRpmContext(pool, userId);
+  const existing = await loadExisting(pool, userId);
+  const list = late.map(a => `- id ${a.id} · "${a.title}" · planned ${a.scheduled_date} (${a.days_late}d ago) · ${a.project_name || 'no project'} · priority ${a.priority || 0}`).join('\n');
+
+  const system = `You are the user's chief of staff triaging tasks that slipped past their planned date.
+Today is ${day}. Their real RPM data:
+
+=== USER'S RPM DATA ===
+${ctx.text}
+=== END DATA ===
+
+Output ONLY one JSON object (no markdown):
+{ "summary": "one honest line", "notes": ["optional, max 2"], "operations": [
+  { "op": "update_action", "actionId": "<id>", "scheduled_date": "YYYY-MM-DD", "reason": "why" },
+  { "op": "update_action", "actionId": "<id>", "is_cancelled": true, "reason": "why this should be dropped" }
+] }
+Rules:
+- ONLY update_action ops, and ONLY for the ids listed by the user.
+- For each slipped task decide ONE: move it to ${day}, reschedule it to a realistic later date, or DROP it (is_cancelled:true).
+- Be honest and decisive, like a real chief of staff. If something has slipped many days and doesn't move any key result, recommend dropping it — don't just shove everything to today.
+- Don't move more onto today than a person can actually do. Spread the rest.
+- Give each op a short "reason".`;
+
+  const user = `These tasks are carried over:\n${list}\n\nTriage them: what moves to today, what gets a new date, what should be dropped?`;
+
+  let raw = '', rawUsage = null;
+  for await (const ev of runChat({ pool, userId, modelKey, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], webSearch: false, rpm: false, autoMode: false })) {
+    if (ev.type === 'text') raw += ev.text;
+    else if (ev.type === 'usage') rawUsage = ev.usage;
+    else if (ev.type === 'error') throw new AiError('ai_error', ev.message || 'AI request failed');
+  }
+  const usage = rawUsage ? await recordUsage(pool, { userId, modelKey, feature: 'triage', usage: rawUsage }) : null;
+
+  let plan;
+  try { plan = parsePlan(raw); }
+  catch { throw new AiError('bad_plan', 'The model returned an unreadable triage — try again, or a different model.'); }
+  const valid = new Set(late.map(a => a.id));
+  const operations = Array.isArray(plan.operations)
+    ? plan.operations.filter(o => o && o.op === 'update_action' && valid.has(o.actionId)).slice(0, 40)
+    : [];
+  const notes = Array.isArray(plan.notes) ? plan.notes.filter(n => typeof n === 'string' && n.trim()).slice(0, 2) : [];
+  return { summary: plan.summary || 'Triage of your carried-over tasks', notes, operations, existing, today: day, usage };
+}
+
 function within7Days(dateStr, today) {
   if (!dateStr) return false;
   try {
@@ -294,11 +351,14 @@ async function applyPlan({ pool, userId, operations }) {
              scheduled_date = COALESCE($3, scheduled_date),
              duration_minutes = COALESCE($4, duration_minutes),
              priority = COALESCE($5, priority),
+             is_cancelled = COALESCE($6, is_cancelled),
              reminded_at = CASE WHEN $3 IS NOT NULL THEN NULL ELSE reminded_at END
-           WHERE id = $6 AND user_id = $7 RETURNING id`,
+           WHERE id = $7 AND user_id = $8 RETURNING id`,
           [o.title ?? null, o.notes ?? null, o.scheduled_date || null,
            (o.duration_minutes === undefined ? null : o.duration_minutes),
-           (o.priority === undefined ? null : o.priority), o.actionId, userId]);
+           (o.priority === undefined ? null : o.priority),
+           (typeof o.is_cancelled === 'boolean' ? o.is_cancelled : null),
+           o.actionId, userId]);
         if (r.rows[0]) applied.updates++;
         else errors.push('Skipped an update — action not found.');
       }
@@ -315,4 +375,4 @@ async function applyPlan({ pool, userId, operations }) {
   return { applied, errors };
 }
 
-module.exports = { generatePlan, applyPlan, draftFix };
+module.exports = { generatePlan, applyPlan, draftFix, triageOverdue };

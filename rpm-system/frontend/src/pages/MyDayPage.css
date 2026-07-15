@@ -58,3 +58,46 @@
 .md-group-none span:first-child { color: var(--text-muted); }
 .md-group-done span:first-child { color: var(--accent-green); }
 .md-suggest-proposals { margin-top: 14px; }
+
+/* ---------- Carried over (tasks that slipped past their planned date) ---------- */
+.md-carried {
+  max-width: 800px;
+  background: linear-gradient(135deg, rgba(255,183,77,0.07), rgba(255,107,107,0.05));
+  border: 1px solid rgba(255,183,77,0.32);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.md-carried-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.md-carried-title { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 0.92rem; color: var(--accent-orange); }
+.md-carried-title b { background: rgba(255,183,77,0.18); border-radius: 999px; padding: 0 8px; font-size: 0.78rem; }
+.md-carried-actions { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.md-carried-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.74rem; font-weight: 600; padding: 5px 10px; border-radius: 999px;
+  background: var(--bg-card); border: 1px solid var(--border-primary); color: var(--text-secondary); cursor: pointer;
+}
+.md-carried-btn:hover:not(:disabled) { color: var(--text-primary); border-color: var(--accent-cyan); }
+.md-carried-btn:disabled { opacity: 0.6; cursor: default; }
+.md-carried-note { font-size: 0.78rem; color: var(--text-muted); margin: 6px 0 10px; }
+.md-carried-row { display: flex; align-items: center; gap: 9px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.06); }
+.md-carried-check {
+  width: 17px; height: 17px; flex-shrink: 0; border-radius: 50%;
+  border: 2px solid var(--border-primary); background: transparent; cursor: pointer;
+}
+.md-carried-check:hover { border-color: var(--accent-green); background: rgba(129,199,132,0.2); }
+.md-carried-name { flex: 1; min-width: 0; font-size: 0.88rem; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-carried-name:hover { color: var(--accent-cyan); }
+.md-carried-age { flex-shrink: 0; font-size: 0.7rem; font-weight: 700; color: var(--accent-orange); background: rgba(255,183,77,0.14); border-radius: 999px; padding: 1px 7px; font-variant-numeric: tabular-nums; }
+.md-carried-mini {
+  flex-shrink: 0; font-size: 0.72rem; font-weight: 600; padding: 3px 9px; border-radius: 6px;
+  background: var(--bg-hover); border: 1px solid var(--border-primary); color: var(--text-secondary); cursor: pointer;
+}
+.md-carried-mini:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+.md-carried-mini.drop:hover { color: var(--accent-red); border-color: rgba(255,107,107,0.5); }
+.md-spin { animation: md-spin 0.9s linear infinite; }
+@keyframes md-spin { to { transform: rotate(360deg); } }
+@media (max-width: 640px) {
+  .md-carried-name { white-space: normal; }
+  .md-carried-row { flex-wrap: wrap; }
+}

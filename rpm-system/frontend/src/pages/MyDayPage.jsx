@@ -1,10 +1,11 @@
 import { useState, useEffect, useContext } from 'react';
-import { Plus, Sparkles, X, Check } from 'lucide-react';
+import { Plus, Sparkles, X, Check, AlertTriangle, Wand2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import ActionRow from '../components/ActionRow';
 import SortableActionGroups from '../components/SortableActionGroups';
+import BrainDumpModal from '../components/BrainDumpModal';
 import Markdown from '../components/Markdown';
 import UsageBadge from '../components/UsageBadge';
 import { useToast } from '../components/ToastProvider';
@@ -21,9 +22,50 @@ function MyDayPage() {
   const [editingAction, setEditingAction] = useState(null);
   const [suggest, setSuggest] = useState(null);
   const [reminders, setReminders] = useState([]);
+  const [overdue, setOverdue] = useState([]);
+  const [triaging, setTriaging] = useState(false);
+  const [triagePlan, setTriagePlan] = useState(null);
   const today = format(new Date(), 'yyyy-MM-dd');
 
-  useEffect(() => { loadActions(); loadReminders(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadActions(); loadReminders(); loadOverdue(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tasks still sitting on a past date. We never silently move them — the real dates
+  // are what keep the forecasting honest — so they're surfaced here to triage.
+  const loadOverdue = () => api.getOverdueActions(today).then(d => setOverdue(Array.isArray(d) ? d : [])).catch(() => {});
+  const moveToToday = async (a) => {
+    try { await api.updateAction(a.id, { scheduled_date: today }); loadOverdue(); loadActions(); showToast('Moved to today', 'success'); }
+    catch { showToast('Could not move that task', 'error'); }
+  };
+  const dropTask = async (a) => {
+    try { await api.updateAction(a.id, { is_cancelled: true }); loadOverdue(); showToast(`Dropped “${a.title}”`, 'info'); }
+    catch { showToast('Could not drop that task', 'error'); }
+  };
+  const completeOverdue = async (a) => {
+    try { await api.updateAction(a.id, { is_completed: true }); loadOverdue(); showToast('Done', 'success'); }
+    catch { showToast('Could not update that task', 'error'); }
+  };
+  const moveAllToToday = async () => {
+    if (!overdue.length) return;
+    try {
+      await Promise.all(overdue.map(a => api.updateAction(a.id, { scheduled_date: today })));
+      loadOverdue(); loadActions(); showToast(`Moved ${overdue.length} to today`, 'success');
+    } catch { showToast('Some tasks could not be moved', 'error'); loadOverdue(); loadActions(); }
+  };
+  const triageOverdue = async () => {
+    const modelKey = localStorage.getItem('ai.modelKey');
+    if (!modelKey) { showToast('Pick a default AI model in Settings first.', 'info'); return; }
+    setTriaging(true);
+    try {
+      const res = await api.triageOverdue({ modelKey, today });
+      if (res.error) throw new Error(res.error);
+      if (!res.operations?.length) { showToast('No triage suggestions came back.', 'info'); return; }
+      setTriagePlan(res);
+    } catch (e) {
+      const msg = e.message || 'Failed to triage';
+      if (/no longer available|unknown model/i.test(msg)) localStorage.removeItem('ai.modelKey');
+      showToast(msg, 'error');
+    } finally { setTriaging(false); }
+  };
 
   const loadActions = async () => {
     try {
@@ -177,6 +219,43 @@ function MyDayPage() {
             )}
           </div>
         </div>
+      )}
+
+      {overdue.length > 0 && (
+        <div className="md-carried">
+          <div className="md-carried-head">
+            <span className="md-carried-title">
+              <AlertTriangle size={15} /> Carried over <b>{overdue.length}</b>
+            </span>
+            <span className="md-carried-actions">
+              <button type="button" className="md-carried-btn" onClick={triageOverdue} disabled={triaging}>
+                {triaging ? <><Loader2 size={13} className="md-spin" /> Triaging…</> : <><Wand2 size={13} /> Triage with AI</>}
+              </button>
+              <button type="button" className="md-carried-btn" onClick={moveAllToToday}>Move all to today</button>
+            </span>
+          </div>
+          <p className="md-carried-note">These slipped past their planned date. Nothing was moved automatically — decide each one.</p>
+          {overdue.map(a => (
+            <div key={a.id} className="md-carried-row">
+              <button type="button" className="md-carried-check" onClick={() => completeOverdue(a)} title="Mark done" aria-label="Mark done" />
+              <span className="md-carried-name" onClick={() => handleEdit(a)} title="Open to reschedule">{a.title}</span>
+              <span className="md-carried-age" title={`Planned ${String(a.scheduled_date).slice(0, 10)}`}>
+                {a.days_late}d late
+              </span>
+              <button type="button" className="md-carried-mini" onClick={() => moveToToday(a)}>Today</button>
+              <button type="button" className="md-carried-mini drop" onClick={() => dropTask(a)}>Drop</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {triagePlan && (
+        <BrainDumpModal
+          initialPlan={triagePlan}
+          title="Triage carried-over tasks"
+          onClose={() => setTriagePlan(null)}
+          onApplied={() => { setTriagePlan(null); loadOverdue(); loadActions(); }}
+        />
       )}
 
       <div className="actions-list md-actions-list">

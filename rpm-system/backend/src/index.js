@@ -11,7 +11,7 @@ const { isConfigured: aiKeysConfigured } = require('./ai/crypto');
 const { runChat, AiError } = require('./ai/service');
 const { applyProposal } = require('./ai/tools');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
-const { generatePlan, applyPlan, draftFix } = require('./ai/braindump');
+const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
 const { recordUsage, getUsageSummary } = require('./ai/usage');
 const { computeForecasts, logKrProgress } = require('./forecast');
 const notifications = require('./notifications');
@@ -514,6 +514,24 @@ app.get('/api/actions', authenticateToken, async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) { res.status(500).json({ error: 'Failed to fetch actions' }); }
+});
+
+// Carried over: unfinished tasks still sitting on a past date. NOTE: must stay above
+// '/api/actions/:id' or Express matches this as id="overdue".
+// `today` comes from the client so it's the user's local day, not the server's UTC day.
+app.get('/api/actions/overdue', authenticateToken, async (req, res) => {
+  try {
+    const today = /^\d{4}-\d{2}-\d{2}$/.test(req.query.today || '') ? req.query.today : new Date().toISOString().slice(0, 10);
+    const result = await pool.query(
+      `SELECT *, ($2::date - scheduled_date) AS days_late
+         FROM v_actions_full
+        WHERE user_id = $1 AND scheduled_date IS NOT NULL AND scheduled_date < $2::date
+          AND is_completed = false AND is_cancelled = false
+        ORDER BY scheduled_date, sort_order`,
+      [req.userId, today]
+    );
+    res.json(result.rows);
+  } catch (error) { console.error('[actions] overdue:', error.message); res.status(500).json({ error: 'Failed to fetch overdue actions' }); }
 });
 
 app.get('/api/actions/:id', authenticateToken, async (req, res) => {
@@ -1309,6 +1327,18 @@ app.post('/api/forecast/fix', authenticateToken, async (req, res) => {
     res.json(await draftFix({ pool, userId: req.userId, modelKey, keyResultId }));
   } catch (error) {
     console.error('[forecast] fix error:', error.message);
+    res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
+  }
+});
+
+// Triage carried-over tasks — proposes move / reschedule / drop (nothing applied).
+app.post('/api/actions/triage', authenticateToken, async (req, res) => {
+  try {
+    const { modelKey, today } = req.body;
+    if (!modelKey) return res.status(400).json({ error: 'modelKey is required' });
+    res.json(await triageOverdue({ pool, userId: req.userId, modelKey, today }));
+  } catch (error) {
+    console.error('[actions] triage error:', error.message);
     res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
   }
 });
