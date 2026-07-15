@@ -29,6 +29,7 @@ function SettingsPage() {
   const [tg, setTg] = useState(null);        // telegram status
   const [botToken, setBotToken] = useState('');
   const [tgBusy, setTgBusy] = useState(false);
+  const [tab, setTab] = useState('api');     // 'api' | 'reminders'
 
   const load = () => {
     api.getAiKeys()
@@ -157,6 +158,16 @@ function SettingsPage() {
         <h1 className="page-title">Settings</h1>
       </div>
 
+      <div className="settings-tabs">
+        <button type="button" className={`settings-tab ${tab === 'api' ? 'active' : ''}`} onClick={() => setTab('api')}>
+          <KeyRound size={15} /> API keys
+        </button>
+        <button type="button" className={`settings-tab ${tab === 'reminders' ? 'active' : ''}`} onClick={() => setTab('reminders')}>
+          <Bell size={15} /> Reminders {tg?.connected && <span className="settings-tab-dot" />}
+        </button>
+      </div>
+
+      {tab === 'api' && (<>
       <section className="settings-section">
         <div className="settings-section-head">
           <KeyRound size={18} />
@@ -258,8 +269,9 @@ function SettingsPage() {
           </div>
         </section>
       )}
+      </>)}
 
-      {prefs && (
+      {tab === 'reminders' && prefs && (
         <section className="settings-section settings-reminders">
           <div className="settings-section-head">
             <Bell size={18} />
