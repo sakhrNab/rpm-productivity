@@ -118,6 +118,16 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       method: 'PUT',
       body: JSON.stringify({ ids })
     }).then(r => r.json()),
+    reorderActions: (ids) => authFetch(`${API_BASE}/actions/reorder`, {
+      method: 'PUT', body: JSON.stringify({ ids })
+    }).then(r => r.json()),
+    getActionDependencies: (id) => authFetch(`${API_BASE}/actions/${id}/dependencies`).then(r => r.json()),
+    addActionDependency: (id, depends_on_action_id) => authFetch(`${API_BASE}/actions/${id}/dependencies`, {
+      method: 'POST', body: JSON.stringify({ depends_on_action_id })
+    }).then(r => r.json()),
+    removeActionDependency: (id, depId) => authFetch(`${API_BASE}/actions/${id}/dependencies/${depId}`, {
+      method: 'DELETE'
+    }).then(r => r.json()),
 
     // ---- AI layer ----
     getAiModels: () => authFetch(`${API_BASE}/ai/models`).then(r => r.json()),

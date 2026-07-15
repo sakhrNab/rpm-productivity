@@ -1,8 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Check, Clock, FolderOpen, Calendar, MoreVertical, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { Star, Check, Clock, FolderOpen, Calendar, MoreVertical, Pencil, Trash2, ExternalLink, Flag, Lock, GitBranch } from 'lucide-react';
 import { playDone } from '../utils/sound';
 import './ActionRow.css';
+
+const PRIORITY = { 1: { label: 'Low', cls: 'low' }, 2: { label: 'Med', cls: 'med' }, 3: { label: 'High', cls: 'high' } };
+
+function prettyDate(d) {
+  if (!d) return null;
+  const s = String(d).slice(0, 10);
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const tomorrow = format(new Date(Date.now() + 86400000), 'yyyy-MM-dd');
+  if (s === today) return 'Today';
+  if (s === tomorrow) return 'Tomorrow';
+  try { return format(parseISO(s), 'MMM d'); } catch { return s; }
+}
+
+function prettyDuration(h, m) {
+  const hh = Number(h) || 0, mm = Number(m) || 0;
+  if (hh > 0 && mm > 0) return `${hh}h ${mm}m`;
+  if (hh > 0) return `${hh}h`;
+  return `${mm}m`;
+}
 
 // Reusable action row used by My Day / My Week.
 // Clicking the content opens the action for editing; the menu offers
@@ -35,14 +55,29 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete })
         title="Open action"
       >
         <div className={`action-title ${action.is_completed ? 'completed' : ''}`}>
+          {PRIORITY[action.priority] && (
+            <span className={`ar-prio ar-prio-${PRIORITY[action.priority].cls}`} title={`${PRIORITY[action.priority].label} priority`}>
+              <Flag size={11} /> {PRIORITY[action.priority].label}
+            </span>
+          )}
           {action.title}
         </div>
         <div className="action-meta">
           {action.project_name && <span><FolderOpen size={12} /> {action.project_name}</span>}
           {action.scheduled_date
-            ? <span><Calendar size={12} /> {action.scheduled_date}</span>
+            ? <span><Calendar size={12} /> {prettyDate(action.scheduled_date)}</span>
             : <span className="ar-unscheduled"><Calendar size={12} /> unscheduled</span>}
-          <span><Clock size={12} /> {action.duration_hours}h {action.duration_minutes}m</span>
+          <span><Clock size={12} /> {prettyDuration(action.duration_hours, action.duration_minutes)}</span>
+          {Array.isArray(action.blocked_by) && action.blocked_by.length > 0 && (
+            <span className="ar-dep ar-dep-blocked" title={'Blocked by: ' + action.blocked_by.map(b => b.title).join(', ')}>
+              <Lock size={12} /> Blocked by {action.blocked_by.length}
+            </span>
+          )}
+          {Array.isArray(action.blocks) && action.blocks.length > 0 && (
+            <span className="ar-dep ar-dep-blocks" title={'Blocks: ' + action.blocks.map(b => b.title).join(', ')}>
+              <GitBranch size={12} /> Blocks {action.blocks.length}
+            </span>
+          )}
         </div>
       </div>
 

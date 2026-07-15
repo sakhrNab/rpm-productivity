@@ -1,5 +1,12 @@
 import { useState, useContext, useEffect } from 'react';
-import { X, Clock, Star, Calendar, FolderOpen, User } from 'lucide-react';
+import { X, Clock, Star, Calendar, FolderOpen, User, Flag, Lock, ChevronDown } from 'lucide-react';
+
+const PRIORITY_OPTIONS = [
+  { value: 0, label: 'None', cls: 'none' },
+  { value: 1, label: 'Low', cls: 'low' },
+  { value: 2, label: 'Med', cls: 'med' },
+  { value: 3, label: 'High', cls: 'high' },
+];
 import { AppContext, AuthContext } from '../../App';
 import './CreateActionModal.css';
 
@@ -15,15 +22,33 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
     leverage_person_id: initialData.leverage_person_id || '',
     duration_hours: initialData.duration_hours || 0,
     duration_minutes: initialData.duration_minutes || 5,
-    scheduled_date: initialData.scheduled_date || '',
+    scheduled_date: (initialData.scheduled_date || '').slice(0, 10),
     is_starred: initialData.is_starred || false,
     is_this_week: initialData.is_this_week || false,
+    priority: initialData.priority || 0,
   });
+  const [candidateActions, setCandidateActions] = useState([]);
+  const [dependsOn, setDependsOn] = useState([]); // ids this action is blocked by
+  const [originalDeps, setOriginalDeps] = useState([]);
+  const [showDepsDropdown, setShowDepsDropdown] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [showPersonDropdown, setShowPersonDropdown] = useState(false);
   const [createLeverage, setCreateLeverage] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Load candidate actions to depend on + this action's existing dependencies.
+  useEffect(() => {
+    api.getActions()
+      .then(list => setCandidateActions((list || []).filter(a => a.id !== initialData.id && !a.is_completed)))
+      .catch(() => {});
+    if (initialData.id) {
+      api.getActionDependencies(initialData.id)
+        .then(d => { const ids = (d.blocked_by || []).map(b => b.id); setDependsOn(ids); setOriginalDeps(ids); })
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -54,6 +79,16 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
         } catch (err) {
           console.error('Failed to create leverage request:', err);
         }
+      }
+
+      // Sync "blocked by" dependencies (add new, remove cleared).
+      if (actionId) {
+        const toAdd = dependsOn.filter(id => !originalDeps.includes(id));
+        const toRemove = originalDeps.filter(id => !dependsOn.includes(id));
+        await Promise.all([
+          ...toAdd.map(depId => api.addActionDependency(actionId, depId).catch(() => {})),
+          ...toRemove.map(depId => api.removeActionDependency(actionId, depId).catch(() => {})),
+        ]);
       }
       onSuccess();
     } catch (error) {
@@ -274,6 +309,66 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
               />
               Create Leverage Request
             </label>
+
+            {/* Priority (Chet Holmes: rank what matters most) */}
+            <div className="form-row cam-mb-16">
+              <span className="cam-field-label"><Flag size={14} className="cam-icon-muted" /> Priority</span>
+              <div className="cam-prio-group">
+                {PRIORITY_OPTIONS.map(o => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    className={`cam-prio-btn cam-prio-${o.cls} ${formData.priority === o.value ? 'active' : ''}`}
+                    onClick={() => setFormData({ ...formData, priority: o.value })}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Dependencies — blocked by other actions */}
+            <div className="form-row cam-mb-16">
+              <span className="cam-field-label"><Lock size={14} className="cam-icon-muted" /> Blocked by</span>
+              <div className="dropdown cam-dropdown-flex">
+                <button type="button" className="dropdown-trigger cam-trigger-full" onClick={() => setShowDepsDropdown(v => !v)}>
+                  <span>{dependsOn.length ? `${dependsOn.length} action${dependsOn.length > 1 ? 's' : ''}` : 'Depends on… (optional)'}</span>
+                  <ChevronDown size={14} className="cam-icon-muted cam-ml-auto" />
+                </button>
+                {showDepsDropdown && (
+                  <div className="dropdown-menu cam-deps-menu">
+                    {candidateActions.length === 0 && <div className="dropdown-item cam-dropdown-empty">No other actions yet</div>}
+                    {candidateActions.map(a => {
+                      const checked = dependsOn.includes(a.id);
+                      return (
+                        <div
+                          key={a.id}
+                          className="dropdown-item cam-dep-item"
+                          onClick={() => setDependsOn(prev => checked ? prev.filter(id => id !== a.id) : [...prev, a.id])}
+                        >
+                          <input type="checkbox" readOnly checked={checked} />
+                          <span className="cam-dep-title">{a.title}</span>
+                          {a.project_name && <span className="cam-person-email">{a.project_name}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            {dependsOn.length > 0 && (
+              <div className="cam-dep-chips">
+                {dependsOn.map(id => {
+                  const a = candidateActions.find(c => c.id === id);
+                  return (
+                    <span key={id} className="cam-dep-chip">
+                      {a ? a.title : 'action'}
+                      <button type="button" onClick={() => setDependsOn(prev => prev.filter(x => x !== id))} aria-label="Remove"><X size={11} /></button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="modal-footer">

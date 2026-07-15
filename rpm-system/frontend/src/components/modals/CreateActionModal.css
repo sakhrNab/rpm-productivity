@@ -85,3 +85,31 @@
   color: var(--text-muted);
   font-size: 0.78rem;
 }
+
+/* Priority selector */
+.cam-ml-auto { margin-left: auto; }
+.cam-prio-group { display: flex; gap: 6px; flex: 1; }
+.cam-prio-btn {
+  flex: 1; padding: 7px 4px; border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary); background: var(--bg-card);
+  color: var(--text-secondary); font-size: 0.82rem; font-weight: 600;
+  transition: all var(--transition-fast);
+}
+.cam-prio-btn:hover { border-color: var(--border-accent); color: var(--text-primary); }
+.cam-prio-btn.active.cam-prio-none { border-color: var(--text-muted); color: var(--text-primary); background: rgba(255,255,255,0.05); }
+.cam-prio-btn.active.cam-prio-low { border-color: var(--accent-cyan); color: var(--accent-cyan); background: rgba(78,205,196,0.12); }
+.cam-prio-btn.active.cam-prio-med { border-color: var(--accent-orange); color: var(--accent-orange); background: rgba(255,183,77,0.12); }
+.cam-prio-btn.active.cam-prio-high { border-color: var(--accent-red); color: var(--accent-red); background: rgba(255,107,107,0.14); }
+
+/* Dependencies */
+.cam-deps-menu { max-height: 240px; overflow-y: auto; }
+.cam-dep-item { display: flex; align-items: center; gap: 8px; }
+.cam-dep-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cam-dep-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -8px 0 16px; }
+.cam-dep-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.8rem; padding: 3px 6px 3px 10px; border-radius: 999px;
+  background: rgba(255,107,107,0.1); border: 1px solid rgba(255,107,107,0.3); color: var(--text-primary);
+}
+.cam-dep-chip button { display: inline-flex; color: var(--text-muted); }
+.cam-dep-chip button:hover { color: var(--accent-red); }

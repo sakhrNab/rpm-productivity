@@ -13,7 +13,28 @@ function MyDayPage() {
   const [loading, setLoading] = useState(true);
   const [showActionModal, setShowActionModal] = useState(false);
   const [editingAction, setEditingAction] = useState(null);
+  const [dragId, setDragId] = useState(null);
   const today = format(new Date(), 'yyyy-MM-dd');
+
+  const handleDragOver = (e, overId) => {
+    e.preventDefault();
+    if (!dragId || dragId === overId) return;
+    setActions(prev => {
+      const from = prev.findIndex(a => a.id === dragId);
+      const to = prev.findIndex(a => a.id === overId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+  const handleDrop = async () => {
+    const ids = actions.map(a => a.id);
+    setDragId(null);
+    try { await api.reorderActions(ids); }
+    catch (error) { console.error('Failed to reorder actions:', error); loadActions(); }
+  };
 
   useEffect(() => {
     loadActions();
@@ -110,14 +131,23 @@ function MyDayPage() {
           </div>
         ) : (
           actions.map(action => (
-            <ActionRow
+            <div
               key={action.id}
-              action={action}
-              onToggleComplete={toggleComplete}
-              onToggleStar={toggleStar}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
+              className={`md-drag-row ${dragId === action.id ? 'dragging' : ''}`}
+              draggable
+              onDragStart={(e) => { setDragId(action.id); e.dataTransfer.effectAllowed = 'move'; }}
+              onDragOver={(e) => handleDragOver(e, action.id)}
+              onDrop={(e) => { e.preventDefault(); handleDrop(); }}
+              onDragEnd={handleDrop}
+            >
+              <ActionRow
+                action={action}
+                onToggleComplete={toggleComplete}
+                onToggleStar={toggleStar}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            </div>
           ))
         )}
       </div>

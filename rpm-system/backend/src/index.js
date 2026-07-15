@@ -520,13 +520,79 @@ app.get('/api/actions/:id', authenticateToken, async (req, res) => {
 
 app.post('/api/actions', authenticateToken, async (req, res) => {
   try {
-    const { category_id, project_id, block_id, leverage_person_id, title, notes, duration_hours, duration_minutes, scheduled_date, scheduled_time, end_date, is_starred, is_this_week } = req.body;
+    const { category_id, project_id, block_id, leverage_person_id, title, notes, duration_hours, duration_minutes, scheduled_date, scheduled_time, end_date, is_starred, is_this_week, priority } = req.body;
     const result = await pool.query(
-      `INSERT INTO actions (user_id, category_id, project_id, block_id, leverage_person_id, title, notes, duration_hours, duration_minutes, scheduled_date, scheduled_time, end_date, is_starred, is_this_week, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM actions WHERE user_id = $1)) RETURNING *`,
-      [req.userId, category_id || null, project_id || null, block_id || null, leverage_person_id || null, title, notes || '', duration_hours || 0, duration_minutes || 5, scheduled_date || null, scheduled_time || null, end_date || null, is_starred || false, is_this_week || false]
+      `INSERT INTO actions (user_id, category_id, project_id, block_id, leverage_person_id, title, notes, duration_hours, duration_minutes, scheduled_date, scheduled_time, end_date, is_starred, is_this_week, priority, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM actions WHERE user_id = $1)) RETURNING *`,
+      [req.userId, category_id || null, project_id || null, block_id || null, leverage_person_id || null, title, notes || '', duration_hours || 0, duration_minutes || 5, scheduled_date || null, scheduled_time || null, end_date || null, is_starred || false, is_this_week || false, priority || 0]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) { res.status(500).json({ error: 'Failed to create action' }); }
+});
+
+// Attach blocked_by (actions this one depends on) and blocks (actions depending on it).
+async function attachDependencies(rows) {
+  if (!rows.length) return rows;
+  const ids = rows.map(r => r.id);
+  const [dep, blk] = await Promise.all([
+    pool.query('SELECT d.action_id, d.depends_on_action_id AS id, a.title, a.is_completed FROM action_dependencies d JOIN actions a ON a.id = d.depends_on_action_id WHERE d.action_id = ANY($1)', [ids]),
+    pool.query('SELECT d.depends_on_action_id AS action_id, d.action_id AS id, a.title, a.is_completed FROM action_dependencies d JOIN actions a ON a.id = d.action_id WHERE d.depends_on_action_id = ANY($1)', [ids]),
+  ]);
+  const byAction = {}, blocksBy = {};
+  for (const r of dep.rows) (byAction[r.action_id] = byAction[r.action_id] || []).push({ id: r.id, title: r.title, is_completed: r.is_completed });
+  for (const r of blk.rows) (blocksBy[r.action_id] = blocksBy[r.action_id] || []).push({ id: r.id, title: r.title, is_completed: r.is_completed });
+  return rows.map(r => ({ ...r, blocked_by: byAction[r.id] || [], blocks: blocksBy[r.id] || [] }));
+}
+
+// Reorder actions (drag-and-drop). Defined before /:id so 'reorder' isn't treated as an id.
+app.put('/api/actions/reorder', authenticateToken, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids array required' });
+    await pool.query(
+      `UPDATE actions AS a SET sort_order = v.ord
+         FROM (SELECT id, ordinality AS ord FROM unnest($1::uuid[]) WITH ORDINALITY AS t(id, ordinality)) v
+        WHERE a.id = v.id AND a.user_id = $2`,
+      [ids, req.userId]
+    );
+    res.json({ success: true });
+  } catch (error) { console.error('Failed to reorder actions:', error); res.status(500).json({ error: 'Failed to reorder actions' }); }
+});
+
+// Action dependencies (blocked-by / blocks) — visual linking only.
+app.get('/api/actions/:id/dependencies', authenticateToken, async (req, res) => {
+  try {
+    const chk = await pool.query('SELECT id FROM actions WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (!chk.rows[0]) return res.status(404).json({ error: 'Action not found' });
+    const [rows] = await Promise.all([attachDependencies([{ id: req.params.id }])]);
+    res.json({ blocked_by: rows[0].blocked_by, blocks: rows[0].blocks });
+  } catch (error) { console.error('deps get error:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.post('/api/actions/:id/dependencies', authenticateToken, async (req, res) => {
+  try {
+    const { depends_on_action_id } = req.body;
+    if (!depends_on_action_id) return res.status(400).json({ error: 'depends_on_action_id required' });
+    if (depends_on_action_id === req.params.id) return res.status(400).json({ error: 'An action cannot depend on itself' });
+    // both actions must belong to the user
+    const own = await pool.query('SELECT id FROM actions WHERE id = ANY($1) AND user_id = $2', [[req.params.id, depends_on_action_id], req.userId]);
+    if (own.rows.length !== 2) return res.status(400).json({ error: 'Invalid action(s)' });
+    await pool.query(
+      'INSERT INTO action_dependencies (action_id, depends_on_action_id) VALUES ($1, $2) ON CONFLICT (action_id, depends_on_action_id) DO NOTHING',
+      [req.params.id, depends_on_action_id]
+    );
+    res.json({ success: true });
+  } catch (error) { console.error('deps add error:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.delete('/api/actions/:id/dependencies/:depId', authenticateToken, async (req, res) => {
+  try {
+    await pool.query(
+      `DELETE FROM action_dependencies d USING actions a
+        WHERE d.action_id = $1 AND d.depends_on_action_id = $2 AND a.id = d.action_id AND a.user_id = $3`,
+      [req.params.id, req.params.depId, req.userId]
+    );
+    res.json({ success: true });
+  } catch (error) { console.error('deps del error:', error); res.status(500).json({ error: 'Failed' }); }
 });
 
 app.put('/api/actions/:id', authenticateToken, async (req, res) => {
@@ -535,7 +601,7 @@ app.put('/api/actions/:id', authenticateToken, async (req, res) => {
     const updates = req.body;
     const fields = [], values = [];
     let paramCount = 1;
-    const allowedFields = ['category_id', 'project_id', 'block_id', 'leverage_person_id', 'title', 'notes', 'duration_hours', 'duration_minutes', 'scheduled_date', 'scheduled_time', 'end_date', 'is_starred', 'is_this_week', 'is_completed', 'is_cancelled', 'sort_order'];
+    const allowedFields = ['category_id', 'project_id', 'block_id', 'leverage_person_id', 'title', 'notes', 'duration_hours', 'duration_minutes', 'scheduled_date', 'scheduled_time', 'end_date', 'is_starred', 'is_this_week', 'is_completed', 'is_cancelled', 'sort_order', 'priority'];
     // uuid / date / time / numeric columns reject '' — coerce empty strings to NULL
     const nullableFields = new Set(['category_id', 'project_id', 'block_id', 'leverage_person_id', 'duration_hours', 'duration_minutes', 'scheduled_date', 'scheduled_time', 'end_date', 'sort_order']);
     for (const [key, value] of Object.entries(updates)) {
@@ -946,8 +1012,8 @@ app.get('/api/planner', authenticateToken, async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     if (!start_date || !end_date) return res.status(400).json({ error: 'start_date and end_date are required' });
-    const result = await pool.query('SELECT * FROM v_actions_full WHERE user_id = $1 AND scheduled_date >= $2 AND scheduled_date <= $3 ORDER BY scheduled_date, scheduled_time', [req.userId, start_date, end_date]);
-    res.json(result.rows);
+    const result = await pool.query('SELECT * FROM v_actions_full WHERE user_id = $1 AND scheduled_date >= $2 AND scheduled_date <= $3 ORDER BY scheduled_date, sort_order, scheduled_time', [req.userId, start_date, end_date]);
+    res.json(await attachDependencies(result.rows));
   } catch (error) { res.status(500).json({ error: 'Failed to fetch planner data' }); }
 });
 

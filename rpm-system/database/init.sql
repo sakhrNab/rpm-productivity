@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS actions (
     end_date DATE,
     is_starred BOOLEAN DEFAULT false,
     is_this_week BOOLEAN DEFAULT false,
+    priority SMALLINT DEFAULT 0, -- 0 none,1 low,2 med,3 high
     is_completed BOOLEAN DEFAULT false,
     completed_at TIMESTAMP WITH TIME ZONE,
     is_cancelled BOOLEAN DEFAULT false,
@@ -467,3 +468,15 @@ CREATE TABLE IF NOT EXISTS ai_messages (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages (conversation_id, created_at);
+
+-- Action dependencies (blocked-by / blocks). Visual linking only, no enforcement.
+CREATE TABLE IF NOT EXISTS action_dependencies (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    action_id UUID NOT NULL REFERENCES actions(id) ON DELETE CASCADE,
+    depends_on_action_id UUID NOT NULL REFERENCES actions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (action_id, depends_on_action_id),
+    CHECK (action_id <> depends_on_action_id)
+);
+CREATE INDEX IF NOT EXISTS idx_action_deps_action ON action_dependencies (action_id);
+CREATE INDEX IF NOT EXISTS idx_action_deps_dep ON action_dependencies (depends_on_action_id);

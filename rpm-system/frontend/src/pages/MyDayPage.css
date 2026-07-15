@@ -5,3 +5,8 @@
 .md-actions-list {
   max-width: 800px;
 }
+
+/* Drag-to-reorder rows */
+.md-drag-row { cursor: grab; border-radius: var(--radius-md); transition: opacity var(--transition-fast); }
+.md-drag-row:active { cursor: grabbing; }
+.md-drag-row.dragging { opacity: 0.45; }
