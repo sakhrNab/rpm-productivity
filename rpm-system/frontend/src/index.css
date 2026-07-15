@@ -718,6 +718,19 @@ input::placeholder, textarea::placeholder {
   .cbm-header .cbm-actions { flex-wrap: wrap; }
   .cbm-header .dropdown-trigger { max-width: 60vw; }
   .page-header { flex-wrap: wrap; gap: var(--spacing-sm); }
+
+  /* Project page: compact planner + never let a section force page-wide scroll */
+  .project-planner { padding: var(--spacing-md); overflow-x: hidden; }
+  .planner-header { flex-wrap: wrap; gap: 8px; margin-bottom: var(--spacing-md); }
+  .planner-date-range { font-size: 0.75rem; padding: 6px 8px; }
+  .planner-day { min-height: 54px; padding: 4px 3px; }
+  .planner-day-header { padding: 5px 1px; font-size: 0.55rem; }
+  .planner-day-number { font-size: 0.72rem; }
+  .pd-day-actions > div { font-size: 0.56rem !important; padding: 2px 3px !important; }
+  /* Key-result + action rows: keep steppers/controls on-screen */
+  .kr-card, .rpm-block, .pd-action-row { min-width: 0; }
+  .pd-action-row { gap: 8px; padding: 10px 10px; }
+  .pd-action-date { font-size: 0.68rem; padding: 3px 6px; }
 }
 
 /* Very small phones: drop the brand wordmark so the avatar never clips */
@@ -995,16 +1008,22 @@ input::placeholder, textarea::placeholder {
   border-radius: var(--radius-md);
   font-size: 0.9rem;
   font-weight: 500;
+  white-space: nowrap;              /* don't stack into a tall pill on mobile */
 }
 
 .planner-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* minmax(0,1fr) lets columns shrink below content so a long event chip can't
+     force the grid (and the whole page) wider than the viewport. */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 1px;
   background: var(--border-primary);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
+.planner-day { min-width: 0; overflow: hidden; }
+.pd-day-actions { min-width: 0; }
+.pd-day-actions > div { max-width: 100%; }
 
 .planner-day-header {
   background: var(--bg-secondary);
