@@ -156,12 +156,13 @@ async function fireDueReminders(pool) {
   }
   // Recurring reminders (daily / weekly) at their local time, once per day.
   const rec = await pool.query(
-    `SELECT r.*, u.email, u.name FROM reminders r JOIN users u ON u.id = r.user_id
+    `SELECT r.*, to_char(r.last_fired_date, 'YYYY-MM-DD') AS last_fired_ymd, u.email, u.name
+       FROM reminders r JOIN users u ON u.id = r.user_id
       WHERE r.kind IN ('daily','weekly') AND r.is_done = false`);
   for (const r of rec.rows) {
     try {
       const { dateStr, hhmm, dow } = nowInTz(r.timezone);
-      if (r.last_fired_date && String(r.last_fired_date).slice(0, 10) === dateStr) continue;
+      if (r.last_fired_ymd && r.last_fired_ymd === dateStr) continue;
       if (hhmm < (r.remind_time || '09:00')) continue;
       if (r.kind === 'weekly' && Number(r.remind_dow) !== dow) continue;
       await deliverReminder(pool, r);
@@ -210,16 +211,19 @@ async function fireTaskTimeReminders(pool) {
 // One scheduler tick: send digests that are due and not yet sent today.
 async function tick(pool) {
   const { rows } = await pool.query(
-    `SELECT p.*, u.email, u.name FROM notification_prefs p
+    `SELECT p.*, to_char(p.last_digest_date, 'YYYY-MM-DD') AS last_digest_ymd, u.email, u.name
+       FROM notification_prefs p
        JOIN users u ON u.id = p.user_id
       WHERE p.digest_enabled = true
         AND ((p.email_enabled = true AND u.email IS NOT NULL)
-             OR (p.telegram_enabled = true AND p.telegram_chat_id IS NOT NULL))`
+             OR (p.telegram_enabled = true AND p.telegram_chat_id IS NOT NULL)
+             OR (p.webpush_enabled = true))`
   );
   for (const p of rows) {
     try {
       const { dateStr, hhmm } = nowInTz(p.timezone);
-      const alreadySent = p.last_digest_date && String(p.last_digest_date).slice(0, 10) === dateStr;
+      // pg returns DATE as a JS Date; compare on the to_char string, not String(Date).
+      const alreadySent = p.last_digest_ymd && p.last_digest_ymd === dateStr;
       if (alreadySent) continue;
       if (hhmm < (p.digest_time || '08:00')) continue; // not yet the digest time in their tz
       await sendUserDigest(pool, { id: p.user_id, email: p.email, name: p.name }, p);
