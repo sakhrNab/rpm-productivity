@@ -255,8 +255,11 @@ input::placeholder, textarea::placeholder {
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
   font-size: 0.9rem;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all var(--transition-fast);
 }
+.nav-link svg { flex-shrink: 0; }
 
 .nav-link:hover, .nav-link.active {
   color: var(--text-primary);
@@ -270,18 +273,23 @@ input::placeholder, textarea::placeholder {
 .navbar-actions {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
 }
+.navbar-actions .btn { flex-shrink: 0; }
 
 /* Brain Dump launcher — the "magic" button */
 .btn-braindump {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 9px 15px;
   border-radius: 999px;
   font-weight: 600;
   font-size: 0.9rem;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
   color: #fff;
   border: none;
   cursor: pointer;
@@ -290,6 +298,7 @@ input::placeholder, textarea::placeholder {
   box-shadow: 0 2px 12px rgba(124,107,245,0.35);
   transition: background-position var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
+.btn-braindump svg { flex-shrink: 0; }
 .btn-braindump:hover { background-position: 100% 0; transform: translateY(-1px); box-shadow: 0 4px 18px rgba(124,107,245,0.45); }
 .btn-braindump:active { transform: translateY(0); }
 .btn-braindump svg { filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2)); }
@@ -2037,7 +2046,19 @@ select:focus-visible {
 .project-sections > * { min-width: 0; }
 
 /* ---------- Tablet & mobile: slide-in nav drawer ---------- */
-@media (max-width: 860px) {
+/* Tightening band: full inline nav is shown but compacted so the 9 items + the
+   action buttons fit without wrapping or clipping on mid-size laptops. */
+@media (min-width: 1181px) and (max-width: 1460px) {
+  .navbar { padding: var(--spacing-md) var(--spacing-md); }
+  .navbar-nav { gap: 2px; }
+  .nav-link { padding: 6px 9px; font-size: 0.82rem; gap: 5px; }
+  .nav-link.active::after { left: 9px; right: 9px; }
+  .btn-braindump { padding: 8px 12px; font-size: 0.84rem; }
+  .create-menu > .btn-primary { padding: 8px 12px; font-size: 0.85rem; }
+}
+
+/* Below 1180px there are too many inline items — collapse to the drawer. */
+@media (max-width: 1180px) {
   .navbar { flex-wrap: nowrap; gap: var(--spacing-sm); }
   .navbar-toggle { display: inline-flex; }
   .navbar-brand { margin-right: auto; }
