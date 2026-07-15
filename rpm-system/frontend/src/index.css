@@ -679,15 +679,45 @@ input::placeholder, textarea::placeholder {
 .action-meta {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  flex-wrap: wrap;                 /* chips wrap instead of forcing the row wide */
+  gap: 6px var(--spacing-md);
   font-size: 0.8rem;
   color: var(--text-muted);
 }
+/* Category / project chips stay on one line and truncate rather than ballooning */
+.ar-cat, .ar-proj { max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .action-actions {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
+}
+
+/* ================= Phone: compact task rows, header, modals ================= */
+@media (max-width: 640px) {
+  /* Task rows — reclaim width for the title so it stops wrapping per-word */
+  .action-item { gap: 8px; padding: 10px 6px; }
+  .action-title { font-size: 0.9rem; overflow-wrap: anywhere; }
+  .action-item .btn-icon { width: 30px; height: 30px; }
+  .action-actions { gap: 0; }
+  .ar-remind-wrap + .btn-icon, .ar-actions { margin-left: 0; }
+  .ar-cat, .ar-proj { max-width: 44vw; }
+  .md-drag-row { gap: 0; }
+  .md-drag-handle { width: 16px; }
+  .md-actions-list, .md-suggest { max-width: 100%; }
+
+  /* Header — keep everything on one line, nothing clipped off the right edge */
+  .navbar { gap: var(--spacing-sm); padding: var(--spacing-sm) var(--spacing-md); }
+  .navbar-actions { gap: 6px; }
+  .create-menu .btn-primary { padding: 8px 10px; font-size: 0.82rem; }
+  .btn-braindump { padding: 8px; }
+
+  /* Modals — never scroll sideways; let chip/selector rows wrap */
+  .modal { overflow-x: hidden; }
+  .cbm-header { flex-wrap: wrap; gap: 8px; }
+  .cbm-header .cbm-actions { flex-wrap: wrap; }
+  .cbm-header .dropdown-trigger { max-width: 60vw; }
+  .page-header { flex-wrap: wrap; gap: var(--spacing-sm); }
 }
 
 /* RPM Blocks */
