@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
   Sparkles, X, Mic, Loader2, Wand2, Check, FolderPlus, FolderKanban,
-  Target, Zap, Pencil, ArrowRight, CornerDownRight,
+  Target, Zap, Pencil, ArrowRight, CornerDownRight, Lightbulb,
 } from 'lucide-react';
 import { AuthContext } from '../App';
 import { useToast } from './ToastProvider';
@@ -201,6 +201,12 @@ export default function BrainDumpModal({ onClose, onApplied }) {
         {(phase === 'preview' || phase === 'applying') && plan && (
           <div className="bd-body">
             {plan.summary && <p className="bd-summary">{plan.summary}</p>}
+            {Array.isArray(plan.notes) && plan.notes.length > 0 && (
+              <div className="bd-notes">
+                <div className="bd-notes-head"><Lightbulb size={14} /> Things to consider</div>
+                <ul>{plan.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
+              </div>
+            )}
             <p className="bd-lead bd-review-lead">Review what I’ll create and where it lands. Uncheck anything you don’t want.</p>
             <div className="bd-tree">
               {plan.operations.map((o, i) => {

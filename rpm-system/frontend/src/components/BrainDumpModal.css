@@ -63,7 +63,19 @@
   background: linear-gradient(135deg, rgba(78,205,196,0.12), rgba(167,139,250,0.1));
   border: 1px solid var(--border-primary);
 }
-.bd-tree { margin-top: 0.5rem; max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 2px; }
+/* "Things to consider" — adaptability notes / pivot flags */
+.bd-notes {
+  margin: 0.6rem 0 0.2rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: rgba(255,209,102,0.08);
+  border: 1px solid rgba(255,209,102,0.28);
+}
+.bd-notes-head { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--accent-yellow, #ffd166); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+.bd-notes ul { margin: 0; padding-left: 1.1rem; }
+.bd-notes li { font-size: 0.86rem; line-height: 1.45; color: var(--text-secondary); margin: 2px 0; }
+
+.bd-tree { margin-top: 0.5rem; max-height: 42vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 2px; }
 
 .bd-op {
   display: flex; align-items: center; gap: 8px;

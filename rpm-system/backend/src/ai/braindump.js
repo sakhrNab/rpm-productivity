@@ -8,6 +8,7 @@
 // to real ids and honouring ownership.
 
 const { runChat, AiError } = require('./service');
+const { buildRpmContext } = require('./context');
 
 const CAT_COLORS = ['#FF6B6B', '#4ECDC4', '#FFD166', '#A78BFA', '#F472B6', '#60A5FA', '#34D399', '#FB923C', '#F87171', '#22D3EE'];
 
@@ -25,14 +26,7 @@ async function loadExisting(pool, userId) {
   return { categories: cats.rows, projects: projs.rows };
 }
 
-function planSystemPrompt(today, existing) {
-  const catLines = existing.categories.length
-    ? existing.categories.map(c => `  - ${c.id} · ${c.name}`).join('\n')
-    : '  (none yet)';
-  const projLines = existing.projects.length
-    ? existing.projects.map(p => `  - ${p.id} · ${p.name}`).join('\n')
-    : '  (none yet)';
-
+function planSystemPrompt(today, contextText) {
   return `You are the RPM planning engine. RPM = Result, Purpose, Massive Action Plan.
 Convert the user's brain dump into a structured plan that fits the RPM method: life Categories
 contain Projects (each with a Result + Purpose), Projects have Key Results (measurable) and
@@ -40,15 +34,19 @@ Actions (concrete tasks). Be decisive but faithful — only include what the dum
 
 Today is ${today}.
 
-The user's EXISTING categories (id · name):
-${catLines}
+Below is the user's REAL RPM data — their categories with horizon goals (ultimate vision,
+1-year, 90-day), their projects (with result/purpose/dates), their key results (with current
+progress and due dates), blocks, and actions — each with the id you must target to reuse it.
+This is the plan they have ALREADY committed to. Work WITH it, do not ignore it.
 
-The user's EXISTING projects (id · name):
-${projLines}
+=== USER'S RPM DATA ===
+${contextText}
+=== END DATA ===
 
 Output ONLY a single JSON object — no markdown fences, no prose before or after. Shape:
 {
   "summary": "one short sentence describing the plan",
+  "notes": ["short observation, consideration, or a question — see NOTES rules"],
   "operations": [
     { "op": "create_category", "tempId": "c1", "name": "Health & Energy" },
     { "op": "create_project", "tempId": "p1", "parentTempId": "c1", "name": "Get fit by Q3", "result": "...", "purpose": "..." },
@@ -61,17 +59,28 @@ Output ONLY a single JSON object — no markdown fences, no prose before or afte
   ]
 }
 
-Rules:
-- REUSE existing categories/projects by their id (categoryId / projectId) whenever the item clearly fits one.
-  Only emit create_category / create_project when nothing existing fits.
-- Every project MUST land in a category: use parentTempId (a new category in this plan) OR categoryId (existing).
+Rules — GROUND EVERYTHING IN THEIR EXISTING PLAN:
+- FIRST look for an existing project the dump belongs to and attach new actions/key results to it
+  via its real projectId. STRONGLY prefer this over creating a new project. Only create a new
+  project when the dump is genuinely a new initiative that no existing project covers.
+- Anchor to their real goals: read the category's 1-year and 90-day goals and the project's
+  result/purpose, and make actions that MOVE those. If they already track a key result that fits,
+  add actions toward it rather than inventing a near-duplicate key result.
+- Match their language and strategy from the data above — don't propose generic textbook tasks
+  (e.g. "research side hustles") when their data shows a specific, more sophisticated approach.
+- Every project MUST land in a category: use parentTempId (a new category here) OR categoryId (existing).
 - Key results and project actions attach via parentTempId (a new project here) OR projectId (existing).
-  An action with no project may use categoryId (existing) to sit under a category, or omit both to be unassigned.
+  An action with no project may use categoryId (existing), or omit both to be unassigned.
 - priority: 0 none, 1 low, 2 medium, 3 high. Dates are "YYYY-MM-DD". duration_minutes is a number.
 - tempId: a short unique string per NEW item; children reference it via parentTempId.
-- Category names must be at most 50 characters.
-- Prefer 3-8 actions for "today/this week" items; don't invent goals the user didn't imply.
-- Do NOT include any operation type other than the five above. Never invent ids — only use ids listed above.`;
+- Category names <= 50 chars. Prefer 3-8 actions for near-term items. Never invent ids — only ids above.
+- Do NOT include any operation type other than the five above.
+
+NOTES rules (the "notes" array, 0-3 short strings shown to the user before they approve):
+- If the dump looks like a PIVOT or conflicts with a goal/plan they've already committed to,
+  say so plainly and ask whether they want to fold it into an existing project instead of starting anew.
+- If you had to make a judgement call on where something lands, or something is ambiguous, note it.
+- If the dump clearly fits their existing plan, notes can be empty ([]). Keep each note under 25 words.`;
 }
 
 function parsePlan(text) {
@@ -90,9 +99,14 @@ const ALLOWED_OPS = new Set(['create_category', 'create_project', 'create_key_re
 async function generatePlan({ pool, userId, modelKey, text }) {
   if (!text || !String(text).trim()) throw new AiError('empty', 'Say or type something first.');
   const today = new Date().toISOString().slice(0, 10);
-  const existing = await loadExisting(pool, userId);
+  // existing = compact arrays for the preview labels; ctx = the FULL hierarchy
+  // (goals, key results, actions) so the model plans WITH the user's real strategy.
+  const [existing, ctx] = await Promise.all([
+    loadExisting(pool, userId),
+    buildRpmContext(pool, userId),
+  ]);
   const messages = [
-    { role: 'system', content: planSystemPrompt(today, existing) },
+    { role: 'system', content: planSystemPrompt(today, ctx.text) },
     { role: 'user', content: `Brain dump:\n"""\n${String(text).trim().slice(0, 6000)}\n"""` },
   ];
 
@@ -107,7 +121,8 @@ async function generatePlan({ pool, userId, modelKey, text }) {
   catch { throw new AiError('bad_plan', 'The model returned an unreadable plan — try again, or pick a different model in Settings.'); }
 
   const operations = Array.isArray(plan.operations) ? plan.operations.filter(o => o && ALLOWED_OPS.has(o.op)).slice(0, 200) : [];
-  return { summary: plan.summary || '', operations, existing, today };
+  const notes = Array.isArray(plan.notes) ? plan.notes.filter(n => typeof n === 'string' && n.trim()).slice(0, 3) : [];
+  return { summary: plan.summary || '', notes, operations, existing, today };
 }
 
 function within7Days(dateStr, today) {
