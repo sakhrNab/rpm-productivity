@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from 'react';
-import { Check, Pencil, Trash2, Calendar as CalendarIcon } from 'lucide-react';
+import { Check, Pencil, Trash2, Calendar as CalendarIcon, SlidersHorizontal } from 'lucide-react';
 import { AppContext, AuthContext } from '../../App';
 import { useToast } from '../ToastProvider';
 import CreateActionModal from './CreateActionModal';
@@ -65,6 +65,7 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
+  const [editAction, setEditAction] = useState(null);
   const [loading, setLoading] = useState(false);
 
   // Show only actions that belong to the SAME project (or category, when the block
@@ -355,6 +356,18 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
                           </span>
                         )}
 
+                        <select
+                          className={`cbm-prio-select cbm-prio-${action.priority || 0}`}
+                          value={action.priority || 0}
+                          onChange={e => patchAction(action.id, { priority: Number(e.target.value) })}
+                          title="Priority"
+                        >
+                          <option value={0}>— Prio</option>
+                          <option value={1}>Low</option>
+                          <option value={2}>Med</option>
+                          <option value={3}>High</option>
+                        </select>
+
                         <label className="cbm-date" title="Day this action appears on the calendar">
                           <CalendarIcon size={13} />
                           <input
@@ -371,6 +384,14 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
                           title="Rename action"
                         >
                           <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className="cbm-icon-btn"
+                          onClick={() => { setEditAction(action); setShowActionModal(true); }}
+                          title="Priority, reminders & dependencies"
+                        >
+                          <SlidersHorizontal size={13} />
                         </button>
                         <button
                           type="button"
@@ -405,11 +426,11 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
 
       {/* Create Action Modal */}
       {showActionModal && categories && (
-        <CreateActionModal 
-          onClose={() => setShowActionModal(false)}
-          onSuccess={handleActionCreated}
+        <CreateActionModal
+          onClose={() => { setShowActionModal(false); setEditAction(null); }}
+          onSuccess={() => { setEditAction(null); handleActionCreated(); }}
           categories={categories}
-          initialData={{ 
+          initialData={editAction || {
             category_id: formData.category_id,
             project_id: formData.project_id || null
           }}

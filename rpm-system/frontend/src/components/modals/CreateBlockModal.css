@@ -158,3 +158,19 @@
   line-height: 1.45;
   color: var(--text-muted);
 }
+
+/* Per-action priority picker inside the block's action list */
+.cbm-prio-select {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.cbm-prio-select.cbm-prio-1 { color: var(--accent-cyan); border-color: rgba(78,205,196,0.4); }
+.cbm-prio-select.cbm-prio-2 { color: var(--accent-orange); border-color: rgba(255,159,67,0.4); }
+.cbm-prio-select.cbm-prio-3 { color: var(--accent-red); border-color: rgba(255,107,107,0.4); }

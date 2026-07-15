@@ -1,5 +1,6 @@
 import { useState, useContext, useEffect } from 'react';
-import { X, Clock, Star, Calendar, FolderOpen, User, Flag, Lock, ChevronDown } from 'lucide-react';
+import { X, Clock, Star, Calendar, FolderOpen, User, Flag, Lock, ChevronDown, Bell } from 'lucide-react';
+import TaskReminders from '../TaskReminders';
 
 const PRIORITY_OPTIONS = [
   { value: 0, label: 'None', cls: 'none' },
@@ -369,6 +370,12 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
                 })}
               </div>
             )}
+
+            {/* Reminders — manage this task's reminders (existing tasks only) */}
+            <div className="form-row cam-mb-16">
+              <span className="cam-field-label"><Bell size={14} className="cam-icon-muted" /> Reminders</span>
+              <TaskReminders actionId={initialData.id} actionTitle={formData.title} />
+            </div>
           </div>
 
           <div className="modal-footer">
