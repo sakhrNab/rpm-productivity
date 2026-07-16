@@ -11,6 +11,7 @@ import MyWeekPage from './pages/MyWeekPage';
 import MyDayPage from './pages/MyDayPage';
 import CompassPage from './pages/CompassPage';
 import RemindersPage from './pages/RemindersPage';
+import CoachesPage from './pages/CoachesPage';
 import AssistantPage from './pages/AssistantPage';
 import VoiceOrb from './components/VoiceOrb';
 import SettingsPage from './pages/SettingsPage';
@@ -560,6 +561,7 @@ function AppContent() {
           <Route path="/my-day" element={<MyDayPage />} />
           <Route path="/compass" element={<CompassPage />} />
           <Route path="/reminders" element={<RemindersPage />} />
+          <Route path="/coaches" element={<CoachesPage />} />
           <Route path="/people" element={<PeoplePage />} />
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/settings" element={<SettingsPage />} />

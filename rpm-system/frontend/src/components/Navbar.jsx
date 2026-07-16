@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Target, Calendar, CalendarDays, Sun, Users, FolderKanban, Grid3X3,
   Plus, Zap, Blocks, FolderPlus, Tag, UserPlus, ChevronDown,
-  LogOut, Menu, X, Sparkles, Settings, Bell
+  LogOut, Menu, X, Sparkles, Settings, Bell, Bot
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from './modals/CreateActionModal';
@@ -53,6 +53,7 @@ function Navbar() {
     { path: '/projects', icon: FolderKanban, label: 'Projects' },
     { path: '/people', icon: Users, label: 'People' },
     { path: '/reminders', icon: Bell, label: 'Reminders' },
+    { path: '/coaches', icon: Bot, label: 'Coaches' },
     { path: '/assistant', icon: Sparkles, label: 'Assistant' },
   ];
 

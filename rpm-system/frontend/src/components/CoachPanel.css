@@ -51,3 +51,20 @@
 .coach-mem-btn:hover { color: var(--accent-cyan); background: var(--bg-card); }
 .coach-mem-btn.danger:hover { color: var(--accent-red); }
 .coach-mem-note { font-size: 0.76rem; color: var(--text-muted); margin: 0.9rem 0 0; line-height: 1.45; }
+
+/* Avatar + identity */
+.coach-avatar { display: inline-grid; place-items: center; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.coach-name-block { display: inline-flex; flex-direction: column; min-width: 0; }
+.coach-name { font-weight: 700; font-size: 0.98rem; line-height: 1.2; }
+.coach-resp { font-size: 0.74rem; color: var(--text-muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 44ch; }
+.coach-title { align-items: center; gap: 9px; }
+.coach-loading { display: grid; place-items: center; min-height: 80px; }
+.coach-loading .coach-spin { color: var(--accent-cyan); }
+
+.coach-identity-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 0.8rem; }
+.coach-emoji-pick { display: inline-flex; flex-wrap: wrap; gap: 3px; }
+.coach-emoji { width: 30px; height: 30px; font-size: 1rem; border-radius: 8px; border: 1px solid var(--border-primary); background: var(--bg-hover); cursor: pointer; display: grid; place-items: center; }
+.coach-emoji:hover { border-color: var(--accent-cyan); }
+.coach-emoji.on { border-color: var(--accent-cyan); background: rgba(78,205,196,0.16); }
+.coach-color { width: 34px; height: 34px; padding: 0; border: 1px solid var(--border-primary); border-radius: 8px; background: none; cursor: pointer; }
+.coach-settings { display: flex; flex-direction: column; }

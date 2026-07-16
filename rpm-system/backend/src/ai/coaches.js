@@ -95,8 +95,8 @@ async function draftCoach({ pool, userId, modelKey, categoryId, projectId }) {
     area = `Vision: ${r.cat.ultimate_vision || '—'}\n1-year: ${r.cat.one_year_goals || '—'}\n90-day: ${r.cat.ninety_day_goals || '—'}\nPurpose: ${r.cat.ultimate_purpose || '—'}\nRoles: ${r.cat.roles || '—'}`;
   }
 
-  const system = `You write the persona (system prompt) for a specialized AI coach dedicated to ONE area of a person's life, inside an RPM app (Result, Purpose, Massive Action Plan).
-Return ONLY JSON: { "name": "<= 3 words, e.g. 'Wealth Coach'", "persona": "the coach's system prompt, 120-220 words" }.
+  const system = `You design a specialized AI coach dedicated to ONE area of a person's life, inside an RPM app (Result, Purpose, Massive Action Plan).
+Return ONLY JSON: { "name": "<= 3 words, e.g. 'Wealth Coach'", "emoji": "one emoji that fits this area", "color": "#RRGGBB accent hex", "responsibilities": "one sentence: what this coach owns/holds them accountable for", "persona": "the coach's system prompt, 120-220 words" }.
 The persona must:
 - Establish a specific coaching identity fit for THIS area (a finance coach ≠ a relationship coach — different frameworks, questions, tone).
 - Reference the person's real vision/goals for this area (below) so it's grounded, not generic.
@@ -117,40 +117,52 @@ The persona must:
     const a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a >= 0 && b > a) s = s.slice(a, b + 1);
     parsed = JSON.parse(s);
   } catch { throw new Error('The model returned an unreadable persona — try again.'); }
-  return { name: (parsed.name || 'Coach').slice(0, 80), persona: String(parsed.persona || '').trim(), usage };
+  return {
+    name: (parsed.name || 'Coach').slice(0, 80),
+    emoji: (parsed.emoji || '🧭').slice(0, 16),
+    color: /^#[0-9a-f]{6}$/i.test(parsed.color || '') ? parsed.color : '#4ECDC4',
+    responsibilities: String(parsed.responsibilities || '').trim().slice(0, 300),
+    persona: String(parsed.persona || '').trim(),
+    usage,
+  };
 }
 
 // ---- CRUD ----
 async function listCoaches(pool, userId) {
   return (await pool.query(
     `SELECT co.id, co.scope, co.category_id, co.project_id, co.name, co.model, co.updated_at,
-            c.name AS category_name, p.name AS project_name
+            co.avatar_emoji, co.avatar_image, co.color, co.responsibilities,
+            c.name AS category_name, p.name AS project_name,
+            (SELECT count(*)::int FROM coach_memory m WHERE m.coach_id = co.id) AS memory_count
        FROM coaches co
        LEFT JOIN categories c ON c.id = co.category_id
        LEFT JOIN projects p ON p.id = co.project_id
-      WHERE co.user_id = $1 AND co.is_active = true ORDER BY co.created_at`, [userId])).rows;
+      WHERE co.user_id = $1 AND co.is_active = true ORDER BY co.updated_at DESC`, [userId])).rows;
 }
 async function getCoach(pool, userId, id) {
   return (await pool.query('SELECT * FROM coaches WHERE id = $1 AND user_id = $2 AND is_active = true', [id, userId])).rows[0] || null;
 }
-async function createCoach(pool, userId, { scope, categoryId, projectId, name, persona, model }) {
+async function createCoach(pool, userId, { scope, categoryId, projectId, name, persona, model, avatar_emoji, avatar_image, color, responsibilities }) {
   const sc = scope === 'project' ? 'project' : 'category';
   if (sc === 'category' && !categoryId) throw new Error('categoryId required');
   if (sc === 'project' && !projectId) throw new Error('projectId required');
   if (!name || !persona) throw new Error('name and persona are required');
   const r = await pool.query(
-    `INSERT INTO coaches (user_id, scope, category_id, project_id, name, persona, model)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
+    `INSERT INTO coaches (user_id, scope, category_id, project_id, name, persona, model, avatar_emoji, avatar_image, color, responsibilities)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
      ON CONFLICT (${sc === 'project' ? 'project_id) WHERE scope = \'project\'' : 'category_id) WHERE scope = \'category\''}
-       DO UPDATE SET name = EXCLUDED.name, persona = EXCLUDED.persona, model = EXCLUDED.model, is_active = true, updated_at = now()
+       DO UPDATE SET name = EXCLUDED.name, persona = EXCLUDED.persona, model = EXCLUDED.model,
+         avatar_emoji = EXCLUDED.avatar_emoji, avatar_image = EXCLUDED.avatar_image, color = EXCLUDED.color,
+         responsibilities = EXCLUDED.responsibilities, is_active = true, updated_at = now()
      RETURNING *`,
-    [userId, sc, sc === 'category' ? categoryId : null, sc === 'project' ? projectId : null, String(name).slice(0, 80), persona, model || null]
+    [userId, sc, sc === 'category' ? categoryId : null, sc === 'project' ? projectId : null, String(name).slice(0, 80), persona, model || null,
+     (avatar_emoji || '🧭').slice(0, 16), avatar_image || null, (/^#[0-9a-f]{6}$/i.test(color || '') ? color : '#4ECDC4'), (responsibilities || '').slice(0, 300)]
   );
   return r.rows[0];
 }
 async function updateCoach(pool, userId, id, patch) {
   const sets = [], vals = []; let i = 1;
-  for (const k of ['name', 'persona', 'model', 'memory']) {
+  for (const k of ['name', 'persona', 'model', 'avatar_emoji', 'avatar_image', 'color', 'responsibilities']) {
     if (k in patch) { sets.push(`${k} = $${i++}`); vals.push(patch[k]); }
   }
   if (!sets.length) return getCoach(pool, userId, id);

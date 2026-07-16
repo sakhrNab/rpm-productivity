@@ -578,6 +578,10 @@ CREATE TABLE IF NOT EXISTS coaches (
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
     name VARCHAR(80) NOT NULL,
     persona TEXT NOT NULL,          -- the coach's system prompt (AI-drafted, user-editable)
+    responsibilities TEXT DEFAULT '',
+    color VARCHAR(7) DEFAULT '#4ECDC4',
+    avatar_image TEXT,
+    avatar_emoji VARCHAR(16) DEFAULT '🧭',
     memory TEXT DEFAULT '',         -- distilled durable facts/preferences (the "learning")
     model VARCHAR(80),              -- optional per-coach model; null = user default
     is_active BOOLEAN DEFAULT true,
