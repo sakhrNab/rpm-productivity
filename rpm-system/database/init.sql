@@ -566,3 +566,43 @@ CREATE TABLE IF NOT EXISTS kr_progress_log (
     recorded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_kr_progress_log ON kr_progress_log(key_result_id, recorded_at);
+
+-- =====================================================
+-- COACHES — a per-category (or per-project) AI coach with its own persona + memory
+-- =====================================================
+CREATE TABLE IF NOT EXISTS coaches (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    scope VARCHAR(12) NOT NULL DEFAULT 'category',   -- 'category' | 'project'
+    category_id UUID REFERENCES categories(id) ON DELETE CASCADE,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    name VARCHAR(80) NOT NULL,
+    persona TEXT NOT NULL,          -- the coach's system prompt (AI-drafted, user-editable)
+    memory TEXT DEFAULT '',         -- distilled durable facts/preferences (the "learning")
+    model VARCHAR(80),              -- optional per-coach model; null = user default
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+-- one active coach per category / per project
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coach_category ON coaches(category_id) WHERE scope = 'category';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coach_project  ON coaches(project_id)  WHERE scope = 'project';
+CREATE INDEX IF NOT EXISTS idx_coach_user ON coaches(user_id);
+
+-- =====================================================
+-- COACH MEMORY — atomic, reconciled facts (Mem0/Letta-style). pgvector-ready.
+-- =====================================================
+CREATE TABLE IF NOT EXISTS coach_memory (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    coach_id UUID NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind VARCHAR(24) DEFAULT 'fact',        -- preference|fact|constraint|goal|blocker|style|other
+    content TEXT NOT NULL,
+    salience SMALLINT DEFAULT 3,            -- 1..5 importance
+    pinned BOOLEAN DEFAULT false,
+    use_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    -- embedding VECTOR(1536)  -- future: enable pgvector + HNSW for semantic recall at scale
+);
+CREATE INDEX IF NOT EXISTS idx_coach_memory_coach ON coach_memory(coach_id);

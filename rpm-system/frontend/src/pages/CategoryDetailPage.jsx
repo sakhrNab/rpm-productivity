@@ -12,6 +12,7 @@ import CreateProjectModal from '../components/modals/CreateProjectModal';
 import CreateCategoryModal from '../components/modals/CreateCategoryModal';
 import { fileToCompressedDataURL } from '../utils/image';
 import { useToast } from '../components/ToastProvider';
+import CoachPanel from '../components/CoachPanel';
 import './CategoryDetailPage.css';
 
 function CategoryDetailPage() {
@@ -692,6 +693,9 @@ function CategoryDetailPage() {
               )}
             </div>
           </div>
+
+          {/* This category's AI coach */}
+          <CoachPanel scope="category" categoryId={id} />
 
           {/* My Projects */}
           <div className="big-picture-section">

@@ -14,6 +14,7 @@ const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
 const { recordUsage, getUsageSummary } = require('./ai/usage');
 const { computeForecasts, logKrProgress } = require('./forecast');
+const coaches = require('./ai/coaches');
 const notifications = require('./notifications');
 const telegram = require('./telegram');
 const push = require('./push');
@@ -1341,6 +1342,116 @@ app.post('/api/actions/triage', authenticateToken, async (req, res) => {
     console.error('[actions] triage error:', error.message);
     res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
   }
+});
+
+// ============================================================
+// Coaches — per-category / per-project AI coaches (persona + structured memory)
+// ============================================================
+app.get('/api/coaches', authenticateToken, async (req, res) => {
+  try { res.json(await coaches.listCoaches(pool, req.userId)); }
+  catch (e) { console.error('[coach] list:', e.message); res.status(500).json({ error: 'Failed' }); }
+});
+
+// Is a category ready for a coach, and does it already have one?
+app.get('/api/categories/:id/coach', authenticateToken, async (req, res) => {
+  try {
+    const readiness = await coaches.categoryReadiness(pool, req.userId, req.params.id);
+    const coach = (await pool.query("SELECT id, name FROM coaches WHERE category_id = $1 AND scope='category' AND is_active = true", [req.params.id])).rows[0] || null;
+    res.json({ ready: readiness.ready, missing: readiness.missing, coach });
+  } catch (e) { console.error('[coach] readiness:', e.message); res.status(500).json({ error: 'Failed' }); }
+});
+app.get('/api/projects/:id/coach', authenticateToken, async (req, res) => {
+  try {
+    const coach = (await pool.query("SELECT id, name FROM coaches WHERE project_id = $1 AND scope='project' AND is_active = true", [req.params.id])).rows[0] || null;
+    res.json({ coach });
+  } catch (e) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// Draft a persona (proposal — not saved)
+app.post('/api/coaches/draft', authenticateToken, async (req, res) => {
+  try {
+    const { categoryId, projectId, modelKey } = req.body;
+    if (!modelKey) return res.status(400).json({ error: 'modelKey is required' });
+    if (!categoryId && !projectId) return res.status(400).json({ error: 'categoryId or projectId is required' });
+    res.json(await coaches.draftCoach({ pool, userId: req.userId, modelKey, categoryId, projectId }));
+  } catch (e) { console.error('[coach] draft:', e.message); res.status(400).json({ error: e.message || 'Failed' }); }
+});
+
+app.post('/api/coaches', authenticateToken, async (req, res) => {
+  try { res.status(201).json(await coaches.createCoach(pool, req.userId, req.body)); }
+  catch (e) { console.error('[coach] create:', e.message); res.status(400).json({ error: e.message || 'Failed' }); }
+});
+
+// Memory routes (3-segment; must be declared — order vs /:id is fine, different arity)
+app.get('/api/coaches/:id/memory', authenticateToken, async (req, res) => {
+  try { res.json(await coaches.listMemory(pool, req.userId, req.params.id)); }
+  catch (e) { res.status(500).json({ error: 'Failed' }); }
+});
+app.delete('/api/coaches/memory/:memId', authenticateToken, async (req, res) => {
+  try { await coaches.deleteMemory(pool, req.userId, req.params.memId); res.json({ success: true }); }
+  catch (e) { res.status(500).json({ error: 'Failed' }); }
+});
+app.put('/api/coaches/memory/:memId', authenticateToken, async (req, res) => {
+  try { await coaches.pinMemory(pool, req.userId, req.params.memId, req.body.pinned); res.json({ success: true }); }
+  catch (e) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// Batched memory reconcile (called by the client at conversation end / every N turns)
+app.post('/api/coaches/:id/remember', authenticateToken, async (req, res) => {
+  try {
+    const coach = await coaches.getCoach(pool, req.userId, req.params.id);
+    if (!coach) return res.status(404).json({ error: 'Coach not found' });
+    if (req.body.transcript && String(req.body.transcript).trim()) {
+      await coaches.reconcileMemory({ pool, userId: req.userId, coach, transcript: req.body.transcript });
+    }
+    res.json({ success: true });
+  } catch (e) { console.error('[coach] remember:', e.message); res.status(500).json({ error: 'Failed' }); }
+});
+
+// Chat with a coach (SSE) — persona + scoped context + retrieved memory + tools
+app.post('/api/coaches/:id/chat', authenticateToken, async (req, res) => {
+  try {
+    const coach = await coaches.getCoach(pool, req.userId, req.params.id);
+    if (!coach) return res.status(404).json({ error: 'Coach not found' });
+    const { messages, autoMode } = req.body;
+    if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: 'messages required' });
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+    const send = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
+    let usage = null;
+    try {
+      for await (const ev of coaches.chatCoach({ pool, userId: req.userId, coach, messages, autoMode: autoMode !== false })) {
+        if (ev.type === 'text') send({ type: 'delta', text: ev.text });
+        else if (ev.type === 'tool_call') send({ type: 'tool_call', name: ev.name, args: ev.args });
+        else if (ev.type === 'tool_result') send({ type: 'tool_result', name: ev.name, result: ev.result });
+        else if (ev.type === 'usage') usage = ev.usage;
+        else if (ev.type === 'error') send({ type: 'error', message: ev.message });
+      }
+      if (usage) { const u = await recordUsage(pool, { userId: req.userId, modelKey: coach.model || null, feature: 'coach_chat', usage }); send({ type: 'usage', usage: u }); }
+    } catch (err) { send({ type: 'error', message: err.message || 'AI request failed' }); }
+    send({ type: 'done' }); res.end();
+  } catch (error) {
+    if (!res.headersSent) res.status(500).json({ error: 'Failed' });
+    else { res.write(`data: ${JSON.stringify({ type: 'error', message: 'Failed' })}\n\n`); res.end(); }
+  }
+});
+
+app.get('/api/coaches/:id', authenticateToken, async (req, res) => {
+  try {
+    const coach = await coaches.getCoach(pool, req.userId, req.params.id);
+    if (!coach) return res.status(404).json({ error: 'Coach not found' });
+    res.json(coach);
+  } catch (e) { res.status(500).json({ error: 'Failed' }); }
+});
+app.put('/api/coaches/:id', authenticateToken, async (req, res) => {
+  try {
+    const updated = await coaches.updateCoach(pool, req.userId, req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Coach not found' });
+    res.json(updated);
+  } catch (e) { res.status(400).json({ error: e.message || 'Failed' }); }
+});
+app.delete('/api/coaches/:id', authenticateToken, async (req, res) => {
+  try { await coaches.deleteCoach(pool, req.userId, req.params.id); res.json({ success: true }); }
+  catch (e) { res.status(500).json({ error: 'Failed' }); }
 });
 
 // AI usage + estimated cost summary (per user, last N days).

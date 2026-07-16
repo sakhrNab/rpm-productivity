@@ -1,0 +1,53 @@
+.coach-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  padding: 1rem 1.15rem;
+  margin-top: 1.25rem;
+}
+.coach-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 0.6rem; }
+.coach-title { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 0.98rem; }
+.coach-title svg { color: var(--accent-cyan); }
+.coach-head-actions { display: inline-flex; gap: 6px; }
+.coach-mini { display: inline-flex; align-items: center; gap: 4px; font-size: 0.74rem; font-weight: 600; padding: 4px 9px; border-radius: 999px; background: var(--bg-hover); border: 1px solid var(--border-primary); color: var(--text-secondary); cursor: pointer; }
+.coach-mini:hover { color: var(--text-primary); border-color: var(--accent-cyan); }
+.coach-mini.danger:hover { color: var(--accent-red); border-color: rgba(255,107,107,0.5); }
+.coach-spin { animation: coach-spin 0.9s linear infinite; }
+@keyframes coach-spin { to { transform: rotate(360deg); } }
+
+.coach-locked { display: flex; align-items: center; gap: 7px; font-size: 0.86rem; color: var(--text-muted); margin: 0; }
+.coach-invite p { margin: 0 0 0.7rem; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; }
+.coach-cta { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+.coach-draft-note { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 0.7rem; }
+.coach-field { display: flex; flex-direction: column; gap: 5px; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.8rem; }
+.coach-persona { min-height: 140px; resize: vertical; line-height: 1.5; font-size: 0.85rem; }
+.coach-draft-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+.coach-chat { display: flex; flex-direction: column; }
+.coach-empty { font-size: 0.86rem; color: var(--text-muted); line-height: 1.5; margin: 0.2rem 0 0.8rem; }
+.coach-messages { display: flex; flex-direction: column; gap: 0.7rem; max-height: 46vh; overflow-y: auto; margin-bottom: 0.8rem; }
+.coach-msg { font-size: 0.9rem; line-height: 1.55; }
+.coach-msg.user { align-self: flex-end; max-width: 85%; background: var(--accent-cyan); color: #04231f; padding: 8px 12px; border-radius: 14px 14px 4px 14px; font-weight: 500; }
+.coach-msg.assistant { align-self: flex-start; max-width: 92%; }
+.coach-msg.assistant .asst-md { font-size: 0.9rem; }
+.coach-cursor { color: var(--accent-cyan); }
+
+.coach-composer { display: flex; gap: 8px; align-items: flex-end; }
+.coach-input { flex: 1; min-height: 40px; max-height: 140px; resize: none; line-height: 1.4; }
+.coach-send { flex-shrink: 0; width: 42px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Memory overlay */
+.coach-mem-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; padding: 5vh 1rem; }
+.coach-mem { width: 100%; max-width: 480px; max-height: 80vh; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border-primary); border-radius: 16px; padding: 1.1rem 1.2rem; box-shadow: var(--shadow-lg); }
+.coach-mem-head { display: flex; align-items: center; justify-content: space-between; font-weight: 700; margin-bottom: 0.8rem; }
+.coach-mem-head span { display: inline-flex; align-items: center; gap: 7px; }
+.coach-mem-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.coach-mem-list li { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 10px; background: var(--bg-hover); border: 1px solid var(--border-primary); }
+.coach-mem-list li.pinned { border-color: rgba(78,205,196,0.4); }
+.coach-mem-kind { flex-shrink: 0; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; color: var(--accent-cyan); background: rgba(78,205,196,0.12); border-radius: 999px; padding: 1px 7px; }
+.coach-mem-content { flex: 1; min-width: 0; font-size: 0.84rem; }
+.coach-mem-btn { flex-shrink: 0; display: inline-flex; padding: 4px; border: none; background: transparent; color: var(--text-muted); border-radius: 6px; cursor: pointer; }
+.coach-mem-btn:hover { color: var(--accent-cyan); background: var(--bg-card); }
+.coach-mem-btn.danger:hover { color: var(--accent-red); }
+.coach-mem-note { font-size: 0.76rem; color: var(--text-muted); margin: 0.9rem 0 0; line-height: 1.45; }

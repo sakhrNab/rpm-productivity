@@ -18,6 +18,7 @@ import BlockPreviewModal from '../components/modals/BlockPreviewModal';
 import { fileToCompressedDataURL } from '../utils/image';
 import { playDone } from '../utils/sound';
 import { useToast } from '../components/ToastProvider';
+import CoachPanel from '../components/CoachPanel';
 import './ProjectDetailPage.css';
 
 // Format an API date (a full ISO timestamp for a DATE column) as a friendly
@@ -1498,6 +1499,9 @@ function ProjectDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* This project's optional AI coach */}
+      {project?.id && <CoachPanel scope="project" projectId={project.id} />}
 
       {/* Project Planner */}
       <div className="project-planner">

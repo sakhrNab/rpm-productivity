@@ -78,7 +78,7 @@ async function searchTools(sdk) {
 
 // rpm=true injects the user's RPM context and enables action tools ("agent mode").
 // autoMode=true executes writes immediately; otherwise writes are proposed for approval.
-async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm, autoMode }) {
+async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm, autoMode, systemOverride, contextText }) {
   const entry = getModelEntry(modelKey);
   if (!entry) throw new AiError('unknown_model', 'That model is no longer available — pick a new default model in Settings.');
 
@@ -89,12 +89,15 @@ async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm, auto
 
   const useSearch = !!webSearch && !!entry.webSearch;
 
-  // In RPM mode, prepend a fresh system message carrying the live context.
+  // In RPM mode, prepend a fresh system message carrying the live context. A coach
+  // passes systemOverride (its persona+memory) and contextText (its scoped slice) so
+  // it reuses the same tool-calling agent with a specialised prompt + narrower data.
   let msgs = messages;
   if (rpm) {
-    const ctx = await buildRpmContext(pool, userId);
+    const sys = systemOverride || RPM_SYSTEM;
+    const ctxText = contextText != null ? contextText : (await buildRpmContext(pool, userId)).text;
     msgs = [
-      { role: 'system', content: `${RPM_SYSTEM}\n\n=== YOUR RPM DATA ===\n${ctx.text}` },
+      { role: 'system', content: `${sys}\n\n=== YOUR RPM DATA ===\n${ctxText}` },
       ...messages.filter(m => m.role !== 'system'),
     ];
   }
