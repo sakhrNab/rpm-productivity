@@ -125,7 +125,7 @@ export default function CoachPanel({ scope = 'category', categoryId, projectId }
       </div>
 
       {phase === 'none' && !ready && (
-        <p className="coach-locked"><Lock size={13} /> Fill in this category's {missing.length ? missing.join(' and ') : 'vision and a goal'} to unlock a dedicated coach for it.</p>
+        <p className="coach-locked"><Lock size={13} /> Add {missing.length ? missing.join(' and ') : 'a vision or purpose and a goal'} to this category to unlock its dedicated coach.</p>
       )}
       {phase === 'none' && ready && (
         <div className="coach-invite">

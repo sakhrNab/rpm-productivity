@@ -12,12 +12,14 @@ async function categoryReadiness(pool, userId, categoryId) {
        FROM categories c LEFT JOIN category_details d ON d.category_id = c.id
       WHERE c.id = $1 AND c.user_id = $2`, [categoryId, userId])).rows[0];
   if (!c) return { ready: false, missing: ['category not found'], cat: null };
-  const has = (v) => v && String(v).trim().length > 3;
+  const has = (v) => v && String(v).trim().length > 2;
+  // A coach needs a "why" (vision OR purpose) and a "what" (a goal horizon).
+  const hasWhy = has(c.ultimate_vision) || has(c.ultimate_purpose);
   const hasGoal = has(c.one_year_goals) || has(c.ninety_day_goals);
   const missing = [];
-  if (!has(c.ultimate_vision)) missing.push('a vision');
+  if (!hasWhy) missing.push('a vision or purpose');
   if (!hasGoal) missing.push('a 1-year or 90-day goal');
-  return { ready: has(c.ultimate_vision) && hasGoal, missing, cat: c };
+  return { ready: hasWhy && hasGoal, missing, cat: c };
 }
 
 // ---- scoped context: only this coach's slice of the RPM hierarchy ----

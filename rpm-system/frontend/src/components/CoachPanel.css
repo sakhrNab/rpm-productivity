@@ -2,8 +2,8 @@
   background: var(--bg-card);
   border: 1px solid var(--border-primary);
   border-radius: 16px;
-  padding: 1rem 1.15rem;
-  margin-top: 1.25rem;
+  padding: 1.25rem 1.35rem;
+  margin: 2rem 0 1.5rem;
 }
 .coach-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 0.6rem; }
 .coach-title { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 0.98rem; }
