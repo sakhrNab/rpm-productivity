@@ -195,8 +195,9 @@ const clampS = (n) => Math.max(1, Math.min(5, Math.round(Number(n) || 3)));
 
 // Reconcile: extract durable facts from a recent exchange and apply ADD/UPDATE/DELETE
 // ops against existing memory (the Mem0 anti-bloat move) — batched, not per message.
-async function reconcileMemory({ pool, userId, coach, transcript }) {
-  const modelKey = coach.model || null;
+async function reconcileMemory({ pool, userId, coach, transcript, modelKey: mk }) {
+  const modelKey = coach.model || mk || null;
+  if (!modelKey) return; // no model available — skip silently
   const existing = (await pool.query(
     'SELECT id, kind, content, salience FROM coach_memory WHERE coach_id = $1 ORDER BY salience DESC, last_used_at DESC LIMIT 60', [coach.id])).rows;
   const existingText = existing.length
@@ -241,11 +242,12 @@ Rules: keep ONLY things worth remembering long-term (stable preferences, constra
 }
 
 // ---- chat with a coach (persona + scoped context + retrieved memory + tools) ----
-async function* chatCoach({ pool, userId, coach, messages, autoMode = true }) {
+async function* chatCoach({ pool, userId, coach, messages, autoMode = true, modelKey }) {
   const [ctx, mems] = await Promise.all([scopedContext(pool, userId, coach), retrieveMemory(pool, coach.id)]);
   const memText = mems.length ? `\n\nWhat you know about them (long-term memory — use it, don't re-ask):\n${mems.map(m => `- ${m.content}`).join('\n')}` : '';
   const persona = `${coach.persona}${memText}\n\nYou can create, schedule and complete actions in this area via tools. Ask a clarifying question if unsure. Format answers in clean Markdown.`;
-  yield* runChat({ pool, userId, modelKey: coach.model || null, messages, webSearch: false, rpm: true, autoMode, systemOverride: persona, contextText: ctx });
+  // Coach's own model if set, else the user's current default (passed by the client).
+  yield* runChat({ pool, userId, modelKey: coach.model || modelKey || null, messages, webSearch: false, rpm: true, autoMode, systemOverride: persona, contextText: ctx });
 }
 
 module.exports = {

@@ -1402,7 +1402,7 @@ app.post('/api/coaches/:id/remember', authenticateToken, async (req, res) => {
     const coach = await coaches.getCoach(pool, req.userId, req.params.id);
     if (!coach) return res.status(404).json({ error: 'Coach not found' });
     if (req.body.transcript && String(req.body.transcript).trim()) {
-      await coaches.reconcileMemory({ pool, userId: req.userId, coach, transcript: req.body.transcript });
+      await coaches.reconcileMemory({ pool, userId: req.userId, coach, transcript: req.body.transcript, modelKey: req.body.modelKey });
     }
     res.json({ success: true });
   } catch (e) { console.error('[coach] remember:', e.message); res.status(500).json({ error: 'Failed' }); }
@@ -1413,20 +1413,21 @@ app.post('/api/coaches/:id/chat', authenticateToken, async (req, res) => {
   try {
     const coach = await coaches.getCoach(pool, req.userId, req.params.id);
     if (!coach) return res.status(404).json({ error: 'Coach not found' });
-    const { messages, autoMode } = req.body;
+    const { messages, autoMode, modelKey } = req.body;
     if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: 'messages required' });
+    const useModel = coach.model || modelKey || null;
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     const send = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
     let usage = null;
     try {
-      for await (const ev of coaches.chatCoach({ pool, userId: req.userId, coach, messages, autoMode: autoMode !== false })) {
+      for await (const ev of coaches.chatCoach({ pool, userId: req.userId, coach, messages, autoMode: autoMode !== false, modelKey })) {
         if (ev.type === 'text') send({ type: 'delta', text: ev.text });
         else if (ev.type === 'tool_call') send({ type: 'tool_call', name: ev.name, args: ev.args });
         else if (ev.type === 'tool_result') send({ type: 'tool_result', name: ev.name, result: ev.result });
         else if (ev.type === 'usage') usage = ev.usage;
         else if (ev.type === 'error') send({ type: 'error', message: ev.message });
       }
-      if (usage) { const u = await recordUsage(pool, { userId: req.userId, modelKey: coach.model || null, feature: 'coach_chat', usage }); send({ type: 'usage', usage: u }); }
+      if (usage) { const u = await recordUsage(pool, { userId: req.userId, modelKey: useModel, feature: 'coach_chat', usage }); send({ type: 'usage', usage: u }); }
     } catch (err) { send({ type: 'error', message: err.message || 'AI request failed' }); }
     send({ type: 'done' }); res.end();
   } catch (error) {
