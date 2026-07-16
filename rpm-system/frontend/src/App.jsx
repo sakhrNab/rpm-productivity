@@ -160,6 +160,7 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     getOverdueActions: (today) => authFetch(`${API_BASE}/actions/overdue?today=${today}`).then(r => r.json()),
     triageOverdue: (body) => authFetch(`${API_BASE}/actions/triage`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
     // Coaches
+    getCoaches: () => authFetch(`${API_BASE}/coaches`).then(r => r.json()),
     getCategoryCoach: (id) => authFetch(`${API_BASE}/categories/${id}/coach`).then(r => r.json()),
     getProjectCoach: (id) => authFetch(`${API_BASE}/projects/${id}/coach`).then(r => r.json()),
     draftCoach: (body) => authFetch(`${API_BASE}/coaches/draft`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),

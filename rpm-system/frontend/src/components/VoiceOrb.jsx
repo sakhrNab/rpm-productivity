@@ -16,6 +16,18 @@ const SENTENCE = /^[\s\S]*?(?:[.!?…](?:["')\]]+)?\s|\n+)/;
 const GREETS = ['Yes?', "I'm listening.", 'Go ahead.', 'What do you need?'];
 const timeGreet = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning.' : h < 18 ? 'Good afternoon.' : 'Good evening.'; };
 
+// Detect routing commands: "talk to my wealth coach", "back to Jarvis", etc.
+function matchCoachCommand(text, coaches) {
+  const t = text.toLowerCase().trim();
+  if (/\b(back to|switch to|talk to|go back to)\s+jarvis\b/.test(t) || /\b(leave|exit|close|stop)\s+(the\s+)?coach\b/.test(t)) return { toJarvis: true };
+  const m = t.match(/\b(?:talk to|switch to|ask|open|connect (?:me )?to|hey)\s+(?:my\s+)?(.+?)\s+coach\b/);
+  const guess = (m ? m[1] : '').trim();
+  if (!guess) return null;
+  const norm = (s) => (s || '').toLowerCase().replace(/\s*coach$/, '').trim();
+  const c = coaches.find(c => norm(c.name).includes(guess) || guess.includes(norm(c.name)) || norm(c.category_name).includes(guess) || guess.includes(norm(c.category_name)));
+  return c ? { coach: c } : null;
+}
+
 // Global "Jarvis" voice orb — present on every page. Tap to talk; it thinks, acts
 // (via the RPM agent), and speaks the reply while the orb animates its state.
 export default function VoiceOrb() {
@@ -30,14 +42,36 @@ export default function VoiceOrb() {
   const [wake, setWake] = useState(() => localStorage.getItem('orb.wake') === '1'); // "Hey RPM"
   const [voices, setVoices] = useState([]);
   const [voice, setVoice] = useState(() => getVoiceName());
+  const [coaches, setCoaches] = useState([]);
+  const [activeCoach, setActiveCoach] = useState(null); // null = general Jarvis
   const convId = useRef(null);
   const convRef = useRef(false);
   const firstRef = useRef(true);
+  const activeCoachRef = useRef(null); activeCoachRef.current = activeCoach;
+  const coachMsgs = useRef([]);
 
   useEffect(() => { convRef.current = conv; }, [conv]);
   // getVoices() populates asynchronously in Chrome.
   useEffect(() => onVoicesReady(setVoices), []);
-  useEffect(() => () => { stopListening(); stopWakeWord(); cancelSpeak(); }, []);
+  useEffect(() => { api.getCoaches().then(c => setCoaches(Array.isArray(c) ? c : [])).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const switchCoach = (c) => {
+    // Batch-reconcile the outgoing coach's session into its memory (firing policy:
+    // never per-message; only when the conversation with that coach ends).
+    const prev = activeCoachRef.current;
+    if (prev && coachMsgs.current.length >= 2) {
+      const transcript = coachMsgs.current.map(m => `${m.role === 'user' ? 'User' : 'Coach'}: ${m.content}`).join('\n');
+      api.coachRemember(prev.id, transcript).catch(() => {});
+    }
+    setActiveCoach(c); coachMsgs.current = [];
+  };
+  useEffect(() => () => {
+    stopListening(); stopWakeWord(); cancelSpeak();
+    const prev = activeCoachRef.current;
+    if (prev && coachMsgs.current.length >= 2) {
+      const transcript = coachMsgs.current.map(m => `${m.role === 'user' ? 'User' : 'Coach'}: ${m.content}`).join('\n');
+      api.coachRemember(prev.id, transcript).catch(() => {});
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Greet first, then listen — so it feels like it's talking to you, not just recording.
   const activate = () => {
@@ -65,9 +99,28 @@ export default function VoiceOrb() {
     });
   };
 
+  // Speak a short line, then return to listening (conversation) or idle.
+  const say = (line, thenListen) => {
+    if (ttsSupported()) { setState('speaking'); speak(line, { onEnd: () => { if (thenListen) listen(); else if (convRef.current) listen(); else setState('idle'); } }); }
+    else if (thenListen || convRef.current) listen(); else setState('idle');
+  };
+
   const ask = async (text) => {
+    // Routing commands: hand off to / from a coach without hitting the AI.
+    const cmd = matchCoachCommand(text, coaches);
+    if (cmd?.toJarvis) {
+      switchCoach(null); setTranscript(text); setReply('');
+      say("Okay, back to Jarvis. What do you need?");
+      return;
+    }
+    if (cmd?.coach) {
+      switchCoach(cmd.coach); setTranscript(text); setReply('');
+      say(`You're with ${cmd.coach.name} now. Go ahead.`, true);
+      return;
+    }
     const modelKey = localStorage.getItem('ai.modelKey');
     if (!modelKey) { setState('idle'); showToast('Pick a default AI model in Settings first.', 'info'); return; }
+    const coach = activeCoachRef.current;
     setState('thinking'); setReply(''); setTranscript(text);
     let full = '';
     // Speak sentence-by-sentence as the reply streams, instead of waiting for it all.
@@ -87,7 +140,13 @@ export default function VoiceOrb() {
       while ((m = buf.match(SENTENCE))) { const s = m[0]; buf = buf.slice(s.length); flush(s); }
     };
     try {
-      const res = await api.aiChatStream({ conversationId: convId.current, modelKey, message: text, webSearch: false, rpmMode: true, autoMode: true });
+      let res;
+      if (coach) {
+        coachMsgs.current.push({ role: 'user', content: text });
+        res = await api.coachChatStream(coach.id, { messages: coachMsgs.current.slice(-12), autoMode: true });
+      } else {
+        res = await api.aiChatStream({ conversationId: convId.current, modelKey, message: text, webSearch: false, rpmMode: true, autoMode: true });
+      }
       if (!res.ok || !res.body) { let m = 'Request failed'; try { m = (await res.json()).error || m; } catch { /* ignore */ } throw new Error(m); }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -109,6 +168,7 @@ export default function VoiceOrb() {
         }
       }
       if (acted && refreshData) refreshData();
+      if (coach && full.trim()) coachMsgs.current.push({ role: 'assistant', content: full });
       streamDone = true;
       if (buf.trim()) { flush(buf); buf = ''; }
       if (!started) { if (convRef.current) listen(); else setState('idle'); } // nothing spoken
@@ -165,15 +225,32 @@ export default function VoiceOrb() {
       {open && (
         <div className="vorb-panel">
           <div className="vorb-panel-head">
-            <span className="vorb-state">{label}</span>
+            <span className="vorb-who">
+              {activeCoach
+                ? <><span className="vorb-who-av" style={{ background: activeCoach.avatar_image ? undefined : (activeCoach.color || '#4ECDC4') }}>{activeCoach.avatar_image ? <img src={activeCoach.avatar_image} alt="" /> : (activeCoach.avatar_emoji || '🧭')}</span>{activeCoach.name}</>
+                : <><span className="vorb-who-av jarvis">✦</span>Jarvis</>}
+            </span>
             <div className="vorb-panel-actions">
+              <span className="vorb-state">{label}</span>
               <button className="vorb-close" onClick={close} aria-label="Close"><X size={14} /></button>
             </div>
           </div>
+          {coaches.length > 0 && (
+            <div className="vorb-coachpick">
+              <button className={`vorb-cp ${!activeCoach ? 'on' : ''}`} onClick={() => switchCoach(null)} title="Jarvis — your general assistant">✦ Jarvis</button>
+              {coaches.map(c => (
+                <button key={c.id} className={`vorb-cp ${activeCoach?.id === c.id ? 'on' : ''}`} onClick={() => switchCoach(c)} title={c.name} style={activeCoach?.id === c.id ? { borderColor: c.color || '#4ECDC4' } : undefined}>
+                  <span className="vorb-cp-em">{c.avatar_image ? <img src={c.avatar_image} alt="" /> : (c.avatar_emoji || '🧭')}</span>{c.name}
+                </button>
+              ))}
+            </div>
+          )}
           {transcript && <div className="vorb-you">“{transcript}”</div>}
           {reply
             ? <div className="vorb-reply"><Markdown>{reply}</Markdown></div>
-            : (!transcript && <div className="vorb-hint">Ask me anything — “what should I focus on today?”, “add a task to call the plumber tomorrow”, “how's my fitness goal tracking?”</div>)}
+            : (!transcript && <div className="vorb-hint">{activeCoach
+                ? <>Talking to <strong>{activeCoach.name}</strong> — ask about this area, or say “back to Jarvis”.</>
+                : <>Ask me anything — “what should I focus on today?”, “add a task to call the plumber tomorrow”, or “talk to my {coaches[0]?.name?.replace(/\s*coach$/i, '') || 'wealth'} coach”.</>}</div>)}
           {ttsSupported() && voices.length > 0 && (
             <select
               className="vorb-voice form-input"
@@ -201,10 +278,15 @@ export default function VoiceOrb() {
           </button>
         )}
       </div>
-      <button className={`vorb vorb-${state} ${wake && state === 'idle' ? 'armed' : ''}`} onClick={orbClick} title={label} aria-label={label}>
+      <button className={`vorb vorb-${state} ${wake && state === 'idle' ? 'armed' : ''} ${activeCoach ? 'coached' : ''}`} onClick={orbClick} title={activeCoach ? `${activeCoach.name} · ${label}` : label} aria-label={label}>
         <span className="vorb-core" />
         <span className="vorb-ring" />
         <span className="vorb-ic">{state === 'thinking' ? <Loader2 size={20} className="vorb-spin" /> : <Mic size={20} />}</span>
+        {activeCoach && (
+          <span className="vorb-badge" style={{ background: activeCoach.avatar_image ? undefined : (activeCoach.color || '#4ECDC4') }}>
+            {activeCoach.avatar_image ? <img src={activeCoach.avatar_image} alt="" /> : (activeCoach.avatar_emoji || '🧭')}
+          </span>
+        )}
       </button>
     </div>,
     document.body
