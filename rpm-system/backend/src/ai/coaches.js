@@ -4,6 +4,51 @@
 
 const { runChat } = require('./service');
 const { recordUsage } = require('./usage');
+const { computeForecasts } = require('../forecast');
+
+const CHIEF_RISK = new Set(['at_risk', 'off_track', 'stalled', 'overdue']);
+function weekRange(todayStr) {
+  const d = new Date(todayStr + 'T00:00:00Z');
+  const dow = (d.getUTCDay() + 6) % 7; // Monday = 0
+  const mon = new Date(d.getTime() - dow * 86400000);
+  const sun = new Date(mon.getTime() + 6 * 86400000);
+  return [mon.toISOString().slice(0, 10), sun.toISOString().slice(0, 10)];
+}
+
+// Pure-data snapshot of the coach's area right now — no AI. Powers the "follows my
+// tasks" strip and is folded into the coach's context so it leads with what matters.
+async function coachSnapshot(pool, userId, coach, today) {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(today || '') ? today : new Date().toISOString().slice(0, 10);
+  const [wkStart, wkEnd] = weekRange(day);
+  const isProject = coach.scope === 'project';
+  const filter = isProject ? 'project_id = $2' : 'category_id = $2';
+  const scopeId = isProject ? coach.project_id : coach.category_id;
+  const base = `FROM v_actions_full WHERE user_id = $1 AND ${filter} AND is_completed = false AND is_cancelled = false`;
+
+  const [todayRows, weekCnt, overdueRows, projIds] = await Promise.all([
+    pool.query(`SELECT title, priority ${base} AND scheduled_date = $3::date ORDER BY priority DESC, sort_order LIMIT 8`, [userId, scopeId, day]),
+    pool.query(`SELECT count(*)::int c ${base} AND scheduled_date BETWEEN $3::date AND $4::date`, [userId, scopeId, wkStart, wkEnd]),
+    pool.query(`SELECT title, ($3::date - scheduled_date) AS days_late ${base} AND scheduled_date < $3::date ORDER BY scheduled_date LIMIT 8`, [userId, scopeId, day]),
+    isProject
+      ? Promise.resolve({ rows: [{ id: coach.project_id }] })
+      : pool.query('SELECT id FROM projects WHERE user_id = $1 AND category_id = $2', [userId, coach.category_id]),
+  ]);
+
+  let atRisk = [];
+  try {
+    const ids = new Set(projIds.rows.map(r => r.id));
+    const fc = await computeForecasts(pool, userId);
+    atRisk = (fc.keyResults || []).filter(k => ids.has(k.project_id) && CHIEF_RISK.has(k.status))
+      .map(k => ({ title: k.title, status: k.status, rate_per_week: k.rate_per_week, required_per_week: k.required_per_week, target: k.target, current: k.current, target_date: k.target_date }));
+  } catch { /* ignore */ }
+
+  return {
+    today: todayRows.rows.map(r => r.title),
+    week_count: weekCnt.rows[0].c,
+    overdue: overdueRows.rows.map(r => ({ title: r.title, days_late: r.days_late })),
+    at_risk: atRisk,
+  };
+}
 
 // ---- readiness: a category is "ready" for a coach once it has real substance ----
 async function categoryReadiness(pool, userId, categoryId) {
@@ -26,7 +71,20 @@ async function categoryReadiness(pool, userId, categoryId) {
 function clip(s, n) { return s ? String(s).replace(/\s+/g, ' ').trim().slice(0, n) : ''; }
 
 async function scopedContext(pool, userId, coach) {
-  const L = [`Today: ${new Date().toISOString().slice(0, 10)}`];
+  const today = new Date().toISOString().slice(0, 10);
+  const L = [`Today: ${today}`];
+
+  // Lead with the state of this area RIGHT NOW so the coach references it proactively.
+  try {
+    const s = await coachSnapshot(pool, userId, coach, today);
+    L.push('\n=== THIS AREA RIGHT NOW ===');
+    L.push(s.today.length ? `Today's tasks (${s.today.length}): ${s.today.map(t => clip(t, 50)).join('; ')}` : 'No tasks scheduled today in this area.');
+    L.push(`This week: ${s.week_count} task(s).`);
+    if (s.overdue.length) L.push(`Carried over (${s.overdue.length}): ${s.overdue.map(o => `${clip(o.title, 40)} (${o.days_late}d late)`).join('; ')}`);
+    if (s.at_risk.length) L.push(`Goals slipping: ${s.at_risk.map(k => `${clip(k.title, 40)} — ${k.status.replace('_', ' ')}, at ${k.rate_per_week}/wk vs ${k.required_per_week}/wk needed`).join('; ')}`);
+    L.push('Proactively reference these when relevant — don\'t make the user ask.');
+  } catch { /* snapshot optional */ }
+
   let projFilter, projParams;
   if (coach.scope === 'project') {
     projFilter = 'p.id = $2'; projParams = [userId, coach.project_id];
@@ -264,5 +322,5 @@ async function* chatCoach({ pool, userId, coach, messages, autoMode = true, mode
 
 module.exports = {
   categoryReadiness, draftCoach, listCoaches, getCoach, createCoach, updateCoach, deleteCoach,
-  chatCoach, reconcileMemory, retrieveMemory, listMemory, deleteMemory, pinMemory,
+  chatCoach, reconcileMemory, retrieveMemory, listMemory, deleteMemory, pinMemory, coachSnapshot,
 };

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useContext } from 'react';
-import { Sparkles, Send, Loader2, Brain, Trash2, Pin, PinOff, Wand2, Lock, Settings2, Upload, Check } from 'lucide-react';
+import { Sparkles, Send, Loader2, Brain, Trash2, Pin, PinOff, Wand2, Lock, Settings2, Upload, Check, CalendarDays, Clock, TrendingDown } from 'lucide-react';
 import { AuthContext } from '../App';
 import { useToast } from './ToastProvider';
 import Markdown from './Markdown';
@@ -33,6 +33,7 @@ export default function CoachPanel({ scope = 'category', categoryId, projectId, 
   const [memory, setMemory] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [edit, setEdit] = useState(null);
+  const [snap, setSnap] = useState(null);
   const turns = useRef(0);
   const msgRef = useRef([]); msgRef.current = messages;
   const coachRef = useRef(null); coachRef.current = coach;
@@ -47,6 +48,13 @@ export default function CoachPanel({ scope = 'category', categoryId, projectId, 
     } catch { setPhase('none'); }
   };
   useEffect(() => { loadStatus(); }, [categoryId, projectId, coachId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Data-driven area snapshot (no AI) once the coach is loaded.
+  useEffect(() => {
+    if (phase !== 'ready' || !coach?.id) return;
+    const today = new Date().toISOString().slice(0, 10);
+    api.getCoachSnapshot(coach.id, today).then(s => setSnap(s && !s.error ? s : null)).catch(() => {});
+  }, [phase, coach?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const flushMemory = async () => {
     const c = coachRef.current;
@@ -103,8 +111,9 @@ export default function CoachPanel({ scope = 'category', categoryId, projectId, 
     catch { showToast('Could not read that image', 'error'); }
   };
 
-  const send = async () => {
-    const text = input.trim(); if (!text || streaming || !coach) return;
+  const send = async (override) => {
+    const text = (typeof override === 'string' ? override : input).trim();
+    if (!text || streaming || !coach) return;
     const prior = msgRef.current.filter(m => m.content);
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: text }, { role: 'assistant', content: '' }]);
@@ -191,6 +200,21 @@ export default function CoachPanel({ scope = 'category', categoryId, projectId, 
 
       {phase === 'ready' && !showSettings && (
         <div className="coach-chat">
+          {snap && (snap.today?.length || snap.week_count || snap.overdue?.length || snap.at_risk?.length) ? (
+            <div className="coach-snap">
+              <span className="coach-snap-chips">
+                <span className="coach-snap-chip"><CalendarDays size={12} /> {snap.today?.length || 0} today</span>
+                <span className="coach-snap-chip">{snap.week_count || 0} this week</span>
+                {snap.overdue?.length > 0 && <span className="coach-snap-chip warn"><Clock size={12} /> {snap.overdue.length} overdue</span>}
+                {snap.at_risk?.length > 0 && <span className="coach-snap-chip bad"><TrendingDown size={12} /> {snap.at_risk.length} slipping</span>}
+              </span>
+              {messages.length === 0 && (snap.today?.length || snap.overdue?.length || snap.at_risk?.length) ? (
+                <button type="button" className="coach-snap-brief" onClick={() => send('Brief me on this area — what should I do right now, given today\'s tasks and anything slipping?')} disabled={streaming}>
+                  <Sparkles size={12} /> Brief me
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {messages.length === 0 && (
             <p className="coach-empty">Ask {coach.name} anything about this area — “what should I focus on here?”, “I'm stuck on X”, “add a task to…”. It remembers what matters across conversations.</p>
           )}

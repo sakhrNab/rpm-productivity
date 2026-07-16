@@ -68,3 +68,12 @@
 .coach-emoji.on { border-color: var(--accent-cyan); background: rgba(78,205,196,0.16); }
 .coach-color { width: 34px; height: 34px; padding: 0; border: 1px solid var(--border-primary); border-radius: 8px; background: none; cursor: pointer; }
 .coach-settings { display: flex; flex-direction: column; }
+
+/* Task-awareness snapshot strip */
+.coach-snap { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 0.8rem; }
+.coach-snap-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.coach-snap-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--bg-hover); border: 1px solid var(--border-primary); color: var(--text-secondary); }
+.coach-snap-chip.warn { color: var(--accent-orange); border-color: rgba(255,183,77,0.4); background: rgba(255,183,77,0.1); }
+.coach-snap-chip.bad { color: var(--accent-red); border-color: rgba(255,107,107,0.4); background: rgba(255,107,107,0.1); }
+.coach-snap-brief { display: inline-flex; align-items: center; gap: 5px; font-size: 0.74rem; font-weight: 600; padding: 4px 11px; border-radius: 999px; cursor: pointer; color: #04231f; border: none; background: linear-gradient(120deg, var(--accent-cyan), #7c6bf5); }
+.coach-snap-brief:disabled { opacity: 0.6; cursor: default; }

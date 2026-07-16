@@ -1382,6 +1382,15 @@ app.post('/api/coaches', authenticateToken, async (req, res) => {
   catch (e) { console.error('[coach] create:', e.message); res.status(400).json({ error: e.message || 'Failed' }); }
 });
 
+// Data-driven snapshot of the coach's area (no AI) — powers the "follows my tasks" strip.
+app.get('/api/coaches/:id/snapshot', authenticateToken, async (req, res) => {
+  try {
+    const coach = await coaches.getCoach(pool, req.userId, req.params.id);
+    if (!coach) return res.status(404).json({ error: 'Coach not found' });
+    res.json(await coaches.coachSnapshot(pool, req.userId, coach, req.query.today));
+  } catch (e) { console.error('[coach] snapshot:', e.message); res.status(500).json({ error: 'Failed' }); }
+});
+
 // Memory routes (3-segment; must be declared — order vs /:id is fine, different arity)
 app.get('/api/coaches/:id/memory', authenticateToken, async (req, res) => {
   try { res.json(await coaches.listMemory(pool, req.userId, req.params.id)); }

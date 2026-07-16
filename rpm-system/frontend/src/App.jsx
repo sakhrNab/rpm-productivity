@@ -165,6 +165,7 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     draftCoach: (body) => authFetch(`${API_BASE}/coaches/draft`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
     createCoach: (body) => authFetch(`${API_BASE}/coaches`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
     getCoach: (id) => authFetch(`${API_BASE}/coaches/${id}`).then(r => r.json()),
+    getCoachSnapshot: (id, today) => authFetch(`${API_BASE}/coaches/${id}/snapshot?today=${today}`).then(r => r.json()),
     updateCoach: (id, body) => authFetch(`${API_BASE}/coaches/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then(r => r.json()),
     deleteCoach: (id) => authFetch(`${API_BASE}/coaches/${id}`, { method: 'DELETE' }).then(r => r.json()),
     coachChatStream: (id, body) => authFetch(`${API_BASE}/coaches/${id}/chat`, { method: 'POST', body: JSON.stringify({ modelKey: localStorage.getItem('ai.modelKey') || undefined, ...body }) }),
