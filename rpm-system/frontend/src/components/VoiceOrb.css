@@ -85,46 +85,96 @@
 @keyframes vorb-bob { 0%,100% { transform: scale(1); } 50% { transform: scale(1.13); } }
 @keyframes vorb-pulsering { 0% { opacity: 0.7; transform: scale(0.9); } 100% { opacity: 0; transform: scale(1.55); } }
 
-/* Speech panel above the orb */
-.vorb-panel {
-  width: min(320px, 78vw);
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  border-radius: 16px;
-  padding: 12px 14px;
-  box-shadow: var(--shadow-lg);
-  animation: vorb-pop 0.16s ease-out;
+/* ---- Centered glass conversation panel ---- */
+.vorb-scrim {
+  position: fixed; inset: 0; z-index: 940;
+  background: rgba(8, 10, 20, 0.42);
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  animation: vorb-fade 0.18s ease-out;
 }
-@keyframes vorb-pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.vorb-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.vorb-state { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--accent-cyan); }
-.vorb-panel-actions { display: inline-flex; gap: 6px; }
-.vorb-conv, .vorb-close { background: none; border: none; color: var(--text-muted); cursor: pointer; display: inline-flex; padding: 3px; border-radius: 6px; }
-.vorb-conv:hover, .vorb-close:hover { color: var(--text-primary); background: var(--bg-hover); }
-.vorb-conv.on { color: var(--accent-cyan); background: rgba(78,205,196,0.14); }
-.vorb-who { display: inline-flex; align-items: center; gap: 7px; font-size: 0.9rem; font-weight: 700; color: var(--text-primary); min-width: 0; }
-.vorb-who-av { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; overflow: hidden; flex: 0 0 auto; }
-.vorb-who-av.jarvis { background: linear-gradient(135deg, var(--accent-cyan), #7b6cff); color: #fff; }
-.vorb-who-av img { width: 100%; height: 100%; object-fit: cover; }
-.vorb-coachpick { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
-.vorb-cp { display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-muted); cursor: pointer; max-width: 100%; }
+.vorb-panel {
+  position: fixed;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 960;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(80vh, 760px);
+  display: flex; flex-direction: column;
+  background: var(--bg-card);
+  background: color-mix(in srgb, var(--bg-card) 84%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3);
+  border: 1px solid var(--border-primary);
+  border-radius: 22px;
+  padding: 16px 18px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+  animation: vorb-rise 0.2s cubic-bezier(0.2,0.9,0.3,1);
+}
+@keyframes vorb-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes vorb-rise { from { opacity: 0; transform: translate(-50%, calc(-50% + 14px)) scale(0.98); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+
+.vorb-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.vorb-who { display: inline-flex; align-items: center; gap: 9px; min-width: 0; }
+.vorb-who-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.vorb-who-name { font-size: 0.98rem; font-weight: 800; color: var(--text-primary); }
+.vorb-who-sub { display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; color: var(--text-muted); }
+.vorb-av { border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.86rem; overflow: hidden; flex: 0 0 auto; }
+.vorb-av.jarvis { background: linear-gradient(135deg, var(--accent-cyan), #7b6cff); color: #fff; font-size: 0.8rem; }
+.vorb-av img { width: 100%; height: 100%; object-fit: cover; }
+
+.vorb-panel-actions { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.vorb-state { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+.vorb-state.st-listening { color: #ff6b6b; }
+.vorb-state.st-thinking { color: #ffd166; }
+.vorb-state.st-speaking { color: var(--accent-cyan); }
+.vorb-mini { background: none; border: 1px solid var(--border-primary); color: var(--text-muted); cursor: pointer; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.vorb-mini:hover { color: var(--text-primary); }
+.vorb-close { background: none; border: none; color: var(--text-muted); cursor: pointer; display: inline-flex; padding: 3px; border-radius: 6px; }
+.vorb-close:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+.vorb-coachpick { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.vorb-cp { display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-muted); cursor: pointer; max-width: 100%; }
 .vorb-cp:hover { color: var(--text-primary); background: var(--bg-hover); }
 .vorb-cp.on { color: var(--text-primary); background: rgba(78,205,196,0.14); border-width: 1.5px; }
 .vorb-cp-em { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; overflow: hidden; font-size: 0.72rem; }
 .vorb-cp-em img { width: 100%; height: 100%; object-fit: cover; }
-.vorb-you { font-size: 0.82rem; color: var(--text-muted); font-style: italic; margin-bottom: 6px; }
-.vorb-reply { font-size: 0.9rem; color: var(--text-primary); line-height: 1.5; max-height: 42vh; overflow-y: auto; white-space: pre-wrap; }
-.vorb-hint { font-size: 0.84rem; color: var(--text-muted); line-height: 1.5; }
+
+/* ---- Conversation thread ---- */
+.vorb-thread { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 2px; scroll-behavior: smooth; }
+.vorb-hint { font-size: 0.86rem; color: var(--text-muted); line-height: 1.55; padding: 4px 2px; }
+.vorb-ex { display: flex; flex-direction: column; gap: 6px; }
+.vorb-bubble { font-size: 0.9rem; line-height: 1.5; border-radius: 14px; padding: 9px 12px; max-width: 88%; word-break: break-word; }
+.vorb-bubble.you { align-self: flex-end; background: linear-gradient(135deg, var(--accent-cyan), #46b3ac); color: #04201e; font-weight: 500; border-bottom-right-radius: 5px; }
+.vorb-bubble.bot { align-self: flex-start; display: flex; gap: 8px; background: var(--bg-secondary); border: 1px solid var(--border-primary); color: var(--text-primary); border-bottom-left-radius: 5px; max-width: 94%; }
+.vorb-bubble.bot .vorb-av { margin-top: 1px; }
+.vorb-bubble-md { min-width: 0; }
+.vorb-act { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 0.74rem; font-weight: 600; color: var(--text-muted); background: var(--bg-hover); border: 1px dashed var(--border-primary); padding: 3px 9px; border-radius: 999px; }
+.vorb-act.done { color: #2ec07a; border-style: solid; border-color: rgba(46,192,122,0.4); }
+.vorb-suggest { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; color: var(--text-primary); background: rgba(123,108,255,0.12); border: 1px solid rgba(123,108,255,0.4); padding: 5px 11px; border-radius: 999px; cursor: pointer; }
+.vorb-suggest:hover { background: rgba(123,108,255,0.2); }
+
+/* markdown inside a bot bubble */
+.vorb-bubble-md .asst-md { font-size: 0.9rem; line-height: 1.5; }
+.vorb-bubble-md .asst-md > *:first-child { margin-top: 0; }
+.vorb-bubble-md .asst-md > *:last-child { margin-bottom: 0; }
+.vorb-bubble-md .asst-md h1, .vorb-bubble-md .asst-md h2, .vorb-bubble-md .asst-md h3 { font-size: 0.98rem; margin: 8px 0 4px; }
+.vorb-bubble-md .asst-md ul, .vorb-bubble-md .asst-md ol { padding-left: 1.1rem; margin: 4px 0; }
+.vorb-bubble-md .asst-md li { margin: 2px 0; }
+.vorb-bubble-md .asst-md table { font-size: 0.8rem; }
+.vorb-bubble-md .asst-md-tablewrap { overflow-x: auto; }
+
+.vorb-voice { width: 100%; margin-top: 12px; font-size: 0.74rem; padding: 6px 26px 6px 8px; background-position: right 8px center; flex: 0 0 auto; }
 
 @media (prefers-reduced-motion: reduce) {
   .vorb-core, .vorb-core::after, .vorb-ring, .vorb-spin { animation: none !important; }
+  .vorb-panel, .vorb-scrim { animation: none; }
 }
 @media (max-width: 640px) {
   .vorb-root { right: 14px; bottom: 16px; }
   .vorb { width: 56px; height: 56px; }
+  .vorb-panel { width: calc(100vw - 20px); max-height: 82vh; border-radius: 18px; padding: 14px; }
 }
 
-/* Always-visible chips (wake word / conversation) above the orb */
+/* Always-visible chip (hands-free) above the orb */
 .vorb-chips { display: flex; gap: 6px; align-items: center; }
 .vorb-chip {
   display: inline-flex; align-items: center; gap: 4px;
@@ -138,18 +188,7 @@
 .vorb-chip:hover { color: var(--text-primary); }
 .vorb-chip.on { color: var(--accent-cyan); border-color: var(--accent-cyan); background: rgba(78,205,196,0.14); }
 
-/* Armed (wake word listening) — a slow halo so you know the mic is live */
+/* Armed (hands-free wake listening) — a slow halo so you know the mic is live */
 .vorb.armed .vorb-ring { opacity: 1; border-color: rgba(78,205,196,0.35); animation: vorb-armed 2.6s ease-out infinite; }
 @keyframes vorb-armed { 0% { opacity: 0.5; transform: scale(0.95); } 100% { opacity: 0; transform: scale(1.35); } }
 @media (prefers-reduced-motion: reduce) { .vorb.armed .vorb-ring { animation: none; } }
-
-/* Rendered markdown reply + voice picker */
-.vorb-reply .asst-md { font-size: 0.88rem; line-height: 1.5; }
-.vorb-reply .asst-md > *:first-child { margin-top: 0; }
-.vorb-reply .asst-md > *:last-child { margin-bottom: 0; }
-.vorb-reply .asst-md h1, .vorb-reply .asst-md h2, .vorb-reply .asst-md h3 { font-size: 0.95rem; margin: 8px 0 4px; }
-.vorb-reply .asst-md ul, .vorb-reply .asst-md ol { padding-left: 1.1rem; margin: 4px 0; }
-.vorb-reply .asst-md li { margin: 2px 0; }
-.vorb-reply .asst-md table { font-size: 0.78rem; }
-.vorb-reply .asst-md-tablewrap { overflow-x: auto; }
-.vorb-voice { width: 100%; margin-top: 10px; font-size: 0.74rem; padding: 5px 26px 5px 8px; background-position: right 8px center; }
