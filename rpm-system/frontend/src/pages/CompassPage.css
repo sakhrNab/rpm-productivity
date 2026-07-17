@@ -34,6 +34,21 @@
   color: var(--text-muted);
   font-size: 0.9rem;
 }
+.compass-desc {
+  margin: 8px 0 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  font-size: 0.82rem; color: var(--text-muted); line-height: 1.4;
+}
+.compass-desc-tag {
+  font-weight: 700; letter-spacing: 0.02em; color: var(--accent-cyan);
+  background: rgba(78,205,196,0.12); border: 1px solid rgba(78,205,196,0.3);
+  padding: 1px 8px; border-radius: 999px; font-size: 0.72rem;
+}
+.compass-crosslink {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: none; border: none; cursor: pointer; padding: 0;
+  color: var(--accent-purple, #7b6cff); font-size: 0.8rem; font-weight: 600;
+}
+.compass-crosslink:hover { text-decoration: underline; }
 .compass-head-right { margin-left: auto; display: flex; align-items: center; gap: 0.7rem; flex-shrink: 0; }
 .compass-generated { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
 .compass-refresh { flex-shrink: 0; }
@@ -103,6 +118,9 @@
   font-variant-numeric: tabular-nums;
 }
 .compass-count { font-weight: 600; }
+.compass-count.warn { color: #ffb74d; background: rgba(255,183,77,0.14); border-radius: 999px; padding: 1px 8px; }
+.compass-list.carried li { justify-content: space-between; }
+.compass-late { margin-left: auto; font-size: 0.74rem; font-weight: 600; color: #ffb74d; white-space: nowrap; flex-shrink: 0; }
 
 /* Coaching text via .asst-md; add a warm left accent to the must-win block */
 .compass-guidance .asst-md { font-size: 0.95rem; line-height: 1.6; }

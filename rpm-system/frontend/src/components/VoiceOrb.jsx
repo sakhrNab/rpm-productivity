@@ -1,6 +1,6 @@
 import { useState, useRef, useContext, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Mic, X, Loader2, Zap, Check, CalendarDays } from 'lucide-react';
+import { Mic, X, Loader2, Zap, Check, CalendarDays, Square } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { useToast } from './ToastProvider';
 import Markdown from './Markdown';
@@ -91,6 +91,8 @@ export default function VoiceOrb() {
   const coachMsgs = useRef([]);             // per-session transcript for coach API context
   const actsRef = useRef([]);
   const threadRef = useRef(null);
+  const interruptRef = useRef(false);   // set when the user stops a reply mid-stream
+  const readerRef = useRef(null);       // active response stream, so we can abort it
 
   useEffect(() => onVoicesReady(setVoices), []);
   useEffect(() => { api.getCoaches().then(c => setCoaches(Array.isArray(c) ? c : [])).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -130,6 +132,17 @@ export default function VoiceOrb() {
     else listen();
   };
 
+  // Stop the assistant right now — cut the speech AND abort the response stream so
+  // no more of it gets spoken. Works whether it's thinking or mid-sentence.
+  const interrupt = () => {
+    interruptRef.current = true;
+    endingRef.current = true;
+    cancelSpeak();
+    try { readerRef.current && readerRef.current.cancel(); } catch { /* noop */ }
+    readerRef.current = null;
+    setState('idle');
+  };
+
   const listen = () => {
     if (!sttSupported()) { showToast('Voice needs Chrome or Edge (with mic access).', 'info'); return; }
     cancelSpeak();
@@ -159,15 +172,19 @@ export default function VoiceOrb() {
     const modelKey = localStorage.getItem('ai.modelKey');
     if (!modelKey) { setState('idle'); showToast('Pick a default AI model in Settings first.', 'info'); return; }
     const coach = activeCoachRef.current;
+    interruptRef.current = false;
     setState('thinking'); setTranscript(text); setReply(''); setSuggested(null);
     actsRef.current = []; setActs([]);
     let full = '';
 
     const canSpeak = ttsSupported();
     let sbuf = '', pending = 0, streamDone = false, started = false;
-    const finishIfDone = () => { if (streamDone && pending === 0) { if (hsRef.current && !endingRef.current) listen(); else setState('idle'); } };
+    const finishIfDone = () => {
+      if (interruptRef.current) return;
+      if (streamDone && pending === 0) { if (hsRef.current && !endingRef.current) listen(); else setState('idle'); }
+    };
     const flush = (chunk) => {
-      if (!canSpeak || !chunk.trim()) return;
+      if (interruptRef.current || !canSpeak || !chunk.trim()) return;
       if (!started) { started = true; setState('speaking'); }
       pending++; speakChunk(chunk, { onEnd: () => { pending--; finishIfDone(); } });
     };
@@ -183,9 +200,11 @@ export default function VoiceOrb() {
       }
       if (!res.ok || !res.body) { let m = 'Request failed'; try { m = (await res.json()).error || m; } catch { /* ignore */ } throw new Error(m); }
       const reader = res.body.getReader();
+      readerRef.current = reader;
       const dec = new TextDecoder();
       let buf = '', acted = false;
       while (true) {
+        if (interruptRef.current) break;
         const { done, value } = await reader.read();
         if (done) break;
         buf += dec.decode(value, { stream: true });
@@ -202,18 +221,23 @@ export default function VoiceOrb() {
           else if (ev.type === 'error') { full += (full ? '\n' : '') + '⚠️ ' + (ev.message || 'error'); setReply(full); }
         }
       }
+      readerRef.current = null;
       if (acted && refreshData) refreshData();
       if (coach && full.trim()) coachMsgs.current.push({ role: 'assistant', content: full });
       // Commit this exchange into the thread and offer a hand-off if it fit a coach.
-      const sug = suggestCoach(text, coaches, coach);
-      setTurns(t => [...t, { you: text, reply: full, acts: actsRef.current, coach }]);
+      const stopped = interruptRef.current;
+      const sug = stopped ? null : suggestCoach(text, coaches, coach);
+      setTurns(t => [...t, { you: text, reply: full + (stopped && full ? ' …' : ''), acts: actsRef.current, coach }]);
       setTranscript(''); setReply(''); actsRef.current = []; setActs([]);
       if (sug) setSuggested(sug);
+      if (stopped) { setState('idle'); return; }   // user cut it off — don't speak the rest or re-listen
       streamDone = true;
       if (sbuf.trim()) { flush(sbuf); sbuf = ''; }
       if (!started) { if (hsRef.current && !endingRef.current) listen(); else setState('idle'); }
       else finishIfDone();
     } catch (e) {
+      readerRef.current = null;
+      if (interruptRef.current) { setState('idle'); return; }  // abort throws — that's expected
       setState('idle');
       setReply('⚠️ ' + (e.message || 'Something went wrong'));
     }
@@ -238,10 +262,9 @@ export default function VoiceOrb() {
   const orbClick = () => {
     if (state === 'idle') beginEngagement();
     else if (state === 'listening') stopListening();       // settles → onFinal → ask
-    else if (state === 'speaking') { cancelSpeak(); endingRef.current = true; setState('idle'); }
-    // thinking: ignore
+    else interrupt();                                       // speaking OR thinking → stop now
   };
-  const close = () => { stopListening(); cancelSpeak(); endingRef.current = true; setState('idle'); setOpen(false); };
+  const close = () => { interrupt(); stopListening(); setOpen(false); };
   const clearThread = () => { setTurns([]); setSuggested(null); };
   const toggleHs = () => setHs(v => {
     const nv = !v;
@@ -289,7 +312,10 @@ export default function VoiceOrb() {
             </span>
             <div className="vorb-panel-actions">
               <span className={`vorb-state st-${state}`}>{label}</span>
-              {turns.length > 0 && <button className="vorb-mini" onClick={clearThread} title="Clear conversation">Clear</button>}
+              {(state === 'thinking' || state === 'speaking') && (
+                <button className="vorb-mini stop" onClick={interrupt} title="Stop"><Square size={11} /> Stop</button>
+              )}
+              {state !== 'thinking' && state !== 'speaking' && turns.length > 0 && <button className="vorb-mini" onClick={clearThread} title="Clear conversation">Clear</button>}
               <button className="vorb-close" onClick={close} aria-label="Close"><X size={15} /></button>
             </div>
           </div>

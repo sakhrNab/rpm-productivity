@@ -93,16 +93,25 @@ export function stopWakeWord() {
   wakeRec = null;
 }
 
-// Strip markdown so the spoken version sounds natural.
+// Strip markdown (and emoji) so the spoken version sounds natural — no reading
+// out "dash dash dash", "hash", pipes, or emoji names.
 function stripForSpeech(md) {
   return String(md || '')
     .replace(/```[\s\S]*?```/g, ' (code) ')
     .replace(/`([^`]+)`/g, '$1')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/[*_#>|]/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')                 // links → link text
+    .replace(/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/gm, ' ') // table delimiter rows
+    .replace(/^\s{0,3}([-*_])\1{2,}\s*$/gm, ' ')             // horizontal rules --- *** ___
+    .replace(/^[ \t]*([-*+]|\d+[.)])\s+/gm, '')              // list bullets / numbers at line start
+    .replace(/\s*\|\s*/g, ', ')                              // remaining table pipes → comma pause
+    .replace(/[*_#>~]/g, ' ')                                // emphasis / heading / quote marks
+    .replace(/\p{Extended_Pictographic}️?/gu, ' ')      // emoji (👋, ✅, …) — don't read their names
+    .replace(/(^|\s)[-–—]+(?=\s|$)/g, '$1 ')                 // standalone dash runs between words
     .replace(/\n{2,}/g, '. ')
     .replace(/\n/g, ' ')
+    .replace(/\s+([.,!?;:])/g, '$1')                         // tidy space before punctuation
+    .replace(/([.,])\1+/g, '$1')                             // collapse ".." / ",,"
     .replace(/\s{2,}/g, ' ')
     .trim();
 }

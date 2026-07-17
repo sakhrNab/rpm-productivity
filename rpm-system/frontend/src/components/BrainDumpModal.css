@@ -23,6 +23,17 @@
 .bd-close:hover { color: var(--text-primary); background: var(--bg-hover); }
 
 .bd-body { padding: 1.15rem 1.25rem 1.35rem; }
+.bd-tagline {
+  margin: 0 0 0.7rem; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  font-size: 0.82rem; color: var(--text-muted); line-height: 1.4;
+}
+.bd-tagline-tag {
+  font-weight: 700; letter-spacing: 0.02em; color: var(--accent-purple, #7b6cff);
+  background: rgba(123,108,255,0.12); border: 1px solid rgba(123,108,255,0.3);
+  padding: 1px 8px; border-radius: 999px; font-size: 0.72rem;
+}
+.bd-crosslink { display: inline-flex; align-items: center; gap: 3px; color: var(--accent-cyan); font-weight: 600; text-decoration: none; }
+.bd-crosslink:hover { text-decoration: underline; }
 .bd-lead { margin: 0 0 0.9rem; color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; }
 .bd-review-lead { margin-top: 0.4rem; }
 

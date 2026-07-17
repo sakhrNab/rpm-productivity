@@ -163,6 +163,10 @@ export default function BrainDumpModal({ onClose, onApplied, initialPlan = null,
 
         {(phase === 'input' || phase === 'loading') && (
           <div className="bd-body">
+            <p className="bd-tagline" title="Brain Dump captures new thoughts INTO your plan as structured RPM items. It's the opposite of Compass, which reflects your existing plan back as today's focus.">
+              <span className="bd-tagline-tag">Capture → organize</span>
+              empties your head into your plan. <Link to="/compass" onClick={onClose} className="bd-crosslink">Already planned? Check your Compass <ArrowRight size={12} /></Link>
+            </p>
             <p className="bd-lead">Dump everything on your mind — goals, tasks, worries, deadlines. I’ll organize it into your RPM plan for you to review.</p>
             <div className="bd-input-wrap">
               <textarea

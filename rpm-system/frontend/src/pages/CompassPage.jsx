@@ -102,6 +102,13 @@ function CompassPage() {
         <div>
           <h1 className="compass-title">{greeting}. Here's your compass.</h1>
           <p className="compass-date">{format(today, 'EEEE, MMMM d')}</p>
+          <p className="compass-desc" title="Compass reads what's already in your plan against your goals and key results, and hands back today's one must-win. Reflect → focus: information flows OUT of your system. (Brain Dump is the opposite — it captures new thoughts INTO your plan.)">
+            <span className="compass-desc-tag">Reflect → focus</span>
+            turns your plan into today's must-win.
+            <button type="button" className="compass-crosslink" onClick={() => window.dispatchEvent(new CustomEvent('rpm:open-braindump'))}>
+              New thoughts? Brain-dump them <ArrowRight size={12} />
+            </button>
+          </p>
         </div>
         {hasContent && (
           <div className="compass-head-right">
@@ -249,6 +256,23 @@ function CompassPage() {
               </ul>
             )}
           </section>
+
+          {ctx && Array.isArray(ctx.carried) && ctx.carried.length > 0 && (
+            <section className="compass-card">
+              <div className="compass-card-head">
+                Carried over
+                <span className="compass-count warn">{ctx.carried.length}</span>
+              </div>
+              <ul className="compass-list carried">
+                {ctx.carried.map((a, i) => (
+                  <li key={a.id || i}>
+                    <span>{a.title}</span>
+                    <span className="compass-late">{a.days_late}d late</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section className="compass-card">
             <div className="compass-card-head"><Target size={15} /> Key results</div>

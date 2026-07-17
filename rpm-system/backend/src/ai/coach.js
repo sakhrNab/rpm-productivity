@@ -13,6 +13,17 @@ async function buildContext(pool, userId, today) {
     [userId, today]
   )).rows;
 
+  // Carried over — anything still undone from ANY earlier day, not just yesterday.
+  const carried = (await pool.query(
+    `SELECT id, title, priority, scheduled_date, ($2::date - scheduled_date) AS days_late
+       FROM actions
+      WHERE user_id = $1 AND scheduled_date IS NOT NULL AND scheduled_date < $2::date
+        AND is_completed = false AND is_cancelled = false
+      ORDER BY scheduled_date, sort_order
+      LIMIT 30`,
+    [userId, today]
+  )).rows;
+
   const keyResults = (await pool.query(
     `SELECT kr.title, kr.current_value, kr.target_value, kr.unit, kr.target_date
        FROM key_results kr
@@ -23,13 +34,16 @@ async function buildContext(pool, userId, today) {
     [userId]
   )).rows;
 
-  return { today, actions, keyResults };
+  return { today, actions, carried, keyResults };
 }
 
 function renderContext(ctx) {
   const actionsText = ctx.actions.length
     ? ctx.actions.map(a => `- [${a.is_completed ? 'x' : ' '}] ${a.title}`).join('\n')
     : '(nothing scheduled today)';
+  const carriedText = (ctx.carried && ctx.carried.length)
+    ? ctx.carried.map(a => `- "${a.title}" — ${a.days_late}d late (planned ${String(a.scheduled_date).slice(0, 10)})`).join('\n')
+    : '(nothing carried over — clean slate)';
   const krText = ctx.keyResults.length
     ? ctx.keyResults.map(k => {
         const cur = k.current_value ?? 0;
@@ -38,11 +52,13 @@ function renderContext(ctx) {
         return `- ${k.title}: ${cur}/${tgt} ${k.unit || ''}${due}`;
       }).join('\n')
     : '(no active key results)';
-  return `Today is ${ctx.today}.\n\nToday's scheduled actions:\n${actionsText}\n\nActive key results:\n${krText}`;
+  return `Today is ${ctx.today}.\n\nToday's scheduled actions:\n${actionsText}\n\nCarried over (still undone from earlier days):\n${carriedText}\n\nActive key results:\n${krText}`;
 }
 
 const SYSTEM = `You are the user's RPM coach (Result, Purpose, Massive Action Plan).
 Be warm, direct, and specific. Connect today's actions to the key results they move.
+Take the carried-over (overdue) items seriously: if something important has been slipping
+for days, call it out and fold it into today's focus rather than letting it pile up.
 If today's actions don't advance any behind-pace key result, say so plainly and suggest
 one concrete swap. Keep it under 150 words. End with one clear "Must-win for today: …".`;
 

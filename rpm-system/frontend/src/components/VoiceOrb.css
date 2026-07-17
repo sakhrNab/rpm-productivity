@@ -126,8 +126,10 @@
 .vorb-state.st-listening { color: #ff6b6b; }
 .vorb-state.st-thinking { color: #ffd166; }
 .vorb-state.st-speaking { color: var(--accent-cyan); }
-.vorb-mini { background: none; border: 1px solid var(--border-primary); color: var(--text-muted); cursor: pointer; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.vorb-mini { display: inline-flex; align-items: center; gap: 3px; background: none; border: 1px solid var(--border-primary); color: var(--text-muted); cursor: pointer; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
 .vorb-mini:hover { color: var(--text-primary); }
+.vorb-mini.stop { color: #ff6b6b; border-color: rgba(255,107,107,0.5); background: rgba(255,107,107,0.1); }
+.vorb-mini.stop:hover { background: rgba(255,107,107,0.2); color: #ff8a8a; }
 .vorb-close { background: none; border: none; color: var(--text-muted); cursor: pointer; display: inline-flex; padding: 3px; border-radius: 6px; }
 .vorb-close:hover { color: var(--text-primary); background: var(--bg-hover); }
 

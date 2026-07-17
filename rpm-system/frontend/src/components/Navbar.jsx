@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Target, Calendar, CalendarDays, Sun, Users, FolderKanban, Grid3X3,
   Plus, Zap, Blocks, FolderPlus, Tag, UserPlus, ChevronDown,
-  LogOut, Menu, X, Sparkles, Settings, Bell, Bot
+  LogOut, Menu, X, Sparkles, Settings, Bell, Bot, Compass
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from './modals/CreateActionModal';
@@ -31,6 +31,13 @@ function Navbar() {
     setMobileOpen(false);
   }, [location.pathname]);
 
+  // Let any page open the Brain Dump modal (e.g. the Compass cross-link).
+  useEffect(() => {
+    const open = () => setShowBrainDump(true);
+    window.addEventListener('rpm:open-braindump', open);
+    return () => window.removeEventListener('rpm:open-braindump', open);
+  }, []);
+
   // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -49,6 +56,7 @@ function Navbar() {
     { path: '/calendar', icon: Calendar, label: 'Calendar' },
     { path: '/my-week', icon: CalendarDays, label: 'My Week' },
     { path: '/my-day', icon: Sun, label: 'My Day' },
+    { path: '/compass', icon: Compass, label: 'Compass' },
     { path: '/categories', icon: Grid3X3, label: 'Categories' },
     { path: '/projects', icon: FolderKanban, label: 'Projects' },
     { path: '/people', icon: Users, label: 'People' },
