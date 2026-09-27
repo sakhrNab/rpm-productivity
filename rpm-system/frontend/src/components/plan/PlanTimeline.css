@@ -62,7 +62,8 @@
 .ptl-z-month .ptl-body { background-image: none; }
 .ptl-bg, .ptl-edges { position: absolute; top: 0; pointer-events: none; overflow: visible; }
 .ptl-bg { z-index: 0; }
-.ptl-edges { z-index: 3; }
+/* Lines run BEHIND bars, phase pills and titles (they used to cut through dates/text). */
+.ptl-edges { z-index: 1; }
 .ptl-weekend { fill: rgba(255, 255, 255, 0.022); }
 
 .ptl-row { position: absolute; left: 0; right: 0; display: flex; align-items: center; transition: opacity 0.25s ease; }
@@ -138,7 +139,10 @@
 .ptl-bar-outside {
   position: absolute; top: 50%; transform: translateY(-50%); white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;
   font-size: 0.76rem; color: var(--text-secondary); cursor: pointer; transition: left 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
+  z-index: 2; text-shadow: 0 0 4px var(--bg-secondary), 0 0 8px var(--bg-secondary);
 }
+/* Short bars show only the pin — centre it. */
+.ptl-bar.compact { justify-content: center; padding: 0; }
 .ptl-pin { flex: 0 0 auto; opacity: 0.9; }
 .ptl-drag-date {
   position: absolute; left: 0; bottom: calc(100% + 6px); padding: 3px 8px; border-radius: 6px;
@@ -188,7 +192,7 @@
 
 /* ---------- today laser ---------- */
 .ptl-today {
-  position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; z-index: 3; pointer-events: none;
+  position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; z-index: 1; pointer-events: none;
   background: linear-gradient(180deg, #ff69b4, rgba(255, 105, 180, 0.15));
   box-shadow: 0 0 12px rgba(255, 105, 180, 0.8);
 }

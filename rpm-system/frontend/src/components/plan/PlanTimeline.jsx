@@ -216,6 +216,7 @@ function TaskRow({ r, x, dw, drag, selected, dim, onHover, onPointerDown, onPoin
     'ptl-bar', `p${t.priority}`, `s-${t.size}`,
     t.critical && t.include ? 'critical' : '', t.source === 'initiative' ? 'initiative' : '',
     t.late ? 'late' : '', !t.include ? 'excluded' : '', dragging ? 'dragging' : '', selected ? 'selected' : '',
+    inside ? '' : 'compact',
   ].join(' ');
   return (
     <div className={`ptl-row ptl-task-row ${dim ? 'dim' : ''}`} style={{ top: r.y, height: r.h }}
