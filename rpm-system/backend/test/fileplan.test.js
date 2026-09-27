@@ -175,3 +175,48 @@ test('reminders already in the past are not counted (matches the server rule)', 
   assert.equal(reminderUpcoming('2026-09-29', { days_before: 1, time: '09:00' }, now), true);
   assert.equal(reminderUpcoming('2026-09-29', null, now), false);
 });
+
+// ---------- category-level placement ----------
+test('normalizePlan: a new life area comes back as a full, clean category draft', () => {
+  const p = normalizePlan({ placement: {
+    decision: 'new_category', category_id: CAT, confidence: 82,
+    category_alternatives: [{ category_id: CAT, reason: 'loosely' }, { category_id: FOREIGN }],
+    new_category: { name: 'Health & Fitness', vision: 'I am strong at 60.', purpose: 'Energy for my family', roles: 'Athlete',
+      one_year_goals: ['- Run a marathon', '10 kg lighter', ''], ninety_day_goals: '1. Run 5k three times a week\n2) Sleep 7h' },
+  }, tasks: [{ title: 'Buy shoes' }] }, existing, T);
+  assert.equal(p.placement.decision, 'new_category');
+  assert.equal(p.placement.category_id, null);                    // a new area never keeps an existing category
+  assert.equal(p.placement.new_category.name, 'Health & Fitness');
+  assert.deepEqual(p.placement.new_category.one_year_goals, ['Run a marathon', '10 kg lighter']);   // leading numbers in a goal survive
+  assert.deepEqual(p.placement.new_category.ninety_day_goals, ['Run 5k three times a week', 'Sleep 7h']);
+  assert.deepEqual(p.placement.category_alternatives, [{ category_id: CAT, reason: 'loosely' }]);    // unknown ids dropped
+  assert.equal(p.placement.new_category_name, 'Health & Fitness');
+});
+
+test('normalizePlan: a "new" category that already exists becomes that category', () => {
+  const p = normalizePlan({ placement: { decision: 'new_category', new_category: { name: '  business ' } }, tasks: [{ title: 'X' }] }, existing, T);
+  assert.equal(p.placement.decision, 'new_project');
+  assert.equal(p.placement.category_id, CAT);
+  assert.equal(p.placement.new_category, null);
+});
+
+test('normalizePlan: new_category without a name falls back to a new project in a real category', () => {
+  const p = normalizePlan({ placement: { decision: 'new_category', new_category: { vision: 'x' } }, tasks: [{ title: 'X' }] }, existing, T);
+  assert.equal(p.placement.decision, 'new_project');
+  assert.equal(p.placement.category_id, CAT);
+});
+
+test('normalizePlan: with no categories at all, the drafted area is the placement', () => {
+  const p = normalizePlan({ placement: { decision: 'new_project', new_category: { name: 'Home' } }, tasks: [{ title: 'X' }] }, { categories: [], projects: [] }, T);
+  assert.equal(p.placement.decision, 'new_category');
+  assert.equal(p.placement.new_category.name, 'Home');
+});
+
+test('normalizePlan: a weak existing fit keeps the drafted area as an option; plans saved before stay readable', () => {
+  const weak = normalizePlan({ placement: { decision: 'new_project', category_id: CAT, confidence: 40, new_category: { name: 'Side quests' } }, tasks: [{ title: 'X' }] }, existing, T);
+  assert.equal(weak.placement.category_id, CAT);
+  assert.equal(weak.placement.new_category.name, 'Side quests');
+  const legacy = normalizePlan({ placement: { decision: 'new_project', new_category_name: 'Travel' }, tasks: [{ title: 'X' }] }, existing, T);
+  assert.equal(legacy.placement.new_category.name, 'Travel');
+  assert.deepEqual(legacy.placement.new_category.one_year_goals, []);
+});

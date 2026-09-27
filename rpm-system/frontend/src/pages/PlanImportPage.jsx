@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FileUp, FileText, Sparkles, Check, X, Loader2, CalendarRange, Route, Bell, Link2, Layers, Clock,
   AlertTriangle, HelpCircle, Lightbulb, Plus, FolderKanban, FolderPlus, PenLine, ArrowRight, RotateCcw,
-  GanttChart, List, Target, Zap, Trash2, History,
+  GanttChart, List, Target, Zap, Trash2, History, Compass,
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
@@ -36,6 +36,13 @@ function ConfidenceRing({ value }) {
   );
 }
 
+// The new-project form also carries an optional draft of a new category (area of life).
+const EMPTY_NEW = { name: '', result: '', purpose: '', category_id: '', new_category_name: '', newCat: false, cat_vision: '', cat_purpose: '', cat_roles: '', cat_1y: '', cat_90: '' };
+const catDraftFields = (c) => (c ? {
+  new_category_name: c.name || '', cat_vision: c.vision || '', cat_purpose: c.purpose || '', cat_roles: c.roles || '',
+  cat_1y: (c.one_year_goals || []).join('\n'), cat_90: (c.ninety_day_goals || []).join('\n'),
+} : {});
+
 export default function PlanImportPage() {
   const { api } = useContext(AuthContext);
   const { refreshData } = useContext(AppContext);
@@ -67,7 +74,7 @@ export default function PlanImportPage() {
   const [keyResults, setKeyResults] = useState([]);
   const [mode, setMode] = useState('existing');      // existing | new | own
   const [projectId, setProjectId] = useState('');
-  const [newProj, setNewProj] = useState({ name: '', result: '', purpose: '', category_id: '', new_category_name: '', newCat: false });
+  const [newProj, setNewProj] = useState(EMPTY_NEW);
   const [createBlocks, setCreateBlocks] = useState(true);
   const [view, setView] = useState(() => (window.matchMedia?.('(max-width: 719px)').matches ? 'list' : 'timeline'));
   const [zoom, setZoom] = useState('week');
@@ -178,14 +185,15 @@ export default function PlanImportPage() {
     const preset = presetProject && (ex?.projects || []).some(x => x.id === presetProject) ? presetProject : null;
     setMode(preset || pl.decision === 'existing_project' ? 'existing' : 'new');
     setProjectId(preset || pl.project_id || '');
-    setNewProj({ name: pl.new_project.name, result: pl.new_project.result, purpose: pl.new_project.purpose, category_id: pl.category_id || '', new_category_name: pl.new_category_name || '', newCat: !pl.category_id });
+    setNewProj({ ...EMPTY_NEW, name: pl.new_project.name, result: pl.new_project.result, purpose: pl.new_project.purpose, category_id: pl.category_id || '',
+      ...catDraftFields(pl.new_category), newCat: pl.decision === 'new_category' || !pl.category_id });
     if (draft) {                                      // restore the user's edits
       if (Array.isArray(draft.tasks)) setTasks(draft.tasks);
       if (Array.isArray(draft.phases)) setPhases(draft.phases);
       if (Array.isArray(draft.key_results)) setKeyResults(draft.key_results);
       if (draft.mode) setMode(draft.mode);
       if (draft.projectId !== undefined) setProjectId(draft.projectId);
-      if (draft.newProj) setNewProj(draft.newProj);
+      if (draft.newProj) setNewProj({ ...EMPTY_NEW, ...draft.newProj });   // drafts saved before category drafts existed
       if (typeof draft.createBlocks === 'boolean') setCreateBlocks(draft.createBlocks);
     }
     const span = p.schedule?.span_days || 30;
@@ -260,13 +268,18 @@ export default function PlanImportPage() {
     { value: '__new__', label: '+ New category…' },
   ];
   const chosenProject = existing.projects.find(p => p.id === projectId);
-  const destination = mode === 'existing' ? chosenProject?.name : (newProj.name || 'your new project');
+  const destination = mode === 'existing' ? chosenProject?.name
+    : `${newProj.newCat && newProj.new_category_name.trim() ? `${newProj.new_category_name.trim()} (new area) › ` : ''}${newProj.name || 'your new project'}`;
 
   const switchMode = (m) => {
     setMode(m);
-    if (m === 'own') setNewProj(p => ({ ...p, name: '', result: '', purpose: '' }));
+    if (m === 'own') setNewProj(p => ({ ...p, name: '', result: '', purpose: '', ...(p.newCat ? { new_category_name: '', cat_vision: '', cat_purpose: '', cat_roles: '', cat_1y: '', cat_90: '' } : {}) }));
+    if (m === 'new' && plan?.placement.decision === 'new_category') setNewProj(p => ({ ...p, newCat: true, category_id: '', ...(p.new_category_name ? {} : catDraftFields(plan.placement.new_category)) }));
     if (m === 'new' && plan) setNewProj(p => ({ ...p, name: p.name || plan.placement.new_project.name, result: p.result || plan.placement.new_project.result, purpose: p.purpose || plan.placement.new_project.purpose }));
   };
+
+  const aiArea = plan?.placement.new_category || null;
+  const useAiArea = () => setNewProj(p => ({ ...p, newCat: true, category_id: '', ...catDraftFields(aiArea) }));
 
   const apply = async () => {
     if (mode === 'existing' && !projectId) { showToast('Pick the project this belongs to.', 'error'); return; }
@@ -277,7 +290,10 @@ export default function PlanImportPage() {
       const placement = mode === 'existing'
         ? { mode: 'existing', project_id: projectId }
         : { mode: 'new', name: newProj.name, result: newProj.result, purpose: newProj.purpose,
-          ...(newProj.newCat ? { new_category_name: newProj.new_category_name } : { category_id: newProj.category_id }) };
+          ...(newProj.newCat
+            ? { new_category: { name: newProj.new_category_name, vision: newProj.cat_vision, purpose: newProj.cat_purpose, roles: newProj.cat_roles,
+                one_year_goals: newProj.cat_1y.split('\n'), ninety_day_goals: newProj.cat_90.split('\n') } }
+            : { category_id: newProj.category_id }) };
       const res = await api.applyImportPlan({
         plan: { ...plan, tasks, phases, key_results: keyResults },
         placement, options: { create_blocks: createBlocks }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -441,7 +457,9 @@ export default function PlanImportPage() {
               <ConfidenceRing value={plan.placement.confidence} />
               <div>
                 <div className="pim-verdict-path">
-                  <span className="pim-chip">{catName(plan.placement.category_id) || plan.placement.new_category_name || 'New category'}</span>
+                  {plan.placement.decision === 'new_category'
+                    ? <span className="pim-chip new"><Sparkles size={12} /> New area: {plan.placement.new_category?.name}</span>
+                    : <span className="pim-chip">{catName(plan.placement.category_id) || 'New category'}</span>}
                   <ArrowRight size={13} />
                   <strong>{plan.placement.decision === 'existing_project' ? existing.projects.find(p => p.id === plan.placement.project_id)?.name : `New: ${plan.placement.new_project.name}`}</strong>
                 </div>
@@ -483,8 +501,35 @@ export default function PlanImportPage() {
                   <span>Category</span>
                   <Picker value={newProj.newCat ? '__new__' : newProj.category_id} onChange={v => setNewProj(p => ({ ...p, newCat: v === '__new__', category_id: v === '__new__' ? '' : v }))}
                     options={categoryOptions} placeholder="Choose a category…" header="Categories" />
+                  {!newProj.newCat && (plan.placement.category_alternatives?.length > 0 || aiArea) && (
+                    <div className="pim-alts">
+                      {(plan.placement.category_alternatives || []).map(a => (
+                        <button type="button" key={a.category_id} className={`pim-alt ${newProj.category_id === a.category_id ? 'on' : ''}`} onClick={() => setNewProj(p => ({ ...p, category_id: a.category_id }))}>
+                          <b>{catName(a.category_id)}</b><span>{a.reason || 'also fits'}</span>
+                        </button>
+                      ))}
+                      {aiArea && (
+                        <button type="button" className="pim-alt ai" onClick={useAiArea}>
+                          <b><Sparkles size={12} /> New area: {aiArea.name}</b><span>I drafted its vision and goals — use it instead</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {newProj.newCat && (
-                    <input className="form-input" placeholder="New category name" maxLength={50} value={newProj.new_category_name} onChange={e => setNewProj(p => ({ ...p, new_category_name: e.target.value }))} />
+                    <div className="pim-area">
+                      <div className="pim-area-head">
+                        <Compass size={15} /> {mode === 'new' && aiArea ? 'The new area of your life I drafted' : 'Your new area of life'}
+                        <span>you can edit all of it later on the category page</span>
+                      </div>
+                      <label><span>Name</span><input className="form-input" placeholder="e.g. Health, Family, Craft" maxLength={40} value={newProj.new_category_name} onChange={e => setNewProj(p => ({ ...p, new_category_name: e.target.value }))} /></label>
+                      <label><span>Ultimate vision</span><textarea className="form-input" rows={2} value={newProj.cat_vision} onChange={e => setNewProj(p => ({ ...p, cat_vision: e.target.value }))} placeholder="What this area of your life looks like at its best" /></label>
+                      <label><span>Purpose — why it matters</span><textarea className="form-input" rows={2} value={newProj.cat_purpose} onChange={e => setNewProj(p => ({ ...p, cat_purpose: e.target.value }))} /></label>
+                      <label><span>Your roles here</span><input className="form-input" value={newProj.cat_roles} maxLength={200} onChange={e => setNewProj(p => ({ ...p, cat_roles: e.target.value }))} placeholder="e.g. Athlete, Coach" /></label>
+                      <div className="pim-area-goals">
+                        <label><span>1-year goals <i>one per line</i></span><textarea className="form-input" rows={4} value={newProj.cat_1y} onChange={e => setNewProj(p => ({ ...p, cat_1y: e.target.value }))} /></label>
+                        <label><span>90-day goals <i>one per line</i></span><textarea className="form-input" rows={4} value={newProj.cat_90} onChange={e => setNewProj(p => ({ ...p, cat_90: e.target.value }))} /></label>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -609,11 +654,12 @@ export default function PlanImportPage() {
           <p>
             {result.counts.actions} tasks{result.counts.blocks ? `, ${result.counts.blocks} RPM blocks` : ''}
             {result.counts.dependencies ? `, ${result.counts.dependencies} dependencies` : ''}{result.counts.reminders ? `, ${result.counts.reminders} reminders` : ''}
-            {result.counts.key_results ? `, ${result.counts.key_results} key results` : ''} — {result.created_project ? 'in a brand-new project.' : `added to ${chosenProject?.name || 'your project'}.`}
+            {result.counts.key_results ? `, ${result.counts.key_results} key results` : ''} — {result.created_category ? `in a brand-new project and a new area of your life, “${newProj.new_category_name}”.` : result.created_project ? 'in a brand-new project.' : `added to ${chosenProject?.name || 'your project'}.`}
           </p>
           <div className="pim-done-actions">
             <Link to={`${result.link}?view=timeline`} className="btn btn-primary"><GanttChart size={16} /> Open the timeline</Link>
             <Link to={result.link} className="btn btn-secondary"><FolderKanban size={16} /> Open the project</Link>
+            {result.created_category && <Link to={`/categories/${result.category_id}`} className="btn btn-secondary"><Compass size={16} /> See the new area</Link>}
             <Link to="/calendar" className="btn btn-secondary"><CalendarRange size={16} /> See it on the calendar</Link>
             <button type="button" className="btn btn-secondary" onClick={reset}><FileUp size={16} /> Plan another file</button>
           </div>

@@ -313,3 +313,22 @@ body:has(.pim-footer) .vorb-root { bottom: 150px; }
 .pim-recent-del { flex: 0 0 auto; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; }
 .pim-recent-del:hover { color: var(--accent-red); background: rgba(239, 83, 80, 0.1); }
 .pim-saved { font-size: 0.76rem; color: var(--text-muted); }
+
+/* ---------- category-level placement: a drafted new area of life ---------- */
+.pim-chip.new { display: inline-flex; align-items: center; gap: 5px; color: #ff9bd0; background: rgba(255, 105, 180, 0.12); border-color: rgba(255, 105, 180, 0.35); }
+.pim-alt.ai { border-color: rgba(255, 105, 180, 0.4); background: linear-gradient(90deg, rgba(255, 105, 180, 0.08), transparent); }
+.pim-alt.ai b { display: inline-flex; align-items: center; gap: 6px; color: #ff9bd0; }
+.pim-alt.ai:hover { border-color: #ff69b4; }
+.pim-area {
+  display: flex; flex-direction: column; gap: 10px; margin-top: 4px; padding: 14px; border-radius: 14px;
+  border: 1px solid rgba(255, 105, 180, 0.3);
+  background: radial-gradient(500px 160px at 0% 0%, rgba(255, 105, 180, 0.1), transparent 70%), rgba(0, 0, 0, 0.18);
+}
+.pim-area-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font: 600 0.88rem 'Outfit', var(--font-display); color: var(--text-primary); }
+.pim-area-head svg { color: #ff69b4; }
+.pim-area-head span { flex-basis: 100%; font: 400 0.74rem var(--font-body); color: var(--text-muted); }
+@media (min-width: 560px) { .pim-area-head span { flex-basis: auto; margin-left: auto; } }
+.pim-area label { display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem; color: var(--text-secondary); }
+.pim-area label i { font-style: normal; color: var(--text-muted); font-size: 0.72rem; margin-left: 4px; }
+.pim-area-goals { display: grid; gap: 10px; }
+@media (min-width: 720px) { .pim-area-goals { grid-template-columns: 1fr 1fr; } }

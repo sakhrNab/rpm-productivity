@@ -52,14 +52,22 @@ Output ONLY one JSON object (no markdown fences, no prose):
   "summary": "1-2 sentences: what the document is and what the plan achieves",
   "doc_type": "e.g. project brief, meeting notes, course syllabus, event checklist",
   "placement": {
-    "decision": "existing_project" | "new_project",
+    "decision": "existing_project" | "new_project" | "new_category",
     "project_id": "<existing project id, only for existing_project>",
-    "category_id": "<existing category id this belongs to>",
+    "category_id": "<existing category id this belongs to; null for new_category>",
     "confidence": 0-100,
     "reason": "one sentence, specific to their data",
     "alternatives": [ { "project_id": "<existing id>", "reason": "short" } ],
+    "category_alternatives": [ { "category_id": "<existing id>", "reason": "short" } ],
     "new_project": { "name": "<= 60 chars", "result": "the measurable outcome", "purpose": "why it matters to them" },
-    "new_category_name": null
+    "new_category": null | {
+      "name": "<= 40 chars, an area of life, e.g. Health, Career, Family",
+      "vision": "2-3 sentences: the ultimate vision for this area, in the user's voice (I …)",
+      "purpose": "why this area matters to them",
+      "roles": "who they are in this area, comma-separated (e.g. Founder, Coach)",
+      "one_year_goals": ["3-5 goals for the next 12 months"],
+      "ninety_day_goals": ["2-4 goals for the next 90 days — this document's work should be one of them"]
+    }
   },
   "phases": [ { "key": "ph1", "title": "short", "description": "one sentence" } ],
   "tasks": [ {
@@ -83,9 +91,15 @@ Output ONLY one JSON object (no markdown fences, no prose):
 
 Placement rules:
 - Prefer an EXISTING project when the document clearly advances its result — use its real id. Otherwise
-  "new_project" in the best-fitting existing category. Only set new_category_name when no category fits at all.
-- ALWAYS fill new_project (it is the fallback if the user prefers a new project) and category_id.
-- confidence reflects how sure you are; list up to 2 alternatives when it is not obvious.
+  "new_project" in the best-fitting existing category.
+- "new_category" ONLY when the document belongs to an area of life none of their categories covers (e.g. a
+  marathon plan when they only have Business and Finance). Then category_id is null and new_category is filled.
+  Categories are broad life areas — never create one for a single project, and never duplicate an existing name.
+- Even when you pick an existing category, fill new_category if the fit is weak (confidence < 60), so the user
+  can choose it instead; otherwise leave it null.
+- ALWAYS fill new_project (it is the fallback if the user prefers a new project).
+- confidence reflects how sure you are; list up to 2 project alternatives and up to 2 category_alternatives
+  when it is not obvious.
 
 Planning rules:
 - Extract every real piece of work in the document. Split big fuzzy work into concrete tasks; group into 2-6 phases.
@@ -113,6 +127,28 @@ function parseJson(text) {
   return JSON.parse(s);
 }
 
+// The AI's draft of a new life area → a clean draft, or { existing_id } when the name is
+// one the user already has (case-insensitive), or null when there's no usable name.
+const goalList = (v) => (Array.isArray(v) ? v : String(v ?? '').split('\n'))
+  .map(g => str(String(g).replace(/^\s*(?:[•\-*]+|\d+[.)])\s*/, ''), 200)).filter(Boolean).slice(0, 8);
+function normalizeNewCategory(raw, legacyName, categories) {
+  const c = raw && typeof raw === 'object' ? raw : {};
+  const name = str(c.name || legacyName, 40);
+  if (!name) return null;
+  const same = categories.find(x => x.name.trim().toLowerCase() === name.toLowerCase());
+  if (same) return { existing_id: same.id };
+  return {
+    draft: {
+      name,
+      vision: longStr(c.vision, 1000),
+      purpose: longStr(c.purpose, 1000),
+      roles: str(c.roles, 200),
+      one_year_goals: goalList(c.one_year_goals),
+      ninety_day_goals: goalList(c.ninety_day_goals),
+    },
+  };
+}
+
 // Make a model (or client-edited) plan safe and consistent. Pure except for `existing`.
 function normalizePlan(raw, existing, today) {
   const p = raw && typeof raw === 'object' ? raw : {};
@@ -121,10 +157,15 @@ function normalizePlan(raw, existing, today) {
 
   // Placement
   const pl = p.placement || {};
-  let decision = pl.decision === 'existing_project' ? 'existing_project' : 'new_project';
+  let decision = ['existing_project', 'new_category'].includes(pl.decision) ? pl.decision : 'new_project';
   let projectId = isUuid(pl.project_id) && projById.has(pl.project_id) ? pl.project_id : null;
   if (decision === 'existing_project' && !projectId) decision = 'new_project';
-  let categoryId = projectId ? projById.get(projectId).category_id : (isUuid(pl.category_id) && catIds.has(pl.category_id) ? pl.category_id : null);
+  const newCategory = normalizeNewCategory(pl.new_category, pl.new_category_name, existing.categories);
+  if (decision === 'new_category' && !newCategory) decision = 'new_project';
+  let categoryId = decision === 'new_category' ? null
+    : projectId ? projById.get(projectId).category_id : (isUuid(pl.category_id) && catIds.has(pl.category_id) ? pl.category_id : null);
+  // A "new" category whose name matches one they already have is that category.
+  if (decision === 'new_category' && newCategory.existing_id) { decision = 'new_project'; categoryId = newCategory.existing_id; }
   const np = pl.new_project || {};
   const placement = {
     decision,
@@ -135,10 +176,16 @@ function normalizePlan(raw, existing, today) {
     alternatives: (Array.isArray(pl.alternatives) ? pl.alternatives : [])
       .filter(a => a && isUuid(a.project_id) && projById.has(a.project_id) && a.project_id !== projectId)
       .slice(0, 2).map(a => ({ project_id: a.project_id, reason: str(a.reason, 200) })),
+    category_alternatives: (Array.isArray(pl.category_alternatives) ? pl.category_alternatives : [])
+      .filter(a => a && isUuid(a.category_id) && catIds.has(a.category_id) && a.category_id !== categoryId)
+      .slice(0, 2).map(a => ({ category_id: a.category_id, reason: str(a.reason, 200) })),
     new_project: { name: str(np.name || p.title, 60) || 'New project', result: longStr(np.result, 500), purpose: longStr(np.purpose, 500) },
-    new_category_name: !categoryId && pl.new_category_name ? str(pl.new_category_name, 50) : null,
+    new_category: newCategory && !newCategory.existing_id ? newCategory.draft : null,
   };
-  if (!placement.category_id && !placement.new_category_name && existing.categories[0]) placement.category_id = existing.categories[0].id;
+  // Kept for plans saved before new_category existed (the studio reads it as a name-only draft).
+  placement.new_category_name = decision === 'new_category' ? placement.new_category.name : null;
+  if (!placement.category_id && decision !== 'new_category' && existing.categories[0]) placement.category_id = existing.categories[0].id;
+  if (!placement.category_id && decision !== 'new_category' && placement.new_category) { placement.decision = 'new_category'; placement.new_category_name = placement.new_category.name; }
 
   // Phases
   const phases = [];
@@ -276,7 +323,9 @@ function zonedToUtc(date, time, tz) {
 }
 
 // Write the approved plan. `placement` is the user's final choice:
-//   { mode: 'existing', project_id } | { mode: 'new', category_id | new_category_name, name, result, purpose }
+//   { mode: 'existing', project_id }
+//   | { mode: 'new', name, result, purpose, category_id | new_category: { name, vision, purpose, roles, one_year_goals, ninety_day_goals } }
+//   (legacy clients send new_category_name instead of new_category)
 async function applyFilePlan({ pool, userId, plan: rawPlan, placement, options = {}, timezone }) {
   const existing = await loadExisting(pool, userId);
   const today = todayInTz(timezone);
@@ -287,7 +336,7 @@ async function applyFilePlan({ pool, userId, plan: rawPlan, placement, options =
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    let projectId, categoryId, createdProject = false;
+    let projectId, categoryId, createdProject = false, createdCategory = false;
     if (placement?.mode === 'existing') {
       const own = existing.projects.find(p => p.id === placement.project_id);
       if (!own) throw new AiError('bad_project', 'That project was not found.');
@@ -297,13 +346,26 @@ async function applyFilePlan({ pool, userId, plan: rawPlan, placement, options =
       if (!name) throw new AiError('bad_project', 'Give the new project a name.');
       if (isUuid(placement?.category_id) && existing.categories.some(c => c.id === placement.category_id)) {
         categoryId = placement.category_id;
-      } else if (str(placement?.new_category_name, 50)) {
-        const r = await client.query(
-          `INSERT INTO categories (user_id, name, color, icon, sort_order)
-           VALUES ($1, $2, $3, 'target', (SELECT COALESCE(MAX(sort_order),0)+1 FROM categories WHERE user_id=$1)) RETURNING id`,
-          [userId, str(placement.new_category_name, 50), CAT_COLORS[existing.categories.length % CAT_COLORS.length]]);
-        categoryId = r.rows[0].id;
-      } else throw new AiError('bad_category', 'Pick a category for the new project.');
+      } else {
+        const nc = normalizeNewCategory(placement?.new_category, placement?.new_category_name, existing.categories);
+        if (!nc) throw new AiError('bad_category', 'Pick a category for the new project.');
+        if (nc.existing_id) categoryId = nc.existing_id;
+        else {
+          const d = nc.draft;
+          const r = await client.query(
+            `INSERT INTO categories (user_id, name, description, color, icon, sort_order)
+             VALUES ($1, $2, $3, $4, 'target', (SELECT COALESCE(MAX(sort_order),0)+1 FROM categories WHERE user_id=$1)) RETURNING id`,
+            [userId, d.name, d.vision.slice(0, 500), CAT_COLORS[existing.categories.length % CAT_COLORS.length]]);
+          categoryId = r.rows[0].id;
+          // Same shape the category page edits: goals are one per line.
+          await client.query(
+            `INSERT INTO category_details (category_id, ultimate_vision, roles, ultimate_purpose, one_year_goals, ninety_day_goals)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [categoryId, d.vision || null, d.roles || null, d.purpose || null,
+              d.one_year_goals.join('\n') || null, d.ninety_day_goals.join('\n') || null]);
+          createdCategory = true;
+        }
+      }
       const r = await client.query(
         `INSERT INTO projects (user_id, category_id, name, ultimate_result, ultimate_purpose, start_date, end_date, sort_order)
          VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT COALESCE(MAX(sort_order),0)+1 FROM projects WHERE user_id=$1)) RETURNING id`,
@@ -377,7 +439,7 @@ async function applyFilePlan({ pool, userId, plan: rawPlan, placement, options =
 
     await client.query('COMMIT');
     return {
-      ok: true, project_id: projectId, created_project: createdProject, link: `/projects/${projectId}`,
+      ok: true, project_id: projectId, created_project: createdProject, category_id: categoryId, created_category: createdCategory, link: `/projects/${projectId}`,
       counts: { actions: tasks.length, blocks: Object.keys(blockByPhase).length, dependencies: deps, reminders, key_results: keyResults },
     };
   } catch (e) {
@@ -390,4 +452,4 @@ async function applyFilePlan({ pool, userId, plan: rawPlan, placement, options =
   }
 }
 
-module.exports = { generateFilePlan, applyFilePlan, normalizePlan, zonedToUtc, loadExisting, parseJson };
+module.exports = { generateFilePlan, applyFilePlan, normalizePlan, normalizeNewCategory, zonedToUtc, loadExisting, parseJson };
