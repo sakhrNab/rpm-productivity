@@ -8,6 +8,7 @@ import {
   sttSupported, ttsSupported, startListening, stopListening, speak, speakChunk, cancelSpeak,
   startWakeWord, stopWakeWord, onVoicesReady, getVoiceName, setVoiceName as saveVoiceName,
 } from '../utils/speech';
+import Picker from './Picker';
 import './VoiceOrb.css';
 
 // Flush speech at a sentence end or a line break (so bullets/headings speak too).
@@ -29,6 +30,8 @@ const ACT_LABEL = {
   update_key_result: () => 'Updated goal progress',
   update_action: (a) => `Edited a task${a?.title ? ` → “${a.title}”` : ''}`,
   delete_action: () => 'Proposed deleting a task',
+  remember: (a) => `Noted${a?.content ? `: “${a.content}”` : ''}`,
+  forget: () => 'Forgot a memory',
 };
 
 // Detect explicit routing commands: "talk to my wealth coach", "back to Jarvis".
@@ -93,6 +96,7 @@ export default function VoiceOrb() {
   const threadRef = useRef(null);
   const interruptRef = useRef(false);   // set when the user stops a reply mid-stream
   const readerRef = useRef(null);       // active response stream, so we can abort it
+  const abortRef = useRef(null);        // aborts the HTTP request itself (server stops generating)
 
   useEffect(() => onVoicesReady(setVoices), []);
   useEffect(() => { api.getCoaches().then(c => setCoaches(Array.isArray(c) ? c : [])).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -140,6 +144,8 @@ export default function VoiceOrb() {
     cancelSpeak();
     try { readerRef.current && readerRef.current.cancel(); } catch { /* noop */ }
     readerRef.current = null;
+    try { abortRef.current && abortRef.current.abort(); } catch { /* noop */ }
+    abortRef.current = null;
     setState('idle');
   };
 
@@ -190,13 +196,15 @@ export default function VoiceOrb() {
     };
     const drain = () => { let m; while ((m = sbuf.match(SENTENCE))) { const s = m[0]; sbuf = sbuf.slice(s.length); flush(s); } };
 
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       let res;
       if (coach) {
         coachMsgs.current.push({ role: 'user', content: text });
-        res = await api.coachChatStream(coach.id, { messages: coachMsgs.current.slice(-12), autoMode: true });
+        res = await api.coachChatStream(coach.id, { messages: coachMsgs.current.slice(-12), autoMode: true }, controller.signal);
       } else {
-        res = await api.aiChatStream({ conversationId: convId.current, modelKey, message: text, webSearch: false, rpmMode: true, autoMode: true });
+        res = await api.aiChatStream({ conversationId: convId.current, modelKey, message: text, webSearch: false, rpmMode: true, autoMode: true }, controller.signal);
       }
       if (!res.ok || !res.body) { let m = 'Request failed'; try { m = (await res.json()).error || m; } catch { /* ignore */ } throw new Error(m); }
       const reader = res.body.getReader();
@@ -353,17 +361,19 @@ export default function VoiceOrb() {
           </div>
 
           {ttsSupported() && voices.length > 0 && (
-            <select
-              className="vorb-voice form-input"
+            <Picker
+              className="vorb-voice"
               value={voice}
-              onChange={(e) => { setVoice(e.target.value); saveVoiceName(e.target.value); cancelSpeak(); speak('This is my voice now.'); }}
               title="Pick a voice"
-            >
-              <option value="">Voice: auto (best available)</option>
-              {voices
-                .filter(v => (v.lang || '').toLowerCase().startsWith((navigator.language || 'en').slice(0, 2).toLowerCase()))
-                .map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
-            </select>
+              header="Voice"
+              onChange={(v) => { setVoice(v); saveVoiceName(v); cancelSpeak(); speak('This is my voice now.'); }}
+              options={[
+                { value: '', label: 'Auto (best available)' },
+                ...voices
+                  .filter(v => (v.lang || '').toLowerCase().startsWith((navigator.language || 'en').slice(0, 2).toLowerCase()))
+                  .map(v => ({ value: v.name, label: v.name })),
+              ]}
+            />
           )}
         </div>
       )}

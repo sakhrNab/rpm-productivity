@@ -4,7 +4,10 @@
 
 const { runChat } = require('./service');
 const { recordUsage } = require('./usage');
+const { ymd } = require('./dates');
 const { computeForecasts } = require('../forecast');
+const { todayInTz } = require('./context');
+const { getModelEntry } = require('./registry');
 
 const CHIEF_RISK = new Set(['at_risk', 'off_track', 'stalled', 'overdue']);
 function weekRange(todayStr) {
@@ -70,8 +73,8 @@ async function categoryReadiness(pool, userId, categoryId) {
 // ---- scoped context: only this coach's slice of the RPM hierarchy ----
 function clip(s, n) { return s ? String(s).replace(/\s+/g, ' ').trim().slice(0, n) : ''; }
 
-async function scopedContext(pool, userId, coach) {
-  const today = new Date().toISOString().slice(0, 10);
+async function scopedContext(pool, userId, coach, timezone) {
+  const today = todayInTz(timezone);
   const L = [`Today: ${today}`];
 
   // Lead with the state of this area RIGHT NOW so the coach references it proactively.
@@ -93,7 +96,7 @@ async function scopedContext(pool, userId, coach) {
     projFilter = 'p.category_id = $2'; projParams = [userId, coach.category_id];
     const cat = (await pool.query(
       `SELECT c.name, d.ultimate_vision, d.ultimate_purpose, d.one_year_goals, d.ninety_day_goals, d.roles
-         FROM categories c LEFT JOIN category_details d ON d.category_id = c.id WHERE c.id = $1`, [coach.category_id])).rows[0];
+         FROM categories c LEFT JOIN category_details d ON d.category_id = c.id WHERE c.id = $1 AND c.user_id = $2`, [coach.category_id, userId])).rows[0];
     if (cat) {
       L.push(`\n=== CATEGORY: ${cat.name} ===`);
       if (cat.ultimate_vision) L.push(`Vision: ${clip(cat.ultimate_vision, 400)}`);
@@ -125,7 +128,7 @@ async function scopedContext(pool, userId, coach) {
         ORDER BY kr.target_date NULLS LAST LIMIT 30`, [projIds])).rows;
     L.push('\n=== KEY RESULTS (title · progress · due · projectId) ===');
     if (!krs.length) L.push('  (none)');
-    for (const k of krs) L.push(`• ${clip(k.title, 70)} · ${k.current_value ?? 0}/${k.target_value ?? '?'} ${k.unit || ''} · ${k.target_date ? String(k.target_date).slice(0, 10) : 'no date'} · ${k.project_id}`);
+    for (const k of krs) L.push(`• ${clip(k.title, 70)} · ${k.current_value ?? 0}/${k.target_value ?? '?'} ${k.unit || ''} · ${k.target_date ? ymd(k.target_date) : 'no date'} · ${k.project_id}`);
 
     const actions = (await pool.query(
       `SELECT id, title, scheduled_date, is_completed, project_id FROM actions
@@ -133,7 +136,7 @@ async function scopedContext(pool, userId, coach) {
         ORDER BY scheduled_date NULLS LAST LIMIT 40`, [userId, projIds])).rows;
     L.push('\n=== ACTIONS (id · [x/ ] · title · date · projectId) ===');
     if (!actions.length) L.push('  (none)');
-    for (const a of actions) L.push(`• ${a.id} · [${a.is_completed ? 'x' : ' '}] · ${clip(a.title, 60)} · ${a.scheduled_date ? String(a.scheduled_date).slice(0, 10) : 'unscheduled'} · ${a.project_id}`);
+    for (const a of actions) L.push(`• ${a.id} · [${a.is_completed ? 'x' : ' '}] · ${clip(a.title, 60)} · ${a.scheduled_date ? ymd(a.scheduled_date) : 'unscheduled'} · ${a.project_id}`);
   }
 
   return L.join('\n');
@@ -205,6 +208,12 @@ async function createCoach(pool, userId, { scope, categoryId, projectId, name, p
   if (sc === 'category' && !categoryId) throw new Error('categoryId required');
   if (sc === 'project' && !projectId) throw new Error('projectId required');
   if (!name || !persona) throw new Error('name and persona are required');
+  // The scope target must belong to this user (otherwise its context would leak).
+  const own = sc === 'project'
+    ? await pool.query('SELECT 1 FROM projects WHERE id = $1 AND user_id = $2', [projectId, userId]).catch(() => ({ rows: [] }))
+    : await pool.query('SELECT 1 FROM categories WHERE id = $1 AND user_id = $2', [categoryId, userId]).catch(() => ({ rows: [] }));
+  if (!own.rows[0]) throw new Error(sc === 'project' ? 'Project not found' : 'Category not found');
+  if (model && !getModelEntry(model)) throw new Error('Unknown model');
   const r = await pool.query(
     `INSERT INTO coaches (user_id, scope, category_id, project_id, name, persona, model, avatar_emoji, avatar_image, color, responsibilities)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
@@ -220,6 +229,7 @@ async function createCoach(pool, userId, { scope, categoryId, projectId, name, p
 }
 async function updateCoach(pool, userId, id, patch) {
   const sets = [], vals = []; let i = 1;
+  if (patch.model && !getModelEntry(patch.model)) throw new Error('Unknown model');
   for (const k of ['name', 'persona', 'model', 'avatar_emoji', 'avatar_image', 'color', 'responsibilities']) {
     if (k in patch) { sets.push(`${k} = $${i++}`); vals.push(patch[k]); }
   }
@@ -312,12 +322,12 @@ Rules: keep ONLY things worth remembering long-term (stable preferences, constra
 }
 
 // ---- chat with a coach (persona + scoped context + retrieved memory + tools) ----
-async function* chatCoach({ pool, userId, coach, messages, autoMode = true, modelKey }) {
-  const [ctx, mems] = await Promise.all([scopedContext(pool, userId, coach), retrieveMemory(pool, coach.id)]);
+async function* chatCoach({ pool, userId, coach, messages, autoMode = true, modelKey, timezone, abortSignal }) {
+  const [ctx, mems] = await Promise.all([scopedContext(pool, userId, coach, timezone), retrieveMemory(pool, coach.id)]);
   const memText = mems.length ? `\n\nWhat you know about them (long-term memory — use it, don't re-ask):\n${mems.map(m => `- ${m.content}`).join('\n')}` : '';
   const persona = `${coach.persona}${memText}\n\nYou can create, schedule and complete actions in this area via tools. Ask a clarifying question if unsure. Format answers in clean Markdown.`;
   // Coach's own model if set, else the user's current default (passed by the client).
-  yield* runChat({ pool, userId, modelKey: coach.model || modelKey || null, messages, webSearch: false, rpm: true, autoMode, systemOverride: persona, contextText: ctx });
+  yield* runChat({ pool, userId, modelKey: coach.model || modelKey || null, messages, webSearch: false, rpm: true, autoMode, systemOverride: persona, contextText: ctx, abortSignal });
 }
 
 module.exports = {

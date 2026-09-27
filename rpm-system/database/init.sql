@@ -470,6 +470,18 @@ CREATE TABLE IF NOT EXISTS ai_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages (conversation_id, created_at);
 
+-- Long-term memory for the main assistant: durable facts the user has told it.
+CREATE TABLE IF NOT EXISTS ai_memory (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL DEFAULT 'fact',
+    content TEXT NOT NULL,
+    pinned BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_memory_user ON ai_memory (user_id, pinned DESC, updated_at DESC);
+
 -- Action dependencies (blocked-by / blocks). Visual linking only, no enforcement.
 CREATE TABLE IF NOT EXISTS action_dependencies (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

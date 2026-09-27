@@ -2,7 +2,8 @@ import { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
-import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe, Bell, Send, Info, Mail, Smartphone, Plus, Clock, BarChart3, Compass } from 'lucide-react';
+import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe, Bell, Send, Info, Mail, Smartphone, Plus, Clock, BarChart3, Compass, Brain, Pin } from 'lucide-react';
+import Picker from '../components/Picker';
 import { subscribeToPush, unsubscribeFromPush, pushSupported } from '../utils/push';
 import UsageDashboard from '../components/UsageDashboard';
 import './SettingsPage.css';
@@ -45,6 +46,8 @@ function SettingsPage() {
   const [reminders, setReminders] = useState([]);
   const [newRem, setNewRem] = useState({ title: '', kind: 'once', remind_at: '', remind_time: '09:00', remind_dow: 1 });
   const [addingRem, setAddingRem] = useState(false);
+  const [memories, setMemories] = useState([]);
+  const [newMemory, setNewMemory] = useState('');
 
   const load = () => {
     api.getAiKeys()
@@ -201,6 +204,18 @@ function SettingsPage() {
     }
   };
 
+  const loadMemories = () => api.getAiMemory().then(m => setMemories(Array.isArray(m) ? m : [])).catch(() => {});
+  useEffect(() => { loadMemories(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const addMemory = async () => {
+    const content = newMemory.trim();
+    if (!content) return;
+    const r = await api.addAiMemory({ content }).catch(() => null);
+    if (!r || r.error) { showToast(r?.error || 'Failed to save', 'error'); return; }
+    setNewMemory(''); loadMemories();
+  };
+  const forgetMemory = async (id) => { await api.deleteAiMemory(id).catch(() => {}); loadMemories(); };
+  const togglePin = async (m) => { await api.updateAiMemory(m.id, { pinned: !m.pinned }).catch(() => {}); loadMemories(); };
+
   const remove = async (provider) => {
     if (!window.confirm(`Remove your ${provider} key?`)) return;
     try {
@@ -313,29 +328,52 @@ function SettingsPage() {
               <p>The model the Assistant opens with. Change it any time from the Assistant too.</p>
             </div>
           </div>
-          <select
-            className="form-input settings-model-select"
+          <Picker
+            className="settings-model-select"
             value={availableModels.some(m => m.key === defaultModel) ? defaultModel : ''}
-            onChange={e => chooseDefault(e.target.value)}
-          >
-            <option value="" disabled>Choose a default model…</option>
-            {['anthropic', 'openai', 'zhipu', 'deepseek'].map(prov => {
-              const provModels = availableModels.filter(m => m.provider === prov);
-              if (!provModels.length) return null;
-              return (
-                <optgroup key={prov} label={PROVIDER_LABEL[prov]}>
-                  {provModels.map(m => (
-                    <option key={m.key} value={m.key}>{m.label}{m.webSearch ? '  🌐' : ''}</option>
-                  ))}
-                </optgroup>
-              );
-            })}
-          </select>
+            onChange={chooseDefault}
+            placeholder="Choose a default model…"
+            header="Default model"
+            options={['anthropic', 'openai', 'zhipu', 'deepseek'].flatMap(prov =>
+              availableModels.filter(m => m.provider === prov).map(m => ({
+                value: m.key, label: m.label, group: PROVIDER_LABEL[prov], hint: m.webSearch ? '🌐' : undefined,
+              })))}
+          />
           <div className="settings-note">
             <Globe size={14} /> Models marked 🌐 support web search. If you pick one without it, the Assistant will tell you and the web-search toggle stays off for that model.
           </div>
         </section>
       )}
+      <section className="settings-section settings-memory">
+        <div className="settings-section-head">
+          <Brain size={18} />
+          <div>
+            <h2>Assistant memory</h2>
+            <p>What the Assistant and voice orb remember about you across conversations. It saves things you tell it
+              (“remember I prefer mornings for deep work”); you can add, pin or delete them here.</p>
+          </div>
+        </div>
+        <div className="settings-mem-list">
+          {memories.length === 0 && <div className="settings-mem-empty">Nothing remembered yet.</div>}
+          {memories.map(m => (
+            <div key={m.id} className={`settings-mem-item ${m.pinned ? 'pinned' : ''}`}>
+              <span className="settings-mem-kind">{m.kind}</span>
+              <span className="settings-mem-text">{m.content}</span>
+              <button type="button" className="settings-mem-btn" onClick={() => togglePin(m)} title={m.pinned ? 'Unpin' : 'Pin (always kept)'} aria-label={m.pinned ? 'Unpin memory' : 'Pin memory'}>
+                <Pin size={14} />
+              </button>
+              <button type="button" className="settings-mem-btn del" onClick={() => forgetMemory(m.id)} title="Forget" aria-label="Forget memory">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="settings-mem-form">
+          <input className="form-input" placeholder="Add something it should know about you…" value={newMemory}
+            maxLength={300} onChange={e => setNewMemory(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addMemory(); }} />
+          <button type="button" className="btn btn-primary" onClick={addMemory} disabled={!newMemory.trim()}><Plus size={15} /> Remember</button>
+        </div>
+      </section>
       </>)}
 
       {tab === 'reminders' && prefs && (

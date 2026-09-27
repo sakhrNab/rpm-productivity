@@ -4,6 +4,7 @@
 
 const { runChat } = require('./service');
 const { recordUsage } = require('./usage');
+const { ymd } = require('./dates');
 
 async function buildContext(pool, userId, today) {
   const actions = (await pool.query(
@@ -42,13 +43,13 @@ function renderContext(ctx) {
     ? ctx.actions.map(a => `- [${a.is_completed ? 'x' : ' '}] ${a.title}`).join('\n')
     : '(nothing scheduled today)';
   const carriedText = (ctx.carried && ctx.carried.length)
-    ? ctx.carried.map(a => `- "${a.title}" — ${a.days_late}d late (planned ${String(a.scheduled_date).slice(0, 10)})`).join('\n')
+    ? ctx.carried.map(a => `- "${a.title}" — ${a.days_late}d late (planned ${ymd(a.scheduled_date)})`).join('\n')
     : '(nothing carried over — clean slate)';
   const krText = ctx.keyResults.length
     ? ctx.keyResults.map(k => {
         const cur = k.current_value ?? 0;
         const tgt = k.target_value ?? '?';
-        const due = k.target_date ? ` (due ${String(k.target_date).slice(0, 10)})` : '';
+        const due = k.target_date ? ` (due ${ymd(k.target_date)})` : '';
         return `- ${k.title}: ${cur}/${tgt} ${k.unit || ''}${due}`;
       }).join('\n')
     : '(no active key results)';
@@ -105,10 +106,10 @@ async function runPlanSuggestions({ pool, userId, modelKey, startDate, endDate }
 
   const taskLines = actions.map(a => {
     const dur = `${a.duration_hours ? a.duration_hours + 'h ' : ''}${a.duration_minutes || 0}m`;
-    return `- [${a.is_completed ? 'x' : ' '}] "${a.title}" · priority ${PRIO[a.priority] || '—'} · ${a.category_name || 'no category'} / ${a.project_name || 'no project'} · ${String(a.scheduled_date).slice(0, 10)} · ${dur}`;
+    return `- [${a.is_completed ? 'x' : ' '}] "${a.title}" · priority ${PRIO[a.priority] || '—'} · ${a.category_name || 'no category'} / ${a.project_name || 'no project'} · ${ymd(a.scheduled_date)} · ${dur}`;
   }).join('\n');
   const krLines = krs.length
-    ? krs.map(k => `- ${k.title}: ${k.current_value ?? 0}/${k.target_value ?? '?'}${k.target_date ? ' (due ' + String(k.target_date).slice(0, 10) + ')' : ''}`).join('\n')
+    ? krs.map(k => `- ${k.title}: ${k.current_value ?? 0}/${k.target_value ?? '?'}${k.target_date ? ' (due ' + ymd(k.target_date) + ')' : ''}`).join('\n')
     : '(no active key results)';
 
   // rpm:true injects the RPM system prompt (coach + propose-only tools) and context.

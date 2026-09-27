@@ -240,7 +240,7 @@ async function sendDigest({ to, name, appUrl, todayLabel, today = [], overdue = 
     : `<p style="margin:0;color:#7f8ba3;">Nothing scheduled today — a clear runway. 🎯</p>`;
   const overdueHtml = overdue.length
     ? `<h2 style="margin:24px 0 8px;font-size:16px;color:#ff8a8a;">⏰ Overdue (${overdue.length})</h2>
-       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${overdue.map(t => `<tr><td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#e6ecf7;font-size:14px;">${escapeHtml(t.title)} <span style="color:#7f8ba3;font-size:12px;">— was ${String(t.scheduled_date).slice(0, 10)}</span></td></tr>`).join('')}</table>`
+       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${overdue.map(t => `<tr><td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#e6ecf7;font-size:14px;">${escapeHtml(t.title)} <span style="color:#7f8ba3;font-size:12px;">— was ${require('./ai/dates').ymd(t.scheduled_date)}</span></td></tr>`).join('')}</table>`
     : '';
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#0a1120;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">

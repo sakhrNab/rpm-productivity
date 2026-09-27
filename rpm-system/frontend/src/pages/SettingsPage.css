@@ -117,3 +117,16 @@
 /* Chief of Staff briefing — highlighted row */
 .settings-chief-row { background: linear-gradient(135deg, rgba(78,205,196,0.08), rgba(167,139,250,0.06)); border: 1px solid var(--border-primary); border-radius: 12px; padding: 12px 14px; }
 .settings-chief-row .settings-remind-main svg { color: var(--accent-cyan); }
+
+/* Assistant memory */
+.settings-mem-list { display: flex; flex-direction: column; }
+.settings-mem-empty { color: var(--text-muted); font-size: 0.88rem; padding: 6px 0; }
+.settings-mem-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-primary); }
+.settings-mem-kind { flex: 0 0 auto; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-cyan); background: rgba(78, 205, 196, 0.1); padding: 2px 8px; border-radius: 999px; }
+.settings-mem-text { flex: 1; min-width: 0; color: var(--text-primary); font-size: 0.9rem; overflow-wrap: anywhere; }
+.settings-mem-btn { flex: 0 0 auto; display: inline-flex; background: none; border: 0; padding: 4px; color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm); }
+.settings-mem-btn:hover { color: var(--text-primary); }
+.settings-mem-btn.del:hover { color: var(--accent-red); }
+.settings-mem-item.pinned .settings-mem-btn:not(.del) { color: var(--accent-orange); }
+.settings-mem-form { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.settings-mem-form .form-input { flex: 1 1 220px; min-width: 0; }

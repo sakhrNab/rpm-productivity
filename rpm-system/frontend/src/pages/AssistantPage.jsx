@@ -28,6 +28,10 @@ function toolLabel(t) {
     complete_action: r?.is_completed === false ? 'Reopened an action' : 'Completed an action',
     create_rpm_block: r?.result_title ? `Created block “${r.result_title}”` : 'Created an RPM block',
     update_key_result: r?.title ? `Updated “${r.title}” → ${r.current_value}` : 'Updated a key result',
+    find_actions: r?.count != null ? `Looked up actions (${r.count})` : 'Looking up actions',
+    web_search: t.done ? (r?.results != null ? `Searched the web (${r.results} results)` : 'Searched the web') : 'Searching the web…',
+    remember: r?.content ? `Remembered: “${r.content}”` : 'Saving to memory',
+    forget: 'Forgot a memory',
   }[t.name] || t.name;
   return failed ? `${base} — failed` : base;
 }
@@ -69,6 +73,14 @@ function AssistantPage() {
   const [speaking, setSpeaking] = useState(false);
 
   const scrollRef = useRef(null);
+  const abortRef = useRef(null);
+  // Voice callbacks outlive the render that created them — read live values via refs
+  // (otherwise each spoken turn used the first render's conversationId and started
+  // a new conversation, so the assistant "forgot" everything said before).
+  const conversationIdRef = useRef(null); conversationIdRef.current = conversationId;
+  const convModeRef = useRef(false); convModeRef.current = convMode;
+  const speakRef = useRef(false); speakRef.current = speakReplies;
+  const sendRef = useRef(null);
 
   const configuredProviders = useMemo(
     () => new Set(providers.filter(p => p.configured).map(p => p.provider)),
@@ -110,6 +122,7 @@ function AssistantPage() {
   const refreshConversations = () => { api.getAiConversations().then(setConversations).catch(() => {}); };
 
   const openConversation = async (id) => {
+    abortRef.current?.abort();
     try {
       const conv = await api.getAiConversation(id);
       setConversationId(conv.id);
@@ -121,7 +134,8 @@ function AssistantPage() {
     } catch { showToast('Failed to open conversation', 'error'); }
   };
 
-  const newChat = () => { setConversationId(null); setMessages([]); setInput(''); };
+  const newChat = () => { abortRef.current?.abort(); setConversationId(null); setMessages([]); setInput(''); };
+  const stop = () => { abortRef.current?.abort(); };
 
   const deleteConversation = async (e, id) => {
     e.stopPropagation();
@@ -170,8 +184,17 @@ function AssistantPage() {
     setStreaming(true);
     let full = '';
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const setLast = (fn) => setMessages(prev => {
+      const next = [...prev];
+      const li = next.length - 1;
+      if (next[li] && next[li].role === 'assistant') next[li] = fn(next[li]);
+      return next;
+    });
+
     try {
-      const res = await api.aiChatStream({ conversationId, modelKey, message: text, webSearch, rpmMode, autoMode });
+      const res = await api.aiChatStream({ conversationId: conversationIdRef.current, modelKey, message: text, webSearch, rpmMode, autoMode }, controller.signal);
       if (!res.ok || !res.body) {
         let msg = 'AI request failed';
         try { const j = await res.json(); msg = j.error || msg; } catch { /* ignore */ }
@@ -183,7 +206,7 @@ function AssistantPage() {
       let erroredMsg = null;
 
       const apply = (ev) => {
-        if (ev.type === 'meta' && ev.conversationId) setConversationId(ev.conversationId);
+        if (ev.type === 'meta' && ev.conversationId) { conversationIdRef.current = ev.conversationId; setConversationId(ev.conversationId); }
         else if (ev.type === 'saved' && ev.messageId) {
           setMessages(prev => {
             const next = [...prev];
@@ -251,32 +274,31 @@ function AssistantPage() {
 
       if (erroredMsg) {
         showToast(erroredMsg, 'error');
-        setMessages(prev => {
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last && last.role === 'assistant' && !last.content) last.content = `⚠️ ${erroredMsg}`;
-          return next;
-        });
+        setLast(m => (m.content ? m : { ...m, content: `⚠️ ${erroredMsg}` }));
       }
       refreshConversations();
     } catch (err) {
-      showToast(err.message || 'AI request failed', 'error');
-      setMessages(prev => {
-        const next = [...prev];
-        const last = next[next.length - 1];
-        if (last && last.role === 'assistant' && !last.content) last.content = `⚠️ ${err.message || 'AI request failed'}`;
-        return next;
-      });
+      if (controller.signal.aborted) {
+        // User pressed Stop: keep what arrived; the server saves the partial reply.
+        setLast(m => ({ ...m, content: m.content ? `${m.content} …` : '_(stopped)_', tools: (m.tools || []).map(t => (t.done ? t : { ...t, done: true })) }));
+        refreshConversations();
+      } else {
+        showToast(err.message || 'AI request failed', 'error');
+        setLast(m => (m.content ? m : { ...m, content: `⚠️ ${err.message || 'AI request failed'}` }));
+      }
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setStreaming(false);
-      if (speakReplies && full.trim()) {
+      const aborted = controller.signal.aborted;
+      if (!aborted && speakRef.current && full.trim()) {
         setSpeaking(true);
-        speak(full, { onEnd: () => { setSpeaking(false); if (convMode) startVoice(); } });
-      } else if (convMode) {
+        speak(full, { onEnd: () => { setSpeaking(false); if (convModeRef.current) startVoice(); } });
+      } else if (!aborted && convModeRef.current) {
         startVoice();
       }
     }
   };
+  sendRef.current = send;
 
   const onKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
 
@@ -288,7 +310,7 @@ function AssistantPage() {
     setListening(true);
     startListening({
       onInterim: (t) => setInput(t),
-      onFinal: (t) => { if (t) send(t); else setInput(''); },
+      onFinal: (t) => { if (t) sendRef.current(t); else setInput(''); },
       onEnd: () => setListening(false),
       onError: (err) => { setListening(false); if (err !== 'no-speech' && err !== 'aborted' && err !== 'unsupported') showToast('Voice: ' + err, 'error'); },
     });
@@ -304,7 +326,7 @@ function AssistantPage() {
   };
   const toggleSpeak = () => setSpeakReplies(v => { const nv = !v; localStorage.setItem('asst.speak', nv ? '1' : '0'); if (!nv) cancelSpeak(); return nv; });
 
-  useEffect(() => () => { stopListening(); cancelSpeak(); }, []); // cleanup on unmount
+  useEffect(() => () => { stopListening(); cancelSpeak(); abortRef.current?.abort(); }, []); // cleanup on unmount
 
   const noModels = models.length > 0 && availableModels.length === 0;
 
@@ -530,9 +552,15 @@ function AssistantPage() {
               <Mic size={16} />
             </button>
           )}
-          <button className="btn btn-primary asst-send" onClick={() => send()} disabled={!input.trim() || streaming || !modelKey}>
-            <Send size={16} />
-          </button>
+          {streaming ? (
+            <button className="btn btn-secondary asst-send asst-stop" onClick={stop} title="Stop generating" aria-label="Stop generating">
+              <Square size={14} />
+            </button>
+          ) : (
+            <button className="btn btn-primary asst-send" onClick={() => send()} disabled={!input.trim() || !modelKey} aria-label="Send">
+              <Send size={16} />
+            </button>
+          )}
         </div>
       </section>
     </div>

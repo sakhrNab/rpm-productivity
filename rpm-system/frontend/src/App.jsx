@@ -169,7 +169,7 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     getCoachSnapshot: (id, today) => authFetch(`${API_BASE}/coaches/${id}/snapshot?today=${today}`).then(r => r.json()),
     updateCoach: (id, body) => authFetch(`${API_BASE}/coaches/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then(r => r.json()),
     deleteCoach: (id) => authFetch(`${API_BASE}/coaches/${id}`, { method: 'DELETE' }).then(r => r.json()),
-    coachChatStream: (id, body) => authFetch(`${API_BASE}/coaches/${id}/chat`, { method: 'POST', body: JSON.stringify({ modelKey: localStorage.getItem('ai.modelKey') || undefined, ...body }) }),
+    coachChatStream: (id, body, signal) => authFetch(`${API_BASE}/coaches/${id}/chat`, { method: 'POST', body: JSON.stringify({ modelKey: localStorage.getItem('ai.modelKey') || undefined, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, ...body }), signal }),
     coachRemember: (id, transcript) => authFetch(`${API_BASE}/coaches/${id}/remember`, { method: 'POST', body: JSON.stringify({ transcript, modelKey: localStorage.getItem('ai.modelKey') || undefined }) }).then(r => r.json()),
     listCoachMemory: (id) => authFetch(`${API_BASE}/coaches/${id}/memory`).then(r => r.json()),
     deleteCoachMemory: (memId) => authFetch(`${API_BASE}/coaches/memory/${memId}`, { method: 'DELETE' }).then(r => r.json()),
@@ -199,8 +199,12 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     aiSaveMessageTools: (id, tools) => authFetch(`${API_BASE}/ai/messages/${id}/tools`, {
       method: 'PUT', body: JSON.stringify({ tools })
     }).then(r => r.json()),
-    // Returns the raw streaming Response for SSE reading in the page.
-    aiChatStream: (body) => authFetch(`${API_BASE}/ai/chat`, { method: 'POST', body: JSON.stringify(body) }),
+    // Returns the raw streaming Response for SSE reading in the page. `signal` aborts it.
+    aiChatStream: (body, signal) => authFetch(`${API_BASE}/ai/chat`, { method: 'POST', body: JSON.stringify({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, ...body }), signal }),
+    getAiMemory: () => authFetch(`${API_BASE}/ai/memory`).then(r => r.json()),
+    addAiMemory: (body) => authFetch(`${API_BASE}/ai/memory`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
+    updateAiMemory: (id, body) => authFetch(`${API_BASE}/ai/memory/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then(r => r.json()),
+    deleteAiMemory: (id) => authFetch(`${API_BASE}/ai/memory/${id}`, { method: 'DELETE' }).then(r => r.json()),
     updateCategoryDetails: (id, data) => authFetch(`${API_BASE}/categories/${id}/details`, {
       method: 'PUT',
       body: JSON.stringify(data)
