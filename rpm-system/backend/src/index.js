@@ -1227,6 +1227,11 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req, res) => {
       }
     }
     const stopped = sse.signal.aborted;
+    // A tool still in flight when the user stopped (or the provider failed) never
+    // gets a result — resolve it so the saved chip doesn't spin forever on reload.
+    for (const t of toolEvents) {
+      if (!t.done) { t.done = true; t.result = { ok: false, error: stopped ? 'stopped' : (failed || 'did not finish') }; }
+    }
 
     if (rawUsage) {
       const u = await recordUsage(pool, { userId: req.userId, modelKey, feature: 'chat', usage: rawUsage });
