@@ -2636,3 +2636,22 @@ h1, .page-title, .project-title, .category-title, .dashboard-title, .cd-title, .
 /* Logo is the home button — keep it a real tap target on phones (the wordmark
    is hidden under 420px, leaving only the mark). */
 .navbar-brand { min-height: 44px; display: inline-flex; align-items: center; padding-right: 4px; }
+
+/* Header fit on desktop widths. Ten labelled links need ~1900px; below that the
+   right edge (Create ▾, profile) used to be clipped off-screen. Tighten first, then
+   go icon-only (active link keeps its label, tooltips carry the rest), and never
+   let the links push the actions out: the link row shrinks and scrolls instead. */
+@media (min-width: 861px) {
+  .navbar { gap: var(--spacing-sm); }
+  .navbar-nav { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .navbar-nav::-webkit-scrollbar { display: none; }
+}
+@media (min-width: 861px) and (max-width: 1799px) {
+  .navbar-nav { gap: 2px; }
+  .nav-link { padding: 8px 8px; font-size: 0.86rem; }
+}
+/* Labelled links need ~1420px (measured); below that, icons + the current page's label. */
+@media (min-width: 861px) and (max-width: 1439px) {
+  .nav-link:not(.active) span { display: none; }
+  .nav-link:not(.active) { padding: 8px 10px; }
+}

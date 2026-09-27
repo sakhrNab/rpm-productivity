@@ -125,6 +125,8 @@ function Navbar() {
               key={item.path}
               to={item.path}
               className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
+              title={item.label}
+              aria-label={item.label}
               onClick={() => setMobileOpen(false)}
             >
               <item.icon size={16} />
