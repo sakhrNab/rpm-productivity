@@ -25,6 +25,19 @@
 .prb-item em { flex: 0 0 auto; font-style: normal; font-weight: 600; color: var(--accent-cyan); }
 .prb-item.bad { color: #ff8a9b; border-color: rgba(255, 107, 129, 0.35); }
 .prb-item.warn { color: #ffc56e; border-color: rgba(255, 183, 77, 0.35); }
+.prb-item.info { color: #b9a4e8; border-color: rgba(149, 117, 205, 0.35); }
+.prb-item em svg { vertical-align: -2px; }
+.prb-more { cursor: default; color: var(--text-muted); }
+.prb-more:hover { background: rgba(0, 0, 0, 0.22); color: var(--text-muted); }
+/* The strip's own colour follows its worst item: red, amber, or a quiet purple for housekeeping. */
+.prb--warn { border-color: rgba(255, 183, 77, 0.28); background: radial-gradient(420px 120px at 0% 50%, rgba(255, 183, 77, 0.12), transparent 70%), color-mix(in srgb, var(--bg-card) 70%, transparent); }
+.prb--warn::before { background: #ffb74d; box-shadow: 0 0 12px rgba(255, 183, 77, 0.7); }
+.prb--warn .prb-icon { color: #ffb74d; background: rgba(255, 183, 77, 0.12); border-color: rgba(255, 183, 77, 0.3); }
+.prb--warn .prb-kicker { color: #ffc56e; }
+.prb--info { border-color: rgba(149, 117, 205, 0.3); background: radial-gradient(420px 120px at 0% 50%, rgba(149, 117, 205, 0.12), transparent 70%), color-mix(in srgb, var(--bg-card) 70%, transparent); }
+.prb--info::before { background: #9575cd; box-shadow: 0 0 12px rgba(149, 117, 205, 0.7); }
+.prb--info .prb-icon { color: #b9a4e8; background: rgba(149, 117, 205, 0.12); border-color: rgba(149, 117, 205, 0.3); }
+.prb--info .prb-kicker { color: #b9a4e8; }
 .prb-item:hover, .prb-item:focus-visible { background: rgba(255, 255, 255, 0.06); color: var(--text-primary); outline: none; }
 .prb-item:focus-visible { box-shadow: 0 0 0 2px var(--accent-cyan); }
 @media (max-width: 640px) {

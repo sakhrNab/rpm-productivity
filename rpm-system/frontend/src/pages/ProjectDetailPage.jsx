@@ -4,7 +4,7 @@ import {
   ChevronLeft, ChevronRight, Image, Plus, Star, MoreVertical, 
   Check, Clock, Hourglass, Calendar as CalendarIcon, Edit, Trash2, X,
   Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen, ExternalLink, Target, FileUp, GanttChartSquare, Lock, Unlock,
-  ListChecks, AlertTriangle, CalendarClock, Flag, Sparkles, Inbox, Layers, Lightbulb
+  ListChecks, AlertTriangle, CalendarClock, Flag, Sparkles, Inbox, Layers, Lightbulb, CalendarDays, CalendarPlus
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks } from 'date-fns';
@@ -23,6 +23,7 @@ import CoachPanel from '../components/CoachPanel';
 import ProjectTimeline from '../components/plan/ProjectTimeline';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ProjectRiskBanner from '../components/ProjectRiskBanner';
+import Picker from '../components/Picker';
 import './ProjectDetailPage.css';
 
 // Format an API date (a full ISO timestamp for a DATE column) as a friendly
@@ -74,6 +75,23 @@ const tintFor = (seed) => {
   return TINTS[h % TINTS.length];
 };
 
+// The plan area's lenses. `?view=` selects one (the Roadmap links to ?view=timeline).
+const PLAN_VIEWS = [
+  { id: 'blocks', label: 'By block', Icon: Layers },
+  { id: 'list', label: 'List', Icon: ListChecks },
+  { id: 'timeline', label: 'Timeline', Icon: GanttChartSquare },
+  { id: 'week', label: 'Week', Icon: CalendarDays },
+];
+const PLAN_VIEW_IDS = PLAN_VIEWS.map(v => v.id);
+
+// Whole days from today to a YYYY-MM-DD key (negative = in the past), in local time.
+const daysUntil = (key) => {
+  if (!key) return null;
+  const [y, m, d] = key.split('-').map(Number);
+  const now = new Date();
+  return Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+};
+
 function ProgressRing({ pct, size = 68, stroke = 6 }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -108,8 +126,19 @@ function ProjectDetailPage() {
   const { showToast } = useToast();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(() => (searchParams.get('view') === 'timeline' ? 'timeline' : 'all'));
+  const [searchParams, setSearchParams] = useSearchParams();
+  // The URL is the single source of truth for the plan view, so ?view= deep links and back/forward work.
+  const view = PLAN_VIEW_IDS.includes(searchParams.get('view')) ? searchParams.get('view') : 'blocks';
+  const setView = (next) => setSearchParams(prev => {
+    const p = new URLSearchParams(prev);
+    if (next === 'blocks') p.delete('view'); else p.set('view', next);
+    return p;
+  }, { replace: true });
+  const [starredOnly, setStarredOnly] = useState(false);
+  const [editingDeadline, setEditingDeadline] = useState(false);
+  const [deadlineDraft, setDeadlineDraft] = useState({ start: '', end: '' });
+  const [savingDeadline, setSavingDeadline] = useState(false);
+  const skipBlurSaveRef = useRef(false);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingField, setEditingField] = useState(null);
@@ -215,20 +244,31 @@ function ProjectDetailPage() {
           ? { ...next, blocked_by: (next.blocked_by || []).map(link), blocks: (next.blocks || []).map(link) }
           : next;
       };
-      return {
-        ...prev,
-        actions: (prev.actions || []).map(upd),
-        rpm_blocks: (prev.rpm_blocks || []).map(b => ({ ...b, actions: (b.actions || []).map(upd) })),
-      };
+      let rpm_blocks = (prev.rpm_blocks || []).map(b => ({ ...b, actions: (b.actions || []).map(upd) }));
+      // Moving between blocks: take the task out of whichever block holds it and
+      // append it to the target block, so it shows up there without a reload.
+      if ('block_id' in patch) {
+        const src = (prev.actions || []).find(a => a.id === id)
+          || (prev.rpm_blocks || []).flatMap(b => b.actions || []).find(a => a.id === id);
+        const moved = src ? upd(src) : null;
+        rpm_blocks = rpm_blocks.map(b => {
+          const rest = b.actions.filter(a => a.id !== id);
+          if (moved && b.id === patch.block_id) return { ...b, actions: [...rest, moved] };
+          return rest.length === b.actions.length ? b : { ...b, actions: rest };
+        });
+      }
+      return { ...prev, actions: (prev.actions || []).map(upd), rpm_blocks };
     });
 
   const optimisticAction = async (action, patch) => {
     patchActionEverywhere(action.id, patch);
     try {
       await api.updateAction(action.id, patch);
+      return true;
     } catch (error) {
       console.error('Failed to update action:', error);
       await loadProject();
+      return false;
     }
   };
 
@@ -261,14 +301,17 @@ function ProjectDetailPage() {
     }
   };
 
-  const handleRemoveFromBlock = async (action) => {
-    try {
-      await api.updateAction(action.id, { block_id: null });
-      await loadProject();
-      setOpenBlockActionMenu(null);
-    } catch (error) {
-      console.error('Failed to remove action from block:', error);
-    }
+  // Put a task into a block (or back into "Unsorted" with null), optimistically.
+  const assignToBlock = async (action, blockId) => {
+    const ok = await optimisticAction(action, { block_id: blockId || null });
+    if (!ok) { showToast('Could not move that task. Please try again.', 'error'); return; }
+    const block = blockId && (project?.rpm_blocks || []).find(b => b.id === blockId);
+    showToast(block ? `Moved into “${block.result_title}”.` : 'Moved back to Unsorted.', 'success');
+  };
+
+  const handleRemoveFromBlock = (action) => {
+    setOpenBlockActionMenu(null);
+    return assignToBlock(action, null);
   };
 
   const handleCancelAction = async (action) => {
@@ -365,6 +408,7 @@ function ProjectDetailPage() {
   };
 
   const handleFieldEdit = (field, value) => {
+    skipBlurSaveRef.current = false;
     setEditingField(field);
     setEditValue(value || '');
   };
@@ -380,6 +424,56 @@ function ProjectDetailPage() {
     }
     setEditingField(null);
     setEditValue('');
+  };
+
+  // Hero result/purpose: Escape cancels without the unmount blur saving the draft,
+  // and an unchanged value doesn't round-trip to the server.
+  const cancelFieldEdit = () => { skipBlurSaveRef.current = true; setEditingField(null); setEditValue(''); };
+  const commitFieldEdit = (field) => {
+    if (skipBlurSaveRef.current) { skipBlurSaveRef.current = false; return; }
+    if ((editValue || '') === (project?.[field] || '')) { setEditingField(null); setEditValue(''); return; }
+    handleFieldSave(field);
+  };
+
+  const openDeadlineEditor = () => {
+    setDeadlineDraft({ start: dayKey(project?.start_date), end: dayKey(project?.end_date) });
+    setEditingDeadline(true);
+    requestAnimationFrame(() => document.getElementById('pd-deadline')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  };
+
+  const saveDeadline = async () => {
+    if (!project || !deadlineDraft.end) return;
+    if (deadlineDraft.start && deadlineDraft.start > deadlineDraft.end) {
+      showToast('The start date must be on or before the deadline.', 'error');
+      return;
+    }
+    setSavingDeadline(true);
+    try {
+      await api.updateProject(project.id, { end_date: deadlineDraft.end, ...(deadlineDraft.start ? { start_date: deadlineDraft.start } : {}) });
+      await loadProject();
+      if (refreshData) refreshData();
+      setEditingDeadline(false);
+      showToast('Deadline saved.', 'success');
+    } catch (error) {
+      console.error('Failed to save deadline:', error);
+      showToast(error?.message || 'Could not save the deadline. Please try again.', 'error');
+    } finally {
+      setSavingDeadline(false);
+    }
+  };
+
+  const scrollToId = (elId) =>
+    requestAnimationFrame(() => document.getElementById(elId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+
+  // Switch the plan area to a lens and bring it (or an element inside it) into view.
+  const showPlan = (next, elId = 'pd-plan') => {
+    setView(next);
+    setTimeout(() => document.getElementById(elId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  };
+
+  const openNewAction = () => {
+    setEditingAction({ project_id: project.id, category_id: project.category_id });
+    setShowActionModal(true);
   };
 
   const handleProjectEdit = () => {
@@ -637,6 +731,26 @@ function ProjectDetailPage() {
   const endDate = dayKey(project.end_date);
   const catStyle = category?.color ? { '--cat': category.color } : undefined;
 
+  // Deadline countdown for the hero.
+  const daysLeft = daysUntil(endDate);
+  const deadlineTone = !endDate ? '' : project.is_completed ? 'good' : daysLeft < 0 ? 'bad' : daysLeft <= 7 ? 'warn' : 'info';
+  const deadlineLabel = !endDate ? '' : project.is_completed ? `Completed · target ${fmtShort(endDate)}`
+    : daysLeft === 0 ? 'Ends today'
+    : daysLeft === 1 ? 'Ends tomorrow'
+    : daysLeft > 1 ? `Ends in ${daysLeft} days`
+    : daysLeft === -1 ? 'Ended yesterday'
+    : `Ended ${-daysLeft} days ago`;
+
+  // Plan area: blocks and the tasks that sit outside every block.
+  const blocks = project.rpm_blocks || [];
+  const blockCount = blocks.length;
+  const blockOptions = blocks.map(b => ({
+    value: b.id,
+    label: b.result_title || 'Untitled block',
+    hint: b.is_completed ? 'done' : undefined,
+  }));
+  const unsortedActions = allActions.filter(a => !a.block_id && !a.is_completed && !a.is_cancelled);
+
   return (
     <div className="pd-page">
       {/* ================= Hero ================= */}
@@ -715,9 +829,96 @@ function ProjectDetailPage() {
               </span>
             )}
           </h1>
-          {project.ultimate_result && (
-            <p className="pd-hero-sub"><Target size={16} aria-hidden="true" /><span>{project.ultimate_result}</span></p>
-          )}
+
+          {/* Result → Purpose: the "R" and "P" of RPM, click to edit */}
+          <div className="pd-rp">
+            {[
+              { field: 'ultimate_result', label: 'Result', Icon: Target, empty: 'Add the ultimate result — what exactly will be true when this is done?' },
+              { field: 'ultimate_purpose', label: 'Purpose', Icon: Sparkles, empty: 'Add the purpose — why does this result matter to you?' },
+            ].map(({ field, label, Icon, empty }) => (
+              <div key={field} className={`pd-rp-item pd-rp-item--${label.toLowerCase()}`}>
+                <span className="pd-rp-label"><Icon size={13} aria-hidden="true" /> {label}</span>
+                {editingField === field ? (
+                  <textarea
+                    value={editValue}
+                    onChange={e => setEditValue(e.target.value)}
+                    onBlur={() => commitFieldEdit(field)}
+                    onKeyDown={e => {
+                      if (e.key === 'Escape') { e.preventDefault(); cancelFieldEdit(); }
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); e.currentTarget.blur(); }
+                    }}
+                    autoFocus
+                    rows={3}
+                    aria-label={`Ultimate ${label.toLowerCase()}`}
+                    className="pd-field-textarea"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className={`pd-rp-text ${project[field] ? '' : 'is-empty'}`}
+                    onClick={() => handleFieldEdit(field, project[field])}
+                    title={`Click to edit the ${label.toLowerCase()}`}
+                  >
+                    <span>{project[field] || empty}</span>
+                    <Edit size={13} className="pd-field-hint" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Deadline: countdown when set, a one-step editor when not */}
+          <div className="pd-deadline" id="pd-deadline">
+            {editingDeadline ? (
+              <form
+                className="pd-deadline-form"
+                onSubmit={(e) => { e.preventDefault(); saveDeadline(); }}
+                onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setEditingDeadline(false); } }}
+              >
+                <label className="pd-date-field">
+                  <span>Start <em>optional</em></span>
+                  <input
+                    type="date"
+                    value={deadlineDraft.start}
+                    max={deadlineDraft.end || undefined}
+                    onChange={e => setDeadlineDraft(d => ({ ...d, start: e.target.value }))}
+                  />
+                </label>
+                <label className="pd-date-field">
+                  <span>Deadline</span>
+                  <input
+                    type="date"
+                    value={deadlineDraft.end}
+                    min={deadlineDraft.start || undefined}
+                    onChange={e => setDeadlineDraft(d => ({ ...d, end: e.target.value }))}
+                    autoFocus
+                    required
+                  />
+                </label>
+                <div className="pd-deadline-btns">
+                  <button type="submit" className="btn btn-primary pd-btn-sm" disabled={!deadlineDraft.end || savingDeadline}>
+                    <Check size={14} /> {savingDeadline ? 'Saving…' : 'Save'}
+                  </button>
+                  <button type="button" className="btn btn-secondary pd-btn-sm" onClick={() => setEditingDeadline(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : endDate ? (
+              <button
+                type="button"
+                className={`ui-chip ui-chip--${deadlineTone} pd-deadline-chip`}
+                onClick={openDeadlineEditor}
+                title={`${project.start_date ? `${fmtDate(project.start_date)} → ` : 'Deadline '}${fmtDate(endDate)} — click to change`}
+              >
+                <Flag size={13} /> <span>{deadlineLabel}</span> <b>{fmtShort(endDate)}</b>
+              </button>
+            ) : (
+              <button type="button" className="pd-deadline-set" onClick={openDeadlineEditor}>
+                <CalendarPlus size={14} /> <span>Set deadline</span>
+              </button>
+            )}
+          </div>
 
           <div className="pd-hero-stats">
             <div className="pd-ring-stat" title={`${doneCount} of ${activeAll.length} tasks done`}>
@@ -755,250 +956,23 @@ function ProjectDetailPage() {
                   <span>next due</span>
                 </div>
               )}
-              {endDate && (
-                <div className={`ui-stat ${endDate < todayStr && donePct < 100 ? 'pd-stat--bad' : ''}`}>
-                  <Flag size={18} />
-                  <b>{fmtShort(endDate)}</b>
-                  <span>target end</span>
-                </div>
-              )}
             </div>
           </div>
         </div>
       </section>
 
-      <ProjectRiskBanner project={project} onOpenTimeline={() => setActiveTab('timeline')} onEditAction={handleEditAction} />
+      <ProjectRiskBanner
+        project={project}
+        onOpenTimeline={() => showPlan('timeline')}
+        onEditAction={handleEditAction}
+        onShowKeyResults={() => scrollToId('pd-krs')}
+        onShowBlocks={() => showPlan('blocks')}
+        onShowUnsorted={() => showPlan('blocks', 'pd-unsorted')}
+        onEditDeadline={openDeadlineEditor}
+      />
 
-      {/* ================= Actions: Starred / All / Timeline ================= */}
-      <div className="pd-tabbar">
-        <div className="ui-seg pd-tabs" role="tablist" aria-label="Project actions view">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'starred'}
-            className={activeTab === 'starred' ? 'on' : ''}
-            onClick={() => setActiveTab('starred')}
-          >
-            <Star size={14} />
-            <span>Starred<span className="pd-tab-long"> Actions</span></span>
-            <span className="pd-tab-count">{starredActions.length}</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'all'}
-            className={activeTab === 'all' ? 'on' : ''}
-            onClick={() => setActiveTab('all')}
-          >
-            <ListChecks size={14} />
-            <span>All<span className="pd-tab-long"> Actions</span></span>
-            <span className="pd-tab-count">{activeAll.length}</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'timeline'}
-            className={activeTab === 'timeline' ? 'on' : ''}
-            onClick={() => setActiveTab('timeline')}
-          >
-            <GanttChartSquare size={14} />
-            <span>Timeline</span>
-          </button>
-        </div>
-      </div>
-
-      {activeTab === 'timeline' && project && (
-        <ErrorBoundary name="project-timeline" resetKey={project} message="The timeline couldn't be drawn.">
-          <ProjectTimeline
-            projectId={project.id}
-            refreshKey={project}
-            onEdit={(id) => { const a = allActions.find(x => x.id === id); if (a) handleEditAction(a); }}
-            onChanged={() => loadProject()}
-          />
-        </ErrorBoundary>
-      )}
-
-      {/* Actions list — driven by the tabs above */}
-      {activeTab !== 'timeline' && (() => {
-        const openNewAction = () => {
-          setEditingAction({ project_id: project.id, category_id: project.category_id });
-          setShowActionModal(true);
-        };
-        const list = activeTab === 'starred' ? starredActions : activeAll;
-        return (
-          <section className="ui-card pd-panel pd-actions-panel">
-            <header className="pd-panel-head">
-              <h2 className="ui-kicker">
-                {activeTab === 'starred' ? <Star size={15} /> : <ListChecks size={15} />}
-                {activeTab === 'starred' ? 'Starred actions' : 'All actions'}
-                <span className="ui-count">{list.length}</span>
-              </h2>
-              <button type="button" className="btn btn-primary pd-btn-sm" onClick={openNewAction}>
-                <Plus size={15} /> Add action
-              </button>
-            </header>
-
-            {list.length === 0 ? (
-              <div className="ui-empty">
-                {activeAll.length === 0 ? (
-                  <>
-                    <ListChecks size={24} />
-                    <span>No actions yet — break the result into the first concrete step.</span>
-                    <button type="button" className="btn btn-secondary pd-btn-sm" onClick={openNewAction}><Plus size={14} /> Add your first action</button>
-                  </>
-                ) : (
-                  <>
-                    <Star size={24} />
-                    <span>Nothing starred. Star the few actions that matter most this week.</span>
-                    <button type="button" className="btn btn-secondary pd-btn-sm" onClick={() => setActiveTab('all')}>View all {activeAll.length}</button>
-                  </>
-                )}
-              </div>
-            ) : (
-              <ul className="pd-actions-list">
-                {list.map(action => {
-                  const waiting = (action.blocked_by || []).filter(b => !b.is_completed);
-                  const freeing = (action.blocks || []).filter(b => !b.is_completed);
-                  const d = dayKey(action.scheduled_date);
-                  const tone = !action.is_completed && d ? (d < todayStr ? 'is-late' : d === todayStr ? 'is-today' : '') : '';
-                  const showWaiting = !action.is_completed && waiting.length > 0;
-                  const showFreeing = !action.is_completed && !showWaiting && freeing.length > 0;
-                  return (
-                    <li key={action.id} className={`pd-action-row p${action.priority || 0} ${action.is_completed ? 'is-done' : ''}`}>
-                      <button
-                        type="button"
-                        className={`pd-action-check ${action.is_completed ? 'checked' : ''}`}
-                        onClick={() => toggleActionComplete(action)}
-                        title={action.is_completed ? 'Mark as not done' : 'Mark done'}
-                        aria-label={action.is_completed ? 'Mark as not done' : 'Mark done'}
-                        aria-pressed={!!action.is_completed}
-                      >
-                        {action.is_completed && <Check size={13} strokeWidth={3} />}
-                      </button>
-                      <div className="pd-action-main">
-                        <button type="button" className="pd-action-title" onClick={() => handleEditAction(action)} title="Edit action">
-                          {action.title}
-                        </button>
-                        {(showWaiting || showFreeing || d) && (
-                          <div className="pd-action-meta">
-                            {showWaiting && (() => {
-                              const first = allActions.find(a => a.id === waiting[0].id);
-                              return (
-                                <button
-                                  type="button"
-                                  className="pd-dep is-waiting"
-                                  title={`Waiting on:\n${waiting.map(w => w.title).join('\n')}`}
-                                  aria-label={`Waiting on ${waiting.length} task${waiting.length > 1 ? 's' : ''}: ${waiting.map(w => w.title).join(', ')}`}
-                                  onClick={() => first && handleEditAction(first)}
-                                >
-                                  <Lock size={11} /> {waiting.length}
-                                </button>
-                              );
-                            })()}
-                            {showFreeing && (
-                              <span
-                                className="pd-dep is-frees"
-                                title={`Finishing this unblocks:\n${freeing.map(w => w.title).join('\n')}`}
-                                aria-label={`Unblocks ${freeing.length} task${freeing.length > 1 ? 's' : ''}`}
-                              >
-                                <Unlock size={11} /> {freeing.length}
-                              </span>
-                            )}
-                            {d && (
-                              <span className={`pd-date ${tone}`} title={fmtDate(action.scheduled_date)}>
-                                <CalendarIcon size={11} /> {d === todayStr ? 'Today' : fmtShort(d)}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="pd-action-tools">
-                        <button
-                          type="button"
-                          className={`pd-icon-btn pd-star ${action.is_starred ? 'is-on' : ''}`}
-                          onClick={() => toggleActionStar(action)}
-                          title={action.is_starred ? 'Unstar' : 'Star'}
-                          aria-label={action.is_starred ? 'Unstar' : 'Star'}
-                          aria-pressed={!!action.is_starred}
-                        >
-                          <Star size={14} fill={action.is_starred ? 'currentColor' : 'none'} />
-                        </button>
-                        <button type="button" className="pd-icon-btn pd-quiet" onClick={() => handleEditAction(action)} title="Edit" aria-label="Edit action">
-                          <Edit size={14} />
-                        </button>
-                        <button type="button" className="pd-icon-btn pd-quiet pd-danger" onClick={() => handleDeleteAction(action)} title="Delete" aria-label="Delete action">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        );
-      })()}
-
-      {/* ================= Ultimate Result / Purpose ================= */}
-      <div className="pd-duo">
-        <section className="ui-card pd-panel pd-vision pd-vision--result">
-          <header className="pd-panel-head">
-            <h2 className="ui-kicker"><span className="ui-icon-badge pd-badge"><Target size={16} /></span> Ultimate result</h2>
-          </header>
-          {editingField === 'ultimate_result' ? (
-            <textarea
-              value={editValue}
-              onChange={e => setEditValue(e.target.value)}
-              onBlur={() => handleFieldSave('ultimate_result')}
-              onKeyDown={e => {
-                if (e.key === 'Escape') setEditingField(null);
-              }}
-              autoFocus
-              className="pd-field-textarea"
-            />
-          ) : (
-            <p
-              className={`pd-field-text ${project.ultimate_result ? '' : 'is-empty'}`}
-              onClick={() => handleFieldEdit('ultimate_result', project.ultimate_result)}
-              title="Click to edit"
-            >
-              {project.ultimate_result || 'Click to add ultimate result...'}
-              <Edit size={13} className="pd-field-hint" aria-hidden="true" />
-            </p>
-          )}
-        </section>
-
-        <section className="ui-card pd-panel pd-vision pd-vision--purpose">
-          <header className="pd-panel-head">
-            <h2 className="ui-kicker"><span className="ui-icon-badge pd-badge"><Sparkles size={16} /></span> Ultimate purpose</h2>
-          </header>
-          {editingField === 'ultimate_purpose' ? (
-            <textarea
-              value={editValue}
-              onChange={e => setEditValue(e.target.value)}
-              onBlur={() => handleFieldSave('ultimate_purpose')}
-              onKeyDown={e => {
-                if (e.key === 'Escape') setEditingField(null);
-              }}
-              autoFocus
-              className="pd-field-textarea"
-            />
-          ) : (
-            <p
-              className={`pd-field-text ${project.ultimate_purpose ? '' : 'is-empty'}`}
-              onClick={() => handleFieldEdit('ultimate_purpose', project.ultimate_purpose)}
-              title="Click to edit"
-            >
-              {project.ultimate_purpose || 'Click to add ultimate purpose...'}
-              <Edit size={13} className="pd-field-hint" aria-hidden="true" />
-            </p>
-          )}
-        </section>
-      </div>
-
-      {/* ================= Key Results & Capture List ================= */}
-      <div className="pd-duo pd-duo--top">
-        <section className="ui-card pd-panel">
+      {/* ================= Key results (measures) ================= */}
+      <section className="ui-card pd-panel pd-krs" id="pd-krs">
           <header className="pd-panel-head">
             <h2 className="ui-kicker">
               <Target size={15} /> Key results
@@ -1116,131 +1090,64 @@ function ProjectDetailPage() {
               })}
             </div>
           )}
-        </section>
+      </section>
 
-        <section className="ui-card pd-panel">
-          <header className="pd-panel-head">
-            <h2 className="ui-kicker">
-              <Inbox size={15} /> Capture list
-              {(project.capture_items?.length || 0) > 0 && <span className="ui-count">{project.capture_items.length}</span>}
-            </h2>
-            <button
-              type="button"
-              className="pd-icon-btn pd-add"
-              aria-label="Add capture item"
-              title="Add capture item"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditingCaptureItem(null);
-                setShowCaptureItemModal(true);
-              }}
-            >
-              <Plus size={16} />
-            </button>
-          </header>
-
-          {!project.capture_items?.length ? (
-            <div className="ui-empty">
-              <Inbox size={22} />
-              <span>Nothing captured. Park loose ideas here before they become actions.</span>
-              <button type="button" className="btn btn-secondary pd-btn-sm" onClick={() => { setEditingCaptureItem(null); setShowCaptureItemModal(true); }}>
-                <Plus size={14} /> Capture an idea
+      {/* ================= The plan: one area, four lenses ================= */}
+      <section className="pd-plan" id="pd-plan" aria-label="Plan">
+        <div className="pd-plan-bar">
+          <h2 className="ui-kicker"><Layers size={15} /> The plan</h2>
+          <div className="ui-seg pd-tabs" role="tablist" aria-label="Plan view">
+            {PLAN_VIEWS.map(v => (
+              <button
+                key={v.id}
+                type="button"
+                role="tab"
+                aria-selected={view === v.id}
+                className={view === v.id ? 'on' : ''}
+                onClick={() => setView(v.id)}
+              >
+                <v.Icon size={14} />
+                <span>{v.label}</span>
+                {v.id === 'blocks' && blockCount > 0 && <span className="pd-tab-count">{blockCount}</span>}
+                {v.id === 'list' && <span className="pd-tab-count">{activeAll.length}</span>}
               </button>
-            </div>
-          ) : (
-            <ul className="pd-capture-list">
-              {project.capture_items.map((item, idx) => (
-                <li key={item.id} className="pd-capture">
-                  <span className="pd-capture-num">{idx + 1}</span>
-                  <span className="pd-capture-title">{item.title}</span>
-                  <div className="capture-actions pd-item-actions">
-                    <button
-                      type="button"
-                      className={`pd-icon-btn pd-star ${item.is_starred ? 'is-on' : ''}`}
-                      aria-label={item.is_starred ? 'Unstar capture item' : 'Star capture item'}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleCaptureItemStar(item);
-                      }}
-                    >
-                      <Star size={13} fill={item.is_starred ? 'currentColor' : 'none'} />
-                    </button>
-                    <div className="pd-relative">
-                      <button
-                        type="button"
-                        className="pd-icon-btn"
-                        aria-label="Capture item menu"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenCaptureItemMenu(openCaptureItemMenu === item.id ? null : item.id);
-                        }}
-                      >
-                        <MoreVertical size={14} />
-                      </button>
-
-                      {openCaptureItemMenu === item.id && (
-                        <div
-                          className="dropdown-menu pd-dropdown-abs"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div
-                            className="dropdown-item"
-                            onClick={() => handleEditCaptureItem(item)}
-                          >
-                            <Edit size={14} />
-                            <span>Edit Capture Item</span>
-                          </div>
-                          <div
-                            className="dropdown-item pd-text-red"
-                            onClick={() => handleDeleteCaptureItem(item)}
-                          >
-                            <Trash2 size={14} />
-                            <span>Delete Capture Item</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
-
-      {/* ================= RPM Blocks ================= */}
-      <section className="ui-card pd-panel">
-        <header className="pd-panel-head">
-          <h2 className="ui-kicker">
-            <Layers size={15} /> RPM blocks
-            {(project.rpm_blocks?.length || 0) > 0 && <span className="ui-count">{project.rpm_blocks.length}</span>}
-          </h2>
-          <button
-            type="button"
-            className="pd-icon-btn pd-add"
-            aria-label="Add RPM block"
-            title="Add RPM block"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingBlock(null);
-              setShowBlockModal(true);
-            }}
-          >
-            <Plus size={16} />
-          </button>
-        </header>
-
-        {!project.rpm_blocks?.length && (
-          <div className="ui-empty">
-            <Layers size={22} />
-            <span>No blocks yet — group related actions under one result and purpose.</span>
-            <button type="button" className="btn btn-secondary pd-btn-sm" onClick={() => { setEditingBlock(null); setShowBlockModal(true); }}>
-              <Plus size={14} /> Add a block
-            </button>
+            ))}
           </div>
-        )}
+        </div>
 
-        <div className="pd-blocks-grid">
+        {view === 'blocks' && (
+          <div className="ui-card pd-panel pd-blocks-panel">
+            <header className="pd-panel-head">
+              <h3 className="ui-kicker">
+                <Layers size={15} /> RPM blocks
+                {blockCount > 0 && <span className="ui-count">{blockCount}</span>}
+              </h3>
+              <button
+                type="button"
+                className="pd-icon-btn pd-add"
+                aria-label="Add RPM block"
+                title="Add RPM block"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingBlock(null);
+                  setShowBlockModal(true);
+                }}
+              >
+                <Plus size={16} />
+              </button>
+            </header>
+
+            {blockCount === 0 && (
+              <div className="ui-empty">
+                <Layers size={22} />
+                <span>No blocks yet — group related actions under one result and purpose.</span>
+                <button type="button" className="btn btn-secondary pd-btn-sm" onClick={() => { setEditingBlock(null); setShowBlockModal(true); }}>
+                  <Plus size={14} /> Add a block
+                </button>
+              </div>
+            )}
+
+            <div className="pd-blocks-grid">
           {project.rpm_blocks?.map(block => {
             // Fallback: if block.actions is not populated, filter from project.actions
             const blockActions = block.actions && block.actions.length > 0
@@ -1271,12 +1178,16 @@ function ProjectDetailPage() {
                 <div className="rpm-block-header pd-block-head" title="Drag to reorder">
                   <span className="pd-cat-chip pd-cat-chip--sm"><span className="pd-cat-dot" />{category?.name || 'Category'}</span>
                   <div className="pd-block-meta">
-                    <span className="pd-meta" title="Time remaining">
-                      <Clock size={13} />{fmtDuration(stats.remainingDuration)}
-                    </span>
-                    <span className="pd-meta pd-meta--muted" title="Total planned time">
-                      <Hourglass size={13} />{fmtDuration(stats.totalDuration)}
-                    </span>
+                    {(stats.totalDuration.hours > 0 || stats.totalDuration.minutes > 0) && (
+                      <>
+                        <span className="pd-meta" title="Time remaining">
+                          <Clock size={13} />{fmtDuration(stats.remainingDuration)}
+                        </span>
+                        <span className="pd-meta pd-meta--muted" title="Total planned time">
+                          <Hourglass size={13} />{fmtDuration(stats.totalDuration)}
+                        </span>
+                      </>
+                    )}
                     {block.target_date && (
                       <span className={`pd-meta pd-meta--date ${blockLate ? 'is-late' : ''}`} title="Block deadline">
                         <CalendarIcon size={13} />{fmtShort(block.target_date)}
@@ -1633,76 +1544,204 @@ function ProjectDetailPage() {
               </article>
             );
           })}
-        </div>
-      </section>
+            </div>
 
-      {/* ================= Inspiration Board ================= */}
-      <section className="ui-card pd-panel">
-        <header className="pd-panel-head">
-          <h2 className="ui-kicker">
-            <Lightbulb size={15} /> Inspiration board
-            {(project.inspiration_items?.length || 0) > 0 && <span className="ui-count">{project.inspiration_items.length}</span>}
-          </h2>
-          <button
-            type="button"
-            className="pd-icon-btn pd-add"
-            aria-label="Add inspiration"
-            title="Add inspiration"
-            onClick={handleAddInspiration}
-          >
-            <Plus size={16} />
-          </button>
-        </header>
-        <div className="pd-mood-grid">
-          {project.inspiration_items?.map(item => {
-            const host = hostOf(item.link_url);
-            const initial = ((host || item.title || '?').replace(/^www\./, '')[0] || '?').toUpperCase();
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={`pd-mood-card ${item.image_url ? 'has-img' : 'is-text'}`}
-                onClick={() => setPreviewInspiration(item)}
-                title={item.title || 'Open'}
-                style={item.image_url ? { backgroundImage: `url(${item.image_url})` } : { '--tint': tintFor(host || item.title || '') }}
-              >
-                {!item.image_url && (
-                  <span className="pd-mood-text">
-                    <span className="pd-mood-mono" aria-hidden="true">{initial}</span>
-                    {item.description && <span className="pd-mood-desc">{item.description}</span>}
+            {unsortedActions.length > 0 && (
+              <div className="pd-unsorted" id="pd-unsorted">
+                <div className="pd-unsorted-head">
+                  <h4 className="ui-kicker"><Inbox size={14} /> Unsorted <span className="ui-count">{unsortedActions.length}</span></h4>
+                  <span className="pd-unsorted-hint">
+                    {blockCount > 0 ? 'Tasks outside any block — give each one a home.' : 'Add a block to give these tasks a home.'}
                   </span>
-                )}
-                <span className="pd-mood-overlay">
-                  <span className="pd-mood-title">{item.title || 'Untitled'}</span>
-                  {host && <span className="pd-mood-host"><ExternalLink size={11} /> {host}</span>}
-                </span>
-                <span
-                  className="pd-mood-del"
-                  role="button"
-                  aria-label="Delete inspiration item"
-                  onClick={(e) => { e.stopPropagation(); handleDeleteInspiration(item); }}
+                </div>
+                <ul className="pd-actions-list pd-unsorted-list">
+                  {unsortedActions.map(action => {
+                    const d = dayKey(action.scheduled_date);
+                    const tone = d ? (d < todayStr ? 'is-late' : d === todayStr ? 'is-today' : '') : '';
+                    return (
+                      <li key={action.id} className={`pd-action-row pd-unsorted-row p${action.priority || 0}`}>
+                        <button
+                          type="button"
+                          className="pd-action-check"
+                          onClick={() => toggleActionComplete(action)}
+                          title="Mark done"
+                          aria-label="Mark done"
+                          aria-pressed={false}
+                        />
+                        <div className="pd-action-main">
+                          <button type="button" className="pd-action-title" onClick={() => handleEditAction(action)} title="Edit action">
+                            {action.title}
+                          </button>
+                          {d && (
+                            <div className="pd-action-meta">
+                              <span className={`pd-date ${tone}`} title={fmtDate(action.scheduled_date)}>
+                                <CalendarIcon size={11} /> {d === todayStr ? 'Today' : fmtShort(d)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="pd-assign">
+                          <Picker
+                            value={null}
+                            options={blockOptions}
+                            onChange={(blockId) => assignToBlock(action, blockId)}
+                            placeholder="Assign to block"
+                            header="Move into block"
+                            title={blockCount ? 'Assign this task to a block' : 'Add a block first'}
+                            disabled={blockCount === 0}
+                            className="pd-assign-trigger"
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {view === 'list' && (() => {
+          const list = starredOnly ? starredActions : activeAll;
+          return (
+            <div className="ui-card pd-panel pd-actions-panel">
+              <header className="pd-panel-head">
+                <h3 className="ui-kicker">
+                  <ListChecks size={15} /> {starredOnly ? 'Starred actions' : 'All actions'}
+                  <span className="ui-count">{list.length}</span>
+                </h3>
+                <button
+                  type="button"
+                  className={`pd-toggle-chip ${starredOnly ? 'is-on' : ''}`}
+                  aria-pressed={starredOnly}
+                  onClick={() => setStarredOnly(s => !s)}
+                  title="Show only starred, open actions"
                 >
-                  <Trash2 size={13} />
-                </span>
-              </button>
-            );
-          })}
+                  <Star size={13} fill={starredOnly ? 'currentColor' : 'none'} />
+                  <span>Starred<span className="pd-lg"> only</span></span>
+                  <b>{starredActions.length}</b>
+                </button>
+                <button type="button" className="btn btn-primary pd-btn-sm" onClick={openNewAction}>
+                  <Plus size={15} /> <span>Add<span className="pd-lg"> action</span></span>
+                </button>
+              </header>
 
-          {/* Add tile */}
-          <button type="button" className="pd-mood-add" onClick={handleAddInspiration}>
-            <Plus size={22} />
-            <span>Add inspiration</span>
-          </button>
-        </div>
-      </section>
+              {list.length === 0 ? (
+                <div className="ui-empty">
+                  {activeAll.length === 0 ? (
+                    <>
+                      <ListChecks size={24} />
+                      <span>No actions yet — break the result into the first concrete step.</span>
+                      <button type="button" className="btn btn-secondary pd-btn-sm" onClick={openNewAction}><Plus size={14} /> Add your first action</button>
+                    </>
+                  ) : (
+                    <>
+                      <Star size={24} />
+                      <span>Nothing starred. Star the few actions that matter most this week.</span>
+                      <button type="button" className="btn btn-secondary pd-btn-sm" onClick={() => setStarredOnly(false)}>View all {activeAll.length}</button>
+                    </>
+                  )}
+                </div>
+              ) : (
+              <ul className="pd-actions-list">
+                {list.map(action => {
+                  const waiting = (action.blocked_by || []).filter(b => !b.is_completed);
+                  const freeing = (action.blocks || []).filter(b => !b.is_completed);
+                  const d = dayKey(action.scheduled_date);
+                  const tone = !action.is_completed && d ? (d < todayStr ? 'is-late' : d === todayStr ? 'is-today' : '') : '';
+                  const showWaiting = !action.is_completed && waiting.length > 0;
+                  const showFreeing = !action.is_completed && !showWaiting && freeing.length > 0;
+                  return (
+                    <li key={action.id} className={`pd-action-row p${action.priority || 0} ${action.is_completed ? 'is-done' : ''}`}>
+                      <button
+                        type="button"
+                        className={`pd-action-check ${action.is_completed ? 'checked' : ''}`}
+                        onClick={() => toggleActionComplete(action)}
+                        title={action.is_completed ? 'Mark as not done' : 'Mark done'}
+                        aria-label={action.is_completed ? 'Mark as not done' : 'Mark done'}
+                        aria-pressed={!!action.is_completed}
+                      >
+                        {action.is_completed && <Check size={13} strokeWidth={3} />}
+                      </button>
+                      <div className="pd-action-main">
+                        <button type="button" className="pd-action-title" onClick={() => handleEditAction(action)} title="Edit action">
+                          {action.title}
+                        </button>
+                        {(showWaiting || showFreeing || d) && (
+                          <div className="pd-action-meta">
+                            {showWaiting && (() => {
+                              const first = allActions.find(a => a.id === waiting[0].id);
+                              return (
+                                <button
+                                  type="button"
+                                  className="pd-dep is-waiting"
+                                  title={`Waiting on:\n${waiting.map(w => w.title).join('\n')}`}
+                                  aria-label={`Waiting on ${waiting.length} task${waiting.length > 1 ? 's' : ''}: ${waiting.map(w => w.title).join(', ')}`}
+                                  onClick={() => first && handleEditAction(first)}
+                                >
+                                  <Lock size={11} /> {waiting.length}
+                                </button>
+                              );
+                            })()}
+                            {showFreeing && (
+                              <span
+                                className="pd-dep is-frees"
+                                title={`Finishing this unblocks:\n${freeing.map(w => w.title).join('\n')}`}
+                                aria-label={`Unblocks ${freeing.length} task${freeing.length > 1 ? 's' : ''}`}
+                              >
+                                <Unlock size={11} /> {freeing.length}
+                              </span>
+                            )}
+                            {d && (
+                              <span className={`pd-date ${tone}`} title={fmtDate(action.scheduled_date)}>
+                                <CalendarIcon size={11} /> {d === todayStr ? 'Today' : fmtShort(d)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="pd-action-tools">
+                        <button
+                          type="button"
+                          className={`pd-icon-btn pd-star ${action.is_starred ? 'is-on' : ''}`}
+                          onClick={() => toggleActionStar(action)}
+                          title={action.is_starred ? 'Unstar' : 'Star'}
+                          aria-label={action.is_starred ? 'Unstar' : 'Star'}
+                          aria-pressed={!!action.is_starred}
+                        >
+                          <Star size={14} fill={action.is_starred ? 'currentColor' : 'none'} />
+                        </button>
+                        <button type="button" className="pd-icon-btn pd-quiet" onClick={() => handleEditAction(action)} title="Edit" aria-label="Edit action">
+                          <Edit size={14} />
+                        </button>
+                        <button type="button" className="pd-icon-btn pd-quiet pd-danger" onClick={() => handleDeleteAction(action)} title="Delete" aria-label="Delete action">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              )}
+            </div>
+          );
+        })()}
 
-      {/* This project's optional AI coach */}
-      {project?.id && <CoachPanel scope="project" projectId={project.id} />}
+        {view === 'timeline' && (
+          <ErrorBoundary name="project-timeline" resetKey={project} message="The timeline couldn't be drawn.">
+            <ProjectTimeline
+              projectId={project.id}
+              refreshKey={project}
+              onEdit={(id) => { const a = allActions.find(x => x.id === id); if (a) handleEditAction(a); }}
+              onChanged={() => loadProject()}
+            />
+          </ErrorBoundary>
+        )}
 
-      {/* ================= Project Planner ================= */}
-      <section className="project-planner pd-planner">
+        {view === 'week' && (
+          <section className="project-planner pd-planner">
         <div className="planner-header">
-          <h2 className="ui-kicker"><CalendarIcon size={15} /> Project planner</h2>
+          <h3 className="ui-kicker"><CalendarDays size={15} /> Week</h3>
           <div className="planner-nav">
             <button
               type="button"
@@ -1823,7 +1862,164 @@ function ProjectDetailPage() {
             );
           })}
         </div>
+          </section>
+        )}
       </section>
+
+      {/* ================= Capture list + Inspiration (slim when empty) ================= */}
+      <div className="pd-extras">
+        {project.capture_items?.length ? (
+          <section className="ui-card pd-panel pd-extra-card">
+            <header className="pd-panel-head">
+              <h2 className="ui-kicker">
+                <Inbox size={15} /> Capture list
+                <span className="ui-count">{project.capture_items.length}</span>
+              </h2>
+              <button
+                type="button"
+                className="pd-icon-btn pd-add"
+                aria-label="Add capture item"
+                title="Add capture item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingCaptureItem(null);
+                  setShowCaptureItemModal(true);
+                }}
+              >
+                <Plus size={16} />
+              </button>
+            </header>
+            <ul className="pd-capture-list">
+              {project.capture_items.map((item, idx) => (
+                <li key={item.id} className="pd-capture">
+                  <span className="pd-capture-num">{idx + 1}</span>
+                  <span className="pd-capture-title">{item.title}</span>
+                  <div className="capture-actions pd-item-actions">
+                    <button
+                      type="button"
+                      className={`pd-icon-btn pd-star ${item.is_starred ? 'is-on' : ''}`}
+                      aria-label={item.is_starred ? 'Unstar capture item' : 'Star capture item'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleCaptureItemStar(item);
+                      }}
+                    >
+                      <Star size={13} fill={item.is_starred ? 'currentColor' : 'none'} />
+                    </button>
+                    <div className="pd-relative">
+                      <button
+                        type="button"
+                        className="pd-icon-btn"
+                        aria-label="Capture item menu"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenCaptureItemMenu(openCaptureItemMenu === item.id ? null : item.id);
+                        }}
+                      >
+                        <MoreVertical size={14} />
+                      </button>
+
+                      {openCaptureItemMenu === item.id && (
+                        <div
+                          className="dropdown-menu pd-dropdown-abs"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div
+                            className="dropdown-item"
+                            onClick={() => handleEditCaptureItem(item)}
+                          >
+                            <Edit size={14} />
+                            <span>Edit Capture Item</span>
+                          </div>
+                          <div
+                            className="dropdown-item pd-text-red"
+                            onClick={() => handleDeleteCaptureItem(item)}
+                          >
+                            <Trash2 size={14} />
+                            <span>Delete Capture Item</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : (
+          <button type="button" className="pd-slim-add" onClick={() => { setEditingCaptureItem(null); setShowCaptureItemModal(true); }}>
+            <Plus size={15} /> <span>Add to capture list</span> <em>park loose ideas</em>
+          </button>
+        )}
+
+        {project.inspiration_items?.length ? (
+          <section className="ui-card pd-panel pd-extra-card">
+            <header className="pd-panel-head">
+              <h2 className="ui-kicker">
+                <Lightbulb size={15} /> Inspiration board
+                <span className="ui-count">{project.inspiration_items.length}</span>
+              </h2>
+              <button
+                type="button"
+                className="pd-icon-btn pd-add"
+                aria-label="Add inspiration"
+                title="Add inspiration"
+                onClick={handleAddInspiration}
+              >
+                <Plus size={16} />
+              </button>
+            </header>
+        <div className="pd-mood-grid">
+          {project.inspiration_items?.map(item => {
+            const host = hostOf(item.link_url);
+            const initial = ((host || item.title || '?').replace(/^www\./, '')[0] || '?').toUpperCase();
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`pd-mood-card ${item.image_url ? 'has-img' : 'is-text'}`}
+                onClick={() => setPreviewInspiration(item)}
+                title={item.title || 'Open'}
+                style={item.image_url ? { backgroundImage: `url(${item.image_url})` } : { '--tint': tintFor(host || item.title || '') }}
+              >
+                {!item.image_url && (
+                  <span className="pd-mood-text">
+                    <span className="pd-mood-mono" aria-hidden="true">{initial}</span>
+                    {item.description && <span className="pd-mood-desc">{item.description}</span>}
+                  </span>
+                )}
+                <span className="pd-mood-overlay">
+                  <span className="pd-mood-title">{item.title || 'Untitled'}</span>
+                  {host && <span className="pd-mood-host"><ExternalLink size={11} /> {host}</span>}
+                </span>
+                <span
+                  className="pd-mood-del"
+                  role="button"
+                  aria-label="Delete inspiration item"
+                  onClick={(e) => { e.stopPropagation(); handleDeleteInspiration(item); }}
+                >
+                  <Trash2 size={13} />
+                </span>
+              </button>
+            );
+          })}
+
+          {/* Add tile */}
+          <button type="button" className="pd-mood-add" onClick={handleAddInspiration}>
+            <Plus size={22} />
+            <span>Add inspiration</span>
+          </button>
+        </div>
+          </section>
+        ) : (
+          <button type="button" className="pd-slim-add" onClick={handleAddInspiration}>
+            <Plus size={15} /> <span>Add inspiration</span> <em>images, links, references</em>
+          </button>
+        )}
+      </div>
+
+      {/* This project's optional AI coach */}
+      {project?.id && <CoachPanel scope="project" projectId={project.id} />}
 
       {/* Edit Project Modal */}
       {showEditModal && categories && project && (
