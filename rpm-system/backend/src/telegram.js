@@ -88,7 +88,7 @@ async function startLink(pool, userId) {
 }
 
 // Handle one webhook update. Returns quietly.
-async function handleUpdate(pool, update, completeAction) {
+async function handleUpdate(pool, update, completeAction, coachFollowup) {
   const token = await getToken(pool);
   if (!token) return;
 
@@ -109,8 +109,22 @@ async function handleUpdate(pool, update, completeAction) {
     return;
   }
 
-  // Inline "✅ Done" button → complete the action (only if it belongs to this chat's user)
   const cb = update.callback_query;
+  // Coach follow-up buttons: cf:<d|t|x>:<actionId> (only for this chat's own tasks)
+  if (cb && typeof cb.data === 'string' && cb.data.startsWith('cf:') && coachFollowup) {
+    const [, op, actionId] = cb.data.split(':');
+    const chatId = String(cb.message?.chat?.id);
+    try {
+      const owner = await pool.query(
+        `SELECT a.user_id FROM actions a JOIN notification_prefs p ON p.user_id = a.user_id WHERE a.id=$1 AND p.telegram_chat_id=$2`, [actionId, chatId]);
+      if (!owner.rows[0]) { await tg(token, 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Not found' }); return; }
+      const r = await coachFollowup(owner.rows[0].user_id, actionId, op);
+      const label = { d: 'Marked done ✅', t: 'Moved to tomorrow ➡️', x: 'Dropped ✖' }[op] || 'Updated';
+      await tg(token, 'answerCallbackQuery', { callback_query_id: cb.id, text: r && r.ok ? label : 'Could not update' });
+    } catch { await tg(token, 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Could not update' }).catch(() => {}); }
+    return;
+  }
+  // Inline "✅ Done" button → complete the action (only if it belongs to this chat's user)
   if (cb && typeof cb.data === 'string' && cb.data.startsWith('done:')) {
     const actionId = cb.data.slice(5);
     const chatId = String(cb.message?.chat?.id);
@@ -151,6 +165,14 @@ async function sendDigestTelegram(pool, chatId, { todayLabel, today = [], overdu
   return { sent: true };
 }
 
+// A message with inline buttons (coach follow-ups: Done / Tomorrow / Drop).
+async function notifyWithButtons(pool, chatId, text, inlineKeyboard) {
+  const token = await getToken(pool);
+  if (!token || !chatId) return { sent: false };
+  try { await sendMessage(token, chatId, text, { reply_markup: { inline_keyboard: inlineKeyboard } }); return { sent: true }; }
+  catch (e) { console.error('[telegram] notifyWithButtons:', e.message); return { sent: false }; }
+}
+
 // Generic message to a linked chat (used by custom reminders).
 async function notify(pool, chatId, text) {
   const token = await getToken(pool);
@@ -161,5 +183,5 @@ async function notify(pool, chatId, text) {
 
 module.exports = {
   configureBot, removeBot, isBotConfigured, getBotUsername, getWebhookSecret,
-  startLink, handleUpdate, sendDigestTelegram, getToken, notify,
+  startLink, handleUpdate, sendDigestTelegram, getToken, notify, notifyWithButtons, escapeHtml,
 };

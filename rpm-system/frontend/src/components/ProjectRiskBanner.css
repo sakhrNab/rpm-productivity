@@ -40,8 +40,17 @@
 .prb--info .prb-kicker { color: #b9a4e8; }
 .prb-item:hover, .prb-item:focus-visible { background: rgba(255, 255, 255, 0.06); color: var(--text-primary); outline: none; }
 .prb-item:focus-visible { box-shadow: 0 0 0 2px var(--accent-cyan); }
+.prb-ask {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin-left: auto; padding: 0 14px;
+  border-radius: 999px; border: 0; cursor: pointer; white-space: nowrap;
+  font: 700 0.78rem var(--font-body); color: var(--ui-ink, #06121f); background: var(--ui-grad-ai, linear-gradient(90deg, #4ecdc4, #ff69b4));
+  box-shadow: 0 0 16px rgba(255, 105, 180, 0.22); transition: box-shadow 150ms ease;
+}
+.prb-ask:hover { box-shadow: 0 0 22px rgba(255, 105, 180, 0.4); }
+.prb-ask:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-cyan); }
 @media (max-width: 640px) {
   .prb-items { flex-basis: 100%; }
+  .prb-ask { width: 100%; justify-content: center; margin-left: 0; }
   .prb-item { width: 100%; white-space: normal; border-radius: 14px; text-align: left; line-height: 1.35; padding: 7px 12px; }
   .prb-item > span { overflow: visible; }
   .prb-item em { margin-left: auto; }

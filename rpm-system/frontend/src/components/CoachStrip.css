@@ -1,0 +1,66 @@
+/* Coach strip — a slim line in the project / category hero. --coach = the coach's accent. */
+.cstrip {
+  --coach: #4ecdc4;
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; min-width: 0;
+  align-self: stretch; width: 100%; max-width: 100%; box-sizing: border-box;
+  margin-top: 14px; padding: 8px 10px 8px 8px; border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--coach) 32%, transparent);
+  background: radial-gradient(360px 120px at 0% 50%, color-mix(in srgb, var(--coach) 12%, transparent), transparent 70%), rgba(6, 16, 32, 0.55);
+}
+.cstrip-main {
+  flex: 1 1 320px; display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 44px; padding: 2px 6px 2px 2px;
+  border: 0; border-radius: 12px; background: none; color: inherit; text-align: left; cursor: pointer; font: inherit;
+}
+.cstrip-main:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-cyan); }
+.cstrip-avatar { position: relative; flex: 0 0 auto; display: inline-flex; }
+.cstrip-dot {
+  position: absolute; top: -3px; right: -3px; width: 11px; height: 11px; border-radius: 50%;
+  background: var(--ui-ai); border: 2px solid #0b1730; box-shadow: 0 0 8px rgba(255, 105, 180, 0.8);
+}
+.cstrip-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.cstrip-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.cstrip-name { font: 600 0.9rem 'Outfit', var(--font-display); color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.cstrip-tag { flex: 0 0 auto; padding: 1px 7px; border-radius: 999px; font: 600 0.62rem var(--ui-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); border: 1px solid var(--border-primary); }
+.cstrip-time { flex: 0 0 auto; margin-left: auto; font: 500 0.7rem var(--ui-mono); color: var(--text-muted); }
+.cstrip-preview { font-size: 0.84rem; line-height: 1.4; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.cstrip-preview.is-unread { color: var(--text-primary); }
+.cstrip-today { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 0.78rem; color: var(--ui-good); }
+.cstrip-today svg { flex: 0 0 auto; }
+.cstrip-today em { flex: 0 0 auto; font: 600 0.66rem var(--ui-mono); letter-spacing: 0.1em; text-transform: uppercase; font-style: normal; }
+.cstrip-today > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.cstrip-today small { flex: 0 0 auto; font: 600 0.68rem var(--ui-mono); color: #ffc56e; }
+.cstrip-today.is-late { color: #ffc56e; }
+.cstrip-main:hover .cstrip-name { color: color-mix(in srgb, var(--coach) 60%, white); }
+
+.cstrip-actions { display: inline-flex; gap: 6px; flex: 0 0 auto; margin-left: auto; }
+.cstrip-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 13px; border-radius: 11px; cursor: pointer; white-space: nowrap;
+  font: 600 0.8rem var(--font-body); color: var(--text-secondary); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-primary);
+  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.cstrip-btn:hover, .cstrip-btn:focus-visible { color: var(--text-primary); border-color: var(--accent-cyan); outline: none; }
+.cstrip-btn--ai { color: var(--ui-ink); background: var(--ui-grad-ai); border-color: transparent; }
+.cstrip-btn--ai:hover, .cstrip-btn--ai:focus-visible { color: var(--ui-ink); border-color: transparent; box-shadow: 0 0 18px rgba(255, 105, 180, 0.35); }
+.cstrip-btn--quiet { background: none; }
+
+/* no coach yet */
+.cstrip--empty { padding: 0; border-style: dashed; border-color: var(--border-primary); background: rgba(6, 16, 32, 0.4); }
+.cstrip-invite {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 48px; padding: 8px 12px 8px 10px;
+  border: 0; border-radius: 16px; background: none; color: inherit; text-align: left; cursor: pointer; font: inherit;
+}
+.cstrip-invite:hover, .cstrip-invite:focus-visible { background: rgba(255, 255, 255, 0.03); outline: none; }
+.cstrip-invite:focus-visible { box-shadow: 0 0 0 2px var(--accent-cyan); }
+.cstrip-invite-icon { flex: 0 0 auto; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; color: var(--ui-ai); background: rgba(255, 105, 180, 0.1); border: 1px solid rgba(255, 105, 180, 0.3); }
+.cstrip-invite-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.cstrip-invite-text b { font: 600 0.88rem var(--font-body); color: var(--text-primary); }
+.cstrip-invite-text span { font-size: 0.78rem; line-height: 1.4; color: var(--text-muted); }
+.cstrip-chev { flex: 0 0 auto; color: var(--text-muted); }
+.cstrip--empty.is-locked .cstrip-invite-icon { color: #ffc56e; background: rgba(255, 183, 77, 0.08); border-color: rgba(255, 183, 77, 0.35); }
+
+@media (max-width: 640px) {
+  .cstrip-main { flex-basis: 100%; }
+  .cstrip-actions { width: 100%; margin-left: 0; }
+  .cstrip-actions .cstrip-btn { flex: 1; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) { .cstrip-btn { transition: none; } }

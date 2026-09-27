@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   ChevronRight, Image, Star, MoreVertical, Plus, Clock,
   FolderOpen, Check, Edit, Copy, X, Trash2,
@@ -14,7 +14,9 @@ import CreateProjectModal from '../components/modals/CreateProjectModal';
 import CreateCategoryModal from '../components/modals/CreateCategoryModal';
 import { fileToCompressedDataURL } from '../utils/image';
 import { useToast } from '../components/ToastProvider';
-import CoachPanel from '../components/CoachPanel';
+import CoachDrawer from '../components/CoachDrawer';
+import CoachStrip, { useAreaCoach } from '../components/CoachStrip';
+import { BRIEF_ME } from '../utils/coach';
 import Picker from '../components/Picker';
 import './CategoryDetailPage.css';
 
@@ -73,6 +75,19 @@ function CategoryDetailPage() {
   useEffect(() => {
     loadCategory();
   }, [id]);
+
+  // ---- Coach: this area's coach — a hero strip and a drawer (also opened by ?coach=open) ----
+  const [searchParams, setSearchParams] = useSearchParams();
+  const areaCoach = useAreaCoach({ scope: 'category', categoryId: id });
+  const [coachUI, setCoachUI] = useState({ open: false, request: null });
+  const [coachRefresh, setCoachRefresh] = useState(0);
+  const openCoach = ({ send, focus } = {}) => setCoachUI({ open: true, request: send || focus ? { nonce: Date.now(), send, focus } : null });
+  const closeCoach = () => { setCoachUI({ open: false, request: null }); setCoachRefresh(n => n + 1); areaCoach.reload(); };
+  useEffect(() => {
+    if (searchParams.get('coach') !== 'open') return;
+    openCoach();
+    setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('coach'); return p; }, { replace: true });
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (actions.length > 0) {
@@ -909,6 +924,16 @@ function CategoryDetailPage() {
           </div>
         </div>
 
+        <CoachStrip
+          area={areaCoach}
+          scope="category"
+          refreshKey={coachRefresh}
+          onOpen={() => openCoach()}
+          onReply={() => openCoach({ focus: true })}
+          onBrief={() => openCoach({ send: BRIEF_ME })}
+          onSetup={() => openCoach()}
+        />
+
         <div className="cd-stats">
           <div className="ui-stat"><FolderKanban size={18} /><b>{activeProjects.length}</b><span>active projects</span></div>
           <div className="ui-stat"><ListChecks size={18} /><b>{openActions.length}</b><span>open actions</span></div>
@@ -1031,9 +1056,6 @@ function CategoryDetailPage() {
               )}
             </section>
           </div>
-
-          {/* This category's AI coach */}
-          <CoachPanel scope="category" categoryId={id} />
 
           {/* Projects */}
           <section className="cd-projects">
@@ -1380,6 +1402,16 @@ function CategoryDetailPage() {
           onSuccess={handleCategorySuccess}
         />
       )}
+      <CoachDrawer
+        open={coachUI.open && !areaCoach.loading}
+        onClose={closeCoach}
+        coachId={areaCoach.coach?.id}
+        scope="category"
+        categoryId={id}
+        request={coachUI.request}
+        onCoachChange={areaCoach.reload}
+        onApplied={loadCategory}
+      />
     </div>
   );
 }

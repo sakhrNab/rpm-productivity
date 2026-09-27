@@ -233,6 +233,9 @@ async function updateCoach(pool, userId, id, patch) {
   for (const k of ['name', 'persona', 'model', 'avatar_emoji', 'avatar_image', 'color', 'responsibilities']) {
     if (k in patch) { sets.push(`${k} = $${i++}`); vals.push(patch[k]); }
   }
+  // Check-in schedule (validated): proactive on/off, days, check-in and follow-up times.
+  const sched = require('./coachLoop').cleanSchedule(patch);
+  for (const [k, v] of Object.entries(sched)) { sets.push(`${k} = $${i++}`); vals.push(v); }
   if (!sets.length) return getCoach(pool, userId, id);
   sets.push('updated_at = now()');
   vals.push(id, userId);

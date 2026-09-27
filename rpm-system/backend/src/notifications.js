@@ -74,7 +74,7 @@ async function buildDigest(pool, userId, tz, includeOverdue) {
     // renders "Wed Jul 15" instead of "2026-07-15". Oldest first = most rotten first.
     overdue = (await pool.query(
       `SELECT title, to_char(scheduled_date, 'YYYY-MM-DD') AS scheduled_date,
-              ($2::date - scheduled_date) AS days_late
+              ($2::date - scheduled_date) AS days_late, project_id, category_id
          FROM v_actions_full
         WHERE user_id = $1 AND scheduled_date < $2::date AND is_cancelled = false AND is_completed = false
         ORDER BY scheduled_date LIMIT 25`,
@@ -120,9 +120,19 @@ async function buildChief(pool, userId, tz) {
   const { todayTasks, overdue } = await buildDigest(pool, userId, tz, true);
   let forecast = { summary: {}, keyResults: [] };
   try { forecast = await computeForecasts(pool, userId); } catch (e) { console.error('[chief] forecast:', e.message); }
-  const atRisk = (forecast.keyResults || []).filter(k => CHIEF_RISK.has(k.status));
   const onTrack = (forecast.summary && forecast.summary.on_track) || 0;
-  return { todayTasks, carried: overdue || [], atRisk, onTrack, forecast };
+  // One voice per area: each slipping goal / carried task is labelled with the coach who owns
+  // that area, so the briefing speaks through the user's coaches instead of around them.
+  let label = () => '';
+  try {
+    const { coachesByArea } = require('./ai/coachEngine');
+    const coachFor = await coachesByArea(pool, userId);
+    const projCat = new Map((await pool.query('SELECT id, category_id FROM projects WHERE user_id = $1', [userId])).rows.map(r => [r.id, r.category_id]));
+    label = (projectId, categoryId) => { const c = coachFor(projectId, categoryId || projCat.get(projectId)); return c ? `${c.avatar_emoji || '🧭'} ${c.name} · ` : ''; };
+  } catch (e) { console.error('[chief] coach routing:', e.message); }
+  const atRisk = (forecast.keyResults || []).filter(k => CHIEF_RISK.has(k.status)).map(k => ({ ...k, title: label(k.project_id) + k.title }));
+  const carried = (overdue || []).map(c => ({ ...c, title: label(c.project_id, c.category_id) + c.title }));
+  return { todayTasks, carried, atRisk, onTrack, forecast };
 }
 
 // Short "what to change" line for a slipping key result.
@@ -327,6 +337,9 @@ async function tick(pool) {
     }
   }
   await fireChiefBriefings(pool);
+  // Coaches that coach: check-ins, end-of-day follow-ups and slip alerts.
+  try { await require('./ai/coachEngine').fireCoachLoop(pool, { getPrefs, nowInTz }); }
+  catch (e) { console.error('[coach] loop tick:', e.message); }
   await fireDueReminders(pool);
   await fireTaskTimeReminders(pool);
   await maybePruneUsage(pool);
@@ -374,6 +387,6 @@ function startScheduler(pool) {
 }
 
 module.exports = {
-  getPrefs, upsertPrefs, sendUserDigest, sendChiefBriefing, startScheduler, DEFAULT_PREFS,
+  getPrefs, upsertPrefs, sendUserDigest, sendChiefBriefing, buildChief, startScheduler, DEFAULT_PREFS,
   listReminders, createReminder, deleteReminder, updateReminder,
 };

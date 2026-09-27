@@ -19,7 +19,9 @@ import BlockPreviewModal from '../components/modals/BlockPreviewModal';
 import { fileToCompressedDataURL } from '../utils/image';
 import { playDone } from '../utils/sound';
 import { useToast } from '../components/ToastProvider';
-import CoachPanel from '../components/CoachPanel';
+import CoachDrawer from '../components/CoachDrawer';
+import CoachStrip, { useAreaCoach } from '../components/CoachStrip';
+import { BRIEF_ME, fixPrompt } from '../utils/coach';
 import ProjectTimeline from '../components/plan/ProjectTimeline';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ProjectRiskBanner from '../components/ProjectRiskBanner';
@@ -673,6 +675,25 @@ function ProjectDetailPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openKeyResultMenu, openCaptureItemMenu, openBlockMenu, openBlockActionMenu]);
 
+  // ---- Coach: the project's coach (or its area's), a hero strip and a drawer ----
+  const areaCoach = useAreaCoach({ scope: 'project', projectId: project?.id, categoryId: project?.category_id });
+  const [coachUI, setCoachUI] = useState({ open: false, setup: false, request: null });
+  const [coachRefresh, setCoachRefresh] = useState(0);
+  const openCoach = ({ setup = false, send, focus } = {}) => setCoachUI({
+    open: true, setup, request: send || focus ? { nonce: Date.now(), send, focus } : null,
+  });
+  const closeCoach = () => { setCoachUI(u => ({ ...u, open: false, request: null })); setCoachRefresh(n => n + 1); areaCoach.reload(); };
+  // Notification links land on ?coach=open.
+  useEffect(() => {
+    if (searchParams.get('coach') !== 'open') return;
+    openCoach();
+    setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('coach'); return p; }, { replace: true });
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  const askCoachToFix = (lines) => {
+    if (!areaCoach.coach) { openCoach({ setup: true }); return; }
+    openCoach({ send: fixPrompt(lines) });
+  };
+
   if (loading) {
     return <div className="loading"><div className="spinner"></div></div>;
   }
@@ -867,6 +888,16 @@ function ProjectDetailPage() {
             ))}
           </div>
 
+          <CoachStrip
+            area={areaCoach}
+            scope="project"
+            refreshKey={coachRefresh}
+            onOpen={() => openCoach()}
+            onReply={() => openCoach({ focus: true })}
+            onBrief={() => openCoach({ send: BRIEF_ME })}
+            onSetup={() => openCoach({ setup: true })}
+          />
+
           {/* Deadline: countdown when set, a one-step editor when not */}
           <div className="pd-deadline" id="pd-deadline">
             {editingDeadline ? (
@@ -969,6 +1000,8 @@ function ProjectDetailPage() {
         onShowBlocks={() => showPlan('blocks')}
         onShowUnsorted={() => showPlan('blocks', 'pd-unsorted')}
         onEditDeadline={openDeadlineEditor}
+        onAskCoach={areaCoach.loading ? undefined : askCoachToFix}
+        hasCoach={!!areaCoach.coach}
       />
 
       {/* ================= Key results (measures) ================= */}
@@ -2018,8 +2051,17 @@ function ProjectDetailPage() {
         )}
       </div>
 
-      {/* This project's optional AI coach */}
-      {project?.id && <CoachPanel scope="project" projectId={project.id} />}
+      {/* The coach drawer (strip, "Fix this with me", ?coach=open) */}
+      <CoachDrawer
+        open={coachUI.open && !areaCoach.loading}
+        onClose={closeCoach}
+        coachId={coachUI.setup ? undefined : areaCoach.coach?.id}
+        scope="project"
+        projectId={project.id}
+        request={coachUI.request}
+        onCoachChange={areaCoach.reload}
+        onApplied={loadProject}
+      />
 
       {/* Edit Project Modal */}
       {showEditModal && categories && project && (

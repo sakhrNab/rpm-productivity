@@ -644,3 +644,29 @@ CREATE TABLE IF NOT EXISTS coach_memory (
     -- embedding VECTOR(1536)  -- future: enable pgvector + HNSW for semantic recall at scale
 );
 CREATE INDEX IF NOT EXISTS idx_coach_memory_coach ON coach_memory(coach_id);
+
+-- The coach accountability loop: a saved thread per coach (chats, check-ins, follow-ups,
+-- alerts) and a per-coach schedule. Existing coaches start on their next scheduled slot.
+CREATE TABLE IF NOT EXISTS coach_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    coach_id UUID NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(12) NOT NULL,                 -- user | assistant
+    kind VARCHAR(16) NOT NULL DEFAULT 'chat',  -- chat | checkin | followup | alert
+    content TEXT NOT NULL DEFAULT '',
+    tools JSONB,                               -- proposals + their approve/dismiss status
+    meta JSONB,                                -- follow-up tasks + outcomes, alert list
+    read_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_coach_messages_coach ON coach_messages (coach_id, created_at);
+ALTER TABLE coaches ADD COLUMN IF NOT EXISTS proactive BOOLEAN DEFAULT true;
+ALTER TABLE coaches ADD COLUMN IF NOT EXISTS checkin_days VARCHAR(20) DEFAULT '1,5';
+ALTER TABLE coaches ADD COLUMN IF NOT EXISTS checkin_time VARCHAR(5) DEFAULT '08:30';
+ALTER TABLE coaches ADD COLUMN IF NOT EXISTS followup_time VARCHAR(5) DEFAULT '18:00';
+ALTER TABLE coaches ADD COLUMN IF NOT EXISTS last_checkin_date DATE;
+ALTER TABLE coaches ADD COLUMN IF NOT EXISTS last_followup_date DATE;
+ALTER TABLE coaches ADD COLUMN IF NOT EXISTS last_alert_at TIMESTAMPTZ;
+ALTER TABLE coaches ADD COLUMN IF NOT EXISTS last_alert_sig TEXT DEFAULT '';
+-- The user's default AI model, so scheduled check-ins can run while they're away.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_default_model VARCHAR(80);

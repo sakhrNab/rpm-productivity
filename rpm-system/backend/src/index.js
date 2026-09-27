@@ -25,6 +25,8 @@ const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/brain
 const { recordUsage, getUsageSummary } = require('./ai/usage');
 const { computeForecasts, logKrProgress } = require('./forecast');
 const coaches = require('./ai/coaches');
+const coachEngine = require('./ai/coachEngine');
+const { verifyAction, addDaysStr } = require('./ai/coachLoop');
 const notifications = require('./notifications');
 const telegram = require('./telegram');
 const push = require('./push');
@@ -1679,31 +1681,100 @@ app.post('/api/coaches/:id/chat', authenticateToken, aiLimiter, async (req, res)
     const coach = await coaches.getCoach(pool, req.userId, req.params.id);
     if (!coach) return res.status(404).json({ error: 'Coach not found' });
     const { autoMode, modelKey, timezone } = req.body;
-    // Client-supplied transcript: plain user/assistant text only, bounded.
-    const messages = sanitizeClientMessages(req.body.messages);
-    if (!messages.length) return res.status(400).json({ error: 'messages required (ending with a user message)' });
-    const useModel = coach.model || modelKey || null;
+    // The new message is the last user turn the client sends; the history comes from the
+    // coach's SAVED thread (chats + check-ins + follow-ups), so nothing is forgotten.
+    const incoming = sanitizeClientMessages(req.body.messages);
+    const text = incoming.length ? incoming[incoming.length - 1].content : String(req.body.message || '').trim();
+    if (!text) return res.status(400).json({ error: 'message required' });
+    const useModel = coach.model || modelKey || await coachEngine.resolveModel(pool, req.userId, coach);
+    if (!useModel) return res.status(400).json({ error: 'Add an AI key in Settings to talk to your coach.' });
     const tz = await resolveTimezone(pool, req.userId, timezone);
+    await coachEngine.saveMessage(pool, coach, { role: 'user', kind: 'chat', content: text, read: true });
+    const messages = buildHistory(await coachEngine.threadHistory(pool, coach.id, 30));
     const sse = openSse(req, res);
-    let usage = null;
+    let usage = null, full = '', failed = null;
+    const tools = [];
     try {
-      for await (const ev of coaches.chatCoach({ pool, userId: req.userId, coach, messages, autoMode: autoMode !== false, modelKey, timezone: tz, abortSignal: sse.signal })) {
-        if (ev.type === 'text') sse.send({ type: 'delta', text: ev.text });
-        else if (ev.type === 'tool_call') sse.send({ type: 'tool_call', name: ev.name, args: ev.args });
-        else if (ev.type === 'tool_result') sse.send({ type: 'tool_result', name: ev.name, result: ev.result });
+      // Ask-first by default: the coach proposes changes, you approve them.
+      for await (const ev of coaches.chatCoach({ pool, userId: req.userId, coach, messages, autoMode: autoMode === true, modelKey: useModel, timezone: tz, abortSignal: sse.signal })) {
+        if (ev.type === 'text') { full += ev.text; sse.send({ type: 'delta', text: ev.text }); }
+        else if (ev.type === 'tool_call') { tools.push({ name: ev.name, args: ev.args, done: false }); sse.send({ type: 'tool_call', name: ev.name, args: ev.args }); }
+        else if (ev.type === 'tool_result') {
+          for (let i = tools.length - 1; i >= 0; i--) if (tools[i].name === ev.name && !tools[i].done) { tools[i].done = true; tools[i].result = ev.result; break; }
+          sse.send({ type: 'tool_result', name: ev.name, result: ev.result });
+        }
         else if (ev.type === 'usage') usage = ev.usage;
-        else if (ev.type === 'error') sse.send({ type: 'error', message: ev.message });
+        else if (ev.type === 'error') { failed = ev.message; sse.send({ type: 'error', message: ev.message }); }
       }
     } catch (err) {
-      if (!sse.signal.aborted) sse.send({ type: 'error', message: err instanceof AiError ? err.message : friendlyError(err) });
+      if (!sse.signal.aborted) { failed = err instanceof AiError ? err.message : friendlyError(err); sse.send({ type: 'error', message: failed }); }
     }
+    for (const t of tools) if (!t.done) { t.done = true; t.result = { ok: false, error: 'did not finish' }; }
     if (usage) { const u = await recordUsage(pool, { userId: req.userId, modelKey: useModel, feature: 'coach_chat', usage }); sse.send({ type: 'usage', usage: u }); }
+    const content = full.trim() || (failed ? `⚠️ ${failed}` : '');
+    if (content || tools.length) {
+      const saved = await coachEngine.saveMessage(pool, coach, { role: 'assistant', kind: 'chat', content, tools: tools.length ? tools : null, read: true });
+      sse.send({ type: 'saved', messageId: saved.id });
+    }
     sse.send({ type: 'done' }); sse.end();
   } catch (error) {
     console.error('[coach] chat:', error.message);
     if (!res.headersSent) res.status(500).json({ error: 'Failed' });
     else if (!res.writableEnded) { res.write(`data: ${JSON.stringify({ type: 'error', message: 'Failed' })}\n\n`); res.end(); }
   }
+});
+
+// ---- Coach accountability loop ----
+// The saved thread (chats, check-ins, follow-ups, alerts), newest last.
+app.get('/api/coaches/:id/messages', authenticateToken, async (req, res) => {
+  try {
+    const coach = await coaches.getCoach(pool, req.userId, req.params.id);
+    if (!coach) return res.status(404).json({ error: 'Coach not found' });
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 60));
+    const { rows } = await pool.query(
+      `SELECT id, role, kind, content, tools, meta, read_at, created_at FROM (
+         SELECT * FROM coach_messages WHERE coach_id = $1 ORDER BY created_at DESC LIMIT $2) t ORDER BY created_at`, [coach.id, limit]);
+    const unread = (await pool.query('SELECT count(*)::int n FROM coach_messages WHERE coach_id = $1 AND read_at IS NULL', [coach.id])).rows[0].n;
+    res.json({ messages: rows, unread });
+  } catch (error) { console.error('[coach] messages:', error.message); res.status(500).json({ error: 'Failed' }); }
+});
+app.post('/api/coaches/:id/read', authenticateToken, async (req, res) => {
+  try {
+    await pool.query('UPDATE coach_messages SET read_at = NOW() WHERE coach_id = $1 AND user_id = $2 AND read_at IS NULL', [req.params.id, req.userId]);
+    res.json({ ok: true });
+  } catch { res.status(500).json({ error: 'Failed' }); }
+});
+// Ask the coach to check in right now (in the app only — no email/Telegram).
+app.post('/api/coaches/:id/checkin', authenticateToken, aiLimiter, async (req, res) => {
+  try {
+    const coach = await coaches.getCoach(pool, req.userId, req.params.id);
+    if (!coach) return res.status(404).json({ error: 'Coach not found' });
+    const prefs = await notifications.getPrefs(pool, req.userId);
+    const tz = await resolveTimezone(pool, req.userId, req.body?.timezone || prefs.timezone);
+    const today = todayInTz(tz);
+    const dow = new Date(`${today}T00:00:00Z`).getUTCDay();
+    const msg = await coachEngine.runCheckin(pool, coach, { user: { id: req.userId }, prefs: { ...prefs, timezone: tz }, now: { dateStr: today, dow }, deliverIt: false });
+    res.json(msg);
+  } catch (error) { console.error('[coach] checkin:', error.message); res.status(500).json({ error: error.message || 'Check-in failed' }); }
+});
+// Done / Tomorrow / Drop on a follow-up task, from inside the app.
+app.post('/api/coaches/:id/followup', authenticateToken, async (req, res) => {
+  try {
+    const { actionId, op, timezone } = req.body || {};
+    if (!isUuid(actionId) || !['d', 't', 'x'].includes(op)) return res.status(400).json({ error: 'Bad request' });
+    const today = todayInTz(await resolveTimezone(pool, req.userId, timezone));
+    const r = await coachEngine.applyFollowup(pool, req.userId, actionId, op, today);
+    res.status(r.ok ? 200 : 404).json(r);
+  } catch (error) { console.error('[coach] followup:', error.message); res.status(500).json({ error: 'Failed' }); }
+});
+// Remember approve/dismiss on a coach message's proposals.
+app.put('/api/coaches/messages/:msgId/tools', authenticateToken, async (req, res) => {
+  try {
+    const r = await pool.query('UPDATE coach_messages SET tools = $1 WHERE id = $2 AND user_id = $3 RETURNING id',
+      [req.body?.tools ? JSON.stringify(req.body.tools) : null, req.params.msgId, req.userId]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch { res.status(500).json({ error: 'Failed' }); }
 });
 
 app.get('/api/coaches/:id', authenticateToken, async (req, res) => {
@@ -1843,11 +1914,55 @@ app.post('/api/telegram/disconnect', authenticateToken, async (req, res) => {
 });
 
 // Telegram webhook (no auth — verified by the secret token header).
+// Follow-up buttons from coach emails. GET only shows a confirm page — mail security scanners
+// pre-open links, so nothing may change on GET. The page's button POSTs the same signed token.
+const coachActPage = (title, body, form = '') => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0a1120;color:#e6edf7;font-family:-apple-system,Segoe UI,Roboto,sans-serif">
+<div style="max-width:420px;padding:32px;border-radius:20px;background:#0f1d38;border:1px solid rgba(255,255,255,.08);text-align:center">
+<h1 style="font-size:22px;margin:0 0 10px">${title}</h1><p style="color:#9aa7bd;margin:0 0 20px">${body}</p>${form ||
+`<a href="${process.env.FRONTEND_URL || 'https://rpm.aiwaverider.com'}/my-day" style="display:inline-block;padding:12px 24px;border-radius:999px;background:#4ecdc4;color:#04121a;font-weight:800;text-decoration:none">Open RPM</a>`}</div>`;
+const COACH_OP = { d: 'Mark done ✅', t: 'Move to tomorrow ➡️', x: 'Drop it ✖' };
+const COACH_DONE = { d: 'Marked done ✅', t: 'Moved to tomorrow ➡️', x: 'Dropped ✖' };
+app.get('/api/coach/act', async (req, res) => {
+  res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'");
+  const p = verifyAction(req.query.t, process.env.JWT_SECRET || 'dev-secret');
+  if (!p) return res.status(400).send(coachActPage('Link expired', 'This button is no longer valid. Open RPM to update the task.'));
+  const t = (await pool.query('SELECT title FROM actions WHERE id = $1 AND user_id = $2', [p.aid, p.uid]).catch(() => ({ rows: [] }))).rows[0];
+  if (!t) return res.status(404).send(coachActPage('Task not found', 'It may have been deleted.'));
+  const tok = String(req.query.t).replace(/"/g, '');
+  res.send(coachActPage(String(t.title).replace(/[<>&]/g, ''), 'Confirm to update this task.',
+    `<form method="POST" action="/api/coach/act"><input type="hidden" name="t" value="${tok}"><button type="submit" style="padding:12px 24px;border:0;border-radius:999px;background:#4ecdc4;color:#04121a;font-weight:800;font-size:15px;cursor:pointer">${COACH_OP[p.op]}</button></form>`));
+});
+app.post('/api/coach/act', express.urlencoded({ extended: false, limit: '4kb' }), async (req, res) => {
+  res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+  const p = verifyAction(req.body?.t, process.env.JWT_SECRET || 'dev-secret');
+  if (!p) return res.status(400).send(coachActPage('Link expired', 'This button is no longer valid. Open RPM to update the task.'));
+  try {
+    const r = await coachEngine.applyFollowup(pool, p.uid, p.aid, p.op, /^\d{4}-\d{2}-\d{2}$/.test(p.date || '') ? addDaysStr(p.date, -1) : null);
+    if (!r.ok) return res.status(404).send(coachActPage('Task not found', 'It may have been deleted.'));
+    res.send(coachActPage(COACH_DONE[p.op], String(r.title).replace(/[<>&]/g, '')));
+  } catch (e) { console.error('[coach] act:', e.message); res.status(500).send(coachActPage('Something went wrong', 'Please update the task in RPM.')); }
+});
+
+// The user's default AI model, saved server-side so scheduled coach check-ins can use it.
+app.put('/api/settings/ai-model', authenticateToken, async (req, res) => {
+  try {
+    const key = req.body?.modelKey || null;
+    if (key && !aiRegistry.getModelEntry(key)) return res.status(400).json({ error: 'Unknown model' });
+    await pool.query('UPDATE users SET ai_default_model = $2 WHERE id = $1', [req.userId, key]);
+    res.json({ ok: true, modelKey: key });
+  } catch { res.status(500).json({ error: 'Failed' }); }
+});
+
 app.post('/api/telegram/webhook', async (req, res) => {
   try {
     const secret = await telegram.getWebhookSecret(pool);
     if (!secret || req.get('X-Telegram-Bot-Api-Secret-Token') !== secret) return res.sendStatus(401);
-    await telegram.handleUpdate(pool, req.body, (actionId) => pool.query('UPDATE actions SET is_completed = true WHERE id = $1', [actionId]));
+    await telegram.handleUpdate(pool, req.body, (actionId) => pool.query('UPDATE actions SET is_completed = true WHERE id = $1', [actionId]),
+      async (userId, actionId, op) => {
+        const prefs = await notifications.getPrefs(pool, userId);
+        return coachEngine.applyFollowup(pool, userId, actionId, op, todayInTz(prefs.timezone || 'UTC'));
+      });
     res.sendStatus(200);
   } catch (error) { console.error('[telegram] webhook:', error); res.sendStatus(200); }
 });

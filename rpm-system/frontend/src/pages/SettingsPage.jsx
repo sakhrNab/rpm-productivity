@@ -109,6 +109,7 @@ function SettingsPage() {
     if (models.length && defaultModel && !models.some(m => m.key === defaultModel)) {
       localStorage.removeItem('ai.modelKey');
       setDefaultModel('');
+      api.saveDefaultModel(null).catch(() => {});
     }
   }, [models, defaultModel]);
 
@@ -117,6 +118,8 @@ function SettingsPage() {
   const chooseDefault = (key) => {
     setDefaultModel(key);
     if (key) { localStorage.setItem('ai.modelKey', key); showToast('Default model set', 'success'); }
+    // Also save it server-side so scheduled coach check-ins can use it (fire-and-forget).
+    api.saveDefaultModel(key || null).catch(() => {});
   };
 
   const setPref = (patch) => setPrefs(p => ({ ...p, ...patch }));

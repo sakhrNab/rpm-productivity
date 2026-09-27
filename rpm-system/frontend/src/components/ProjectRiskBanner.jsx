@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CalendarOff, CalendarPlus, CalendarX2, Flame, GitBranch, Inbox, Layers, Target } from 'lucide-react';
+import { AlertTriangle, CalendarOff, CalendarPlus, CalendarX2, Flame, GitBranch, Inbox, Layers, Target, Wand2, Wrench } from 'lucide-react';
 import { AuthContext } from '../App';
 import { buildProjectTimeline, computeProjectSchedule } from '../utils/projectTimeline';
 import './ProjectRiskBanner.css';
@@ -18,6 +18,7 @@ const daysBetween = (from, to) => Math.round((Date.parse(`${to}T00:00:00`) - Dat
 // tasks that sit outside every block.
 export default function ProjectRiskBanner({
   project, onOpenTimeline, onEditAction, onShowKeyResults, onShowBlocks, onShowUnsorted, onEditDeadline,
+  onAskCoach, hasCoach = true,
 }) {
   const { api } = useContext(AuthContext);
   const [goals, setGoals] = useState([]);
@@ -63,36 +64,43 @@ export default function ProjectRiskBanner({
   if (deadlinePassed) items.push({
     key: 'deadline-passed', rank: 0, tone: 'bad', Icon: CalendarX2, onClick: onEditDeadline,
     title: `The result was due ${end}. Set a new deadline or finish it.`,
+    text: `The result deadline passed ${deadlinePassed} day${s(deadlinePassed)} ago (it was due ${end})`,
     body: <>Result deadline passed <b>{deadlinePassed}</b> day{s(deadlinePassed)} ago</>, cta: 'New date →',
   });
   if (overdue.length) items.push({
     key: 'overdue', rank: 1, tone: 'bad', Icon: CalendarX2, onClick: () => onEditAction?.(overdue[0]),
     title: overdue.map(a => a.title).join('\n'),
+    text: `${overdue.length} overdue task${s(overdue.length)}: ${overdue.slice(0, 6).map(a => `“${a.title}”`).join(', ')}${overdue.length > 6 ? ' …' : ''}`,
     body: <><b>{overdue.length}</b> overdue task{s(overdue.length)}</>,
   });
   goals.slice(0, 2).forEach((k, i) => items.push({
     key: `goal-${k.id}`, rank: 2 + i * 0.01, tone: 'bad', Icon: Flame, to: '/compass',
     title: `${k.title}${k.delta_days ? ` — about ${Math.abs(Math.round(k.delta_days))} days ${k.delta_days > 0 ? 'late' : 'early'} at the current pace` : ''}`,
+    text: `Key result “${k.title}” ${SLIPPING[k.status]}${k.delta_days ? ` (about ${Math.abs(Math.round(k.delta_days))} days ${k.delta_days > 0 ? 'late' : 'early'} at the current pace)` : ''}`,
     body: <>“{k.title}” {SLIPPING[k.status]}</>,
   }));
   if (goals.length > 2) items.push({
     key: 'goals-more', rank: 2.5, tone: 'bad', Icon: Flame, to: '/compass',
     title: goals.slice(2).map(k => k.title).join('\n'), body: <>+{goals.length - 2} more goals slipping</>,
+    text: `${goals.length - 2} more key results slipping: ${goals.slice(2).map(k => `“${k.title}”`).join(', ')}`,
   });
   if (conflicts.length) items.push({
     key: 'conflicts', rank: 3, tone: 'warn', Icon: GitBranch, onClick: onOpenTimeline,
     title: conflicts.map(t => t.title).join('\n'),
+    text: `${conflicts.length} task${s(conflicts.length)} start before a prerequisite finishes: ${conflicts.map(t => `“${t.title}”`).join(', ')}`,
     body: <><b>{conflicts.length}</b> task{s(conflicts.length)} start{conflicts.length > 1 ? '' : 's'} before {conflicts.length > 1 ? 'their prerequisites finish' : 'its prerequisite finishes'}</>,
     cta: 'Fix on timeline →',
   });
   if (hollowKrs.length) items.push({
     key: 'hollow-krs', rank: 4, tone: 'warn', Icon: Target, onClick: onShowKeyResults,
     title: hollowKrs.map(k => `${k.title} — ${Number(k.current_value) || 0}/${k.target_value}`).join('\n'),
+    text: `${hollowKrs.length} key result${s(hollowKrs.length)} marked done without the progress: ${hollowKrs.map(k => `“${k.title}” ${Number(k.current_value) || 0}/${k.target_value}`).join(', ')}`,
     body: <><b>{hollowKrs.length}</b> key result{s(hollowKrs.length)} marked done with no progress</>,
   });
   if (noDeadline) items.push({
     key: 'no-deadline', rank: 5, tone: 'warn', Icon: CalendarOff, onClick: onEditDeadline,
     title: 'A result without a date is a wish. Give it a deadline.',
+    text: 'The project result has no deadline',
     body: <>No deadline set</>, cta: <><CalendarPlus size={13} /> Set</>,
   });
   // Blocks without tasks and tasks without a block are one problem with one fix: the By-block view.
@@ -109,6 +117,10 @@ export default function ProjectRiskBanner({
       ].join('\n'),
       body: parts.length > 1 ? <>{parts[0]} · {parts[1]}</> : parts[0],
       cta: 'Sort →',
+      text: [
+        unsorted.length ? `${unsorted.length} task${s(unsorted.length)} not in any block: ${unsorted.slice(0, 6).map(a => `“${a.title}”`).join(', ')}` : '',
+        emptyBlocks.length ? `${emptyBlocks.length} block${s(emptyBlocks.length)} with no tasks: ${emptyBlocks.map(b => `“${b.result_title}”`).join(', ')}` : '',
+      ].filter(Boolean).join('; '),
     });
   }
 
@@ -139,6 +151,11 @@ export default function ProjectRiskBanner({
           </span>
         )}
       </div>
+      {onAskCoach && (
+        <button type="button" className="prb-ask" onClick={() => onAskCoach(items.map(i => i.text).filter(Boolean))}>
+          {hasCoach ? <><Wrench size={14} /> Fix this with me</> : <><Wand2 size={14} /> Set up a coach to fix this</>}
+        </button>
+      )}
     </div>
   );
 }
