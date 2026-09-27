@@ -1,15 +1,16 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
 import UsageBadge from '../components/UsageBadge';
 import { sttSupported, ttsSupported, startListening, stopListening, speak, cancelSpeak } from '../utils/speech';
+import { setPendingFile, MAX_UPLOAD_BYTES } from '../utils/pendingFile';
 import {
   Send, Globe, Plus, Trash2, MessageSquare, Sparkles, ChevronDown, ChevronRight,
   Settings as SettingsIcon, Zap, Wand2, Check, X, ExternalLink, Info,
-  Mic, Volume2, VolumeX, Radio, Square
+  Mic, Volume2, VolumeX, Radio, Square, Paperclip, FileText, Loader2, GanttChart, MessageCircle, FileUp
 } from 'lucide-react';
 import './AssistantPage.css';
 
@@ -49,9 +50,29 @@ function Markdown({ children }) {
   );
 }
 
+const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+const fmtChars = (n) => (n >= 1000 ? `${Math.round(n / 1000)}k chars` : `${n} chars`);
+const DEFAULT_FILE_QUESTION = 'What is in this file, and what should I do with it?';
+
+// A file chip on a user message (name + size; the text itself stays on the server).
+function FileChips({ files }) {
+  if (!Array.isArray(files) || !files.length) return null;
+  return (
+    <div className="asst-files">
+      {files.map((f, i) => (
+        <span key={i} className="asst-file" title={f.truncated ? 'Long file — only the first part was read' : f.name}>
+          <FileText size={13} /> <span className="asst-file-name">{f.name}</span>
+          {f.chars ? <i>{fmtChars(f.chars)}{f.truncated ? ' · first part' : ''}</i> : null}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function AssistantPage() {
   const { api } = useContext(AuthContext);
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   const [models, setModels] = useState([]);
   const [providers, setProviders] = useState([]);
@@ -71,6 +92,11 @@ function AssistantPage() {
   const [convMode, setConvMode] = useState(false);
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  // A file the user brought in: first choose (plan it / ask about it), then it rides on the next message.
+  const [attach, setAttach] = useState(null);          // { file, status: 'choose' | 'reading' | 'ready', data }
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef(null);
+  const dragDepth = useRef(0);
 
   const scrollRef = useRef(null);
   const abortRef = useRef(null);
@@ -128,7 +154,7 @@ function AssistantPage() {
       setConversationId(conv.id);
       setMessages((conv.messages || []).map(m => ({
         role: m.role, content: m.content, sources: m.sources || null,
-        tools: Array.isArray(m.tools) ? m.tools : [], dbId: m.id,
+        tools: Array.isArray(m.tools) ? m.tools : [], dbId: m.id, attachments: m.attachments || null,
       })));
       if (conv.model) setModelKey(conv.model);
     } catch { showToast('Failed to open conversation', 'error'); }
@@ -173,14 +199,43 @@ function AssistantPage() {
   };
   const dismissProposal = (mi, ti) => updateTool(mi, ti, { status: 'dismissed' }, true);
 
+  // ---------- files ----------
+  const chooseFile = (f) => {
+    if (!f) return;
+    if (f.size > MAX_UPLOAD_BYTES) { showToast('That file is over 10 MB.', 'error'); return; }
+    setAttach({ file: f, status: 'choose' });
+  };
+  const planIt = () => { setPendingFile(attach.file); navigate('/import'); };
+  const askAboutIt = async () => {
+    const f = attach.file;
+    setAttach({ file: f, status: 'reading' });
+    try {
+      const data = await api.extractFile(f);
+      setAttach(a => (a && a.file === f ? { file: f, status: 'ready', data } : a));
+    } catch (e) {
+      showToast(e.message || 'Could not read that file.', 'error');
+      setAttach(a => (a && a.file === f ? { file: f, status: 'choose' } : a));
+    }
+  };
+  const hasFiles = (e) => Array.from(e.dataTransfer?.types || []).includes('Files');
+  const dropProps = {
+    onDragEnter: (e) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth.current += 1; setDragging(true); },
+    onDragOver: (e) => { if (hasFiles(e)) e.preventDefault(); },
+    onDragLeave: (e) => { if (!hasFiles(e)) return; dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); },
+    onDrop: (e) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth.current = 0; setDragging(false); chooseFile(e.dataTransfer.files?.[0]); },
+  };
+
   const send = async (override) => {
-    const text = (typeof override === 'string' ? override : input).trim();
+    const ready = attach?.status === 'ready' ? attach.data : null;
+    const text = (typeof override === 'string' ? override : input).trim() || (ready ? DEFAULT_FILE_QUESTION : '');
     if (!text || streaming) return;
     if (!modelKey) { showToast('Pick a model first', 'error'); return; }
+    const attachments = ready ? [{ name: ready.name, kind: ready.kind, chars: ready.chars, truncated: ready.truncated, text: ready.text }] : undefined;
 
     cancelSpeak();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: text }, { role: 'assistant', content: '', sources: null, tools: [] }]);
+    if (ready) setAttach(null);
+    setMessages(prev => [...prev, { role: 'user', content: text, attachments: attachments?.map(({ text: _t, ...meta }) => meta) }, { role: 'assistant', content: '', sources: null, tools: [] }]);
     setStreaming(true);
     let full = '';
 
@@ -194,7 +249,7 @@ function AssistantPage() {
     });
 
     try {
-      const res = await api.aiChatStream({ conversationId: conversationIdRef.current, modelKey, message: text, webSearch, rpmMode, autoMode }, controller.signal);
+      const res = await api.aiChatStream({ conversationId: conversationIdRef.current, modelKey, message: text, webSearch, rpmMode, autoMode, attachments }, controller.signal);
       if (!res.ok || !res.body) {
         let msg = 'AI request failed';
         try { const j = await res.json(); msg = j.error || msg; } catch { /* ignore */ }
@@ -403,7 +458,14 @@ function AssistantPage() {
         <Link to="/settings" className="asst-settings-link"><SettingsIcon size={14} /> API keys &amp; settings</Link>
       </aside>
 
-      <section className="asst-main">
+      <section className={`asst-main ${dragging ? 'is-dragging' : ''}`} {...dropProps}>
+        {dragging && (
+          <div className="asst-dropzone" aria-hidden="true">
+            <FileUp size={30} />
+            <b>Drop your file</b>
+            <span>Then choose: turn it into a plan, or ask me about it</span>
+          </div>
+        )}
         <header className="asst-topbar">
           <div className="asst-model-picker">
             <button className="asst-model-btn" onClick={() => setModelMenuOpen(o => !o)}>
@@ -495,6 +557,7 @@ function AssistantPage() {
           {messages.map((m, i) => (
             <div key={i} className={`asst-msg ${m.role}`}>
               <div className="asst-msg-role">{m.role === 'user' ? 'You' : (selectedModel?.label || 'Assistant')}</div>
+              {m.role === 'user' && <FileChips files={m.attachments} />}
               {renderTools(m, i)}
               <div className="asst-msg-content">
                 {m.role === 'assistant'
@@ -535,9 +598,35 @@ function AssistantPage() {
             )}
           </div>
         )}
+        {attach && (
+          <div className={`asst-attach ${attach.status}`} role="status">
+            <span className="asst-attach-file">
+              {attach.status === 'reading' ? <Loader2 size={16} className="asst-spin" /> : <FileText size={16} />}
+              <span className="asst-attach-name">{attach.file.name}</span>
+              <i>{attach.status === 'ready' ? `${fmtChars(attach.data.chars)}${attach.data.truncated ? ' · first part' : ''} · attached to your next message` : attach.status === 'reading' ? 'Reading…' : fmtSize(attach.file.size)}</i>
+            </span>
+            {attach.status === 'choose' && (
+              <span className="asst-attach-actions">
+                <button type="button" className="asst-attach-btn plan" onClick={planIt} title="Open the planner: phases, tasks, dependencies, reminders — placed in your projects">
+                  <GanttChart size={14} /> Plan it
+                </button>
+                <button type="button" className="asst-attach-btn" onClick={askAboutIt} title="Read it and chat about it here">
+                  <MessageCircle size={14} /> Ask about it
+                </button>
+              </span>
+            )}
+            <button type="button" className="asst-attach-x" onClick={() => setAttach(null)} aria-label="Remove file" disabled={attach.status === 'reading'}><X size={14} /></button>
+          </div>
+        )}
         <div className="asst-composer">
+          <input ref={fileInputRef} type="file" className="asst-file-input" tabIndex={-1} aria-hidden="true"
+            onChange={e => { chooseFile(e.target.files?.[0]); e.target.value = ''; }} />
+          <button type="button" className="btn asst-clip" onClick={() => fileInputRef.current?.click()} disabled={streaming || attach?.status === 'reading'}
+            title="Attach a file — plan it, or ask about it" aria-label="Attach a file">
+            <Paperclip size={16} />
+          </button>
           <textarea className="asst-input"
-            placeholder={listening ? 'Listening…' : (selectedModel ? `Message ${selectedModel.label}…` : 'Select a model to begin…')}
+            placeholder={listening ? 'Listening…' : attach?.status === 'ready' ? `Ask about ${attach.file.name}… (or just send)` : (selectedModel ? `Message ${selectedModel.label}…` : 'Select a model to begin…')}
             value={input} onChange={e => setInput(e.target.value)} onKeyDown={onKeyDown} rows={1}
             disabled={!modelKey || streaming} />
           {sttSupported() && (
@@ -557,7 +646,7 @@ function AssistantPage() {
               <Square size={14} />
             </button>
           ) : (
-            <button className="btn btn-primary asst-send" onClick={() => send()} disabled={!input.trim() || !modelKey} aria-label="Send">
+            <button className="btn btn-primary asst-send" onClick={() => send()} disabled={(!input.trim() && attach?.status !== 'ready') || !modelKey} aria-label="Send">
               <Send size={16} />
             </button>
           )}

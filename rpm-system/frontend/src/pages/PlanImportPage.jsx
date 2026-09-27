@@ -11,6 +11,7 @@ import Picker from '../components/Picker';
 import PlanTimeline from '../components/plan/PlanTimeline';
 import { fmtDay, reminderUpcoming } from '../utils/planFormat';
 import TaskEditor from '../components/plan/TaskEditor';
+import { takePendingFile } from '../utils/pendingFile';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { schedulePlan } from '../utils/planSchedule';
 import './PlanImportPage.css';
@@ -66,6 +67,7 @@ export default function PlanImportPage() {
   const [elapsed, setElapsed] = useState(0);
   const abortRef = useRef(null);
   const inputRef = useRef(null);
+  const autoStart = useRef(false);                    // a file handed over from the Assistant / a global drop
 
   const [plan, setPlan] = useState(null);
   const [existing, setExisting] = useState({ categories: [], projects: [] });
@@ -92,6 +94,10 @@ export default function PlanImportPage() {
     }).catch(() => {});
     loadRecent();
     if (params.get('draft')) openImport(params.get('draft'));
+    else {
+      const handed = takePendingFile();
+      if (handed) { pick(handed); autoStart.current = true; }
+    }
     return () => abortRef.current?.abort();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -125,6 +131,21 @@ export default function PlanImportPage() {
     if (f.size > MAX_BYTES) { showToast('That file is over 10 MB.', 'error'); return; }
     setFile(f);
   };
+
+  // A file dropped on the orb (or anywhere outside the drop zone) while already here.
+  useEffect(() => {
+    const onFile = (e) => { if (stage !== 'drop') return; pick(e.detail); autoStart.current = true; };
+    window.addEventListener('rpm:plan-file', onFile);
+    return () => window.removeEventListener('rpm:plan-file', onFile);
+  }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Plan it" means go: start as soon as a usable model is known. With no model the file
+  // just waits on the drop screen, where the model picker explains what's missing.
+  useEffect(() => {
+    if (!autoStart.current || !file || stage !== 'drop' || !models.length || !models.some(m => m.key === modelKey)) return;
+    autoStart.current = false;
+    analyze();
+  }, [file, models, modelKey, stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const analyze = async () => {
     if (!file) return;

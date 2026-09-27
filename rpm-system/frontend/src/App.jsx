@@ -15,6 +15,7 @@ import CoachesPage from './pages/CoachesPage';
 import AssistantPage from './pages/AssistantPage';
 import PlanImportPage from './pages/PlanImportPage';
 import VoiceOrb from './components/VoiceOrb';
+import GlobalFileDrop from './components/GlobalFileDrop';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -348,6 +349,23 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       }
       return res;
     },
+    // Read a file's text for the Assistant ("Ask about it"). Same multipart + token-refresh path as the import.
+    extractFile: async (file) => {
+      const send = (token) => {
+        const fd = new FormData();
+        fd.append('file', file);
+        return fetch(`${API_BASE}/ai/extract`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd });
+      };
+      let res = await send(getToken());
+      if (res.status === 401) {
+        const newToken = await refreshTokenFn();
+        if (!newToken) { logout(); throw new Error('Session expired'); }
+        res = await send(newToken);
+      }
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Could not read that file.');
+      return body;
+    },
     applyImportPlan: (body) => authFetch(`${API_BASE}/ai/import/apply`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
     listImports: () => authFetch(`${API_BASE}/ai/imports`).then(r => r.json()),
     getImport: (id) => authFetch(`${API_BASE}/ai/imports/${id}`).then(r => r.json()),
@@ -608,6 +626,7 @@ function AppContent() {
         </Routes>
       </main>
       <VoiceOrb />
+      <GlobalFileDrop />
     </AppContext.Provider>
   );
 }

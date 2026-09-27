@@ -10,7 +10,7 @@ const aiKeys = require('./ai/keys');
 const { isConfigured: aiKeysConfigured } = require('./ai/crypto');
 const { runChat, AiError, friendlyError } = require('./ai/service');
 const { applyProposal, isUuid } = require('./ai/tools');
-const { buildHistory, buildActionLog, sanitizeClientMessages, MAX_MESSAGE_CHARS } = require('./ai/history');
+const { buildHistory, buildActionLog, sanitizeClientMessages, sanitizeAttachments, MAX_MESSAGE_CHARS, ATTACH_MAX_CHARS } = require('./ai/history');
 const { resolveTimezone, todayInTz } = require('./ai/context');
 const aiMemory = require('./ai/memory');
 const { extractText, ExtractError } = require('./ai/extract');
@@ -1192,6 +1192,7 @@ function openSse(req, res) {
 // Streaming chat (SSE). Persists the user + assistant messages.
 app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req, res) => {
   const { conversationId, modelKey, message, webSearch, rpmMode, autoMode, timezone } = req.body;
+  const attachments = sanitizeAttachments(req.body.attachments);
   if (!modelKey || !message || !String(message).trim()) {
     return res.status(400).json({ error: 'modelKey and message are required' });
   }
@@ -1209,23 +1210,23 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req, res) => {
     } else {
       const ins = await pool.query(
         'INSERT INTO ai_conversations (user_id, title, model) VALUES ($1, $2, $3) RETURNING id',
-        [req.userId, text.slice(0, 60), modelKey]
+        [req.userId, (attachments.length ? `📎 ${attachments[0].name} — ${text}` : text).slice(0, 60), modelKey]
       );
       convId = ins.rows[0].id;
     }
 
     const history = (await pool.query(
-      'SELECT role, content, tools FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at',
+      'SELECT role, content, tools, attachments FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at',
       [convId]
     )).rows;
 
     await pool.query(
-      'INSERT INTO ai_messages (conversation_id, role, content, model) VALUES ($1, $2, $3, $4)',
-      [convId, 'user', text, modelKey]
+      'INSERT INTO ai_messages (conversation_id, role, content, model, attachments) VALUES ($1, $2, $3, $4, $5)',
+      [convId, 'user', text, modelKey, attachments.length ? JSON.stringify(attachments) : null]
     );
 
-    // Prior turns (with a log of what the agent did in each) + this message.
-    const messages = buildHistory([...history, { role: 'user', content: text }]);
+    // Prior turns (with a log of what the agent did in each, and any attached files) + this message.
+    const messages = buildHistory([...history, { role: 'user', content: text, attachments }]);
     const tz = await resolveTimezone(pool, req.userId, timezone);
 
     const sse = openSse(req, res);
@@ -1295,6 +1296,27 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req, res) => {
 // File → Plan: upload any document, get a scheduled, placed RPM plan (preview), then apply.
 // ============================================================
 const planUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } }).single('file');
+
+// Read a file for the Assistant ("Ask about it"): text only, nothing stored until it's sent.
+app.post('/api/ai/extract', authenticateToken, aiLimiter, (req, res, next) => {
+  planUpload(req, res, (err) => {
+    if (err) return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'That file is over 10 MB.' : 'Upload failed.' });
+    next();
+  });
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Choose a file.' });
+  const name = String(req.file.originalname || 'file').slice(0, 200);
+  try {
+    const x = await extractText(req.file.buffer, name);
+    if (!x.text || !x.text.trim()) return res.status(422).json({ error: 'I couldn’t find any text in that file.' });
+    const text = x.text.slice(0, ATTACH_MAX_CHARS);
+    res.json({ name, kind: x.kind, chars: x.chars, truncated: x.truncated || text.length < x.text.length, text });
+  } catch (e) {
+    if (e instanceof ExtractError) return res.status(415).json({ error: e.message });
+    console.error('[extract]', e.message);
+    res.status(500).json({ error: 'Could not read that file.' });
+  }
+});
 
 app.post('/api/ai/import', authenticateToken, aiLimiter, (req, res, next) => {
   planUpload(req, res, (err) => {
@@ -1420,8 +1442,10 @@ app.get('/api/ai/conversations/:id', authenticateToken, async (req, res) => {
   try {
     const conv = await pool.query('SELECT id, title, model FROM ai_conversations WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
     if (!conv.rows[0]) return res.status(404).json({ error: 'Not found' });
-    const msgs = await pool.query('SELECT id, role, content, model, sources, tools, created_at FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at', [req.params.id]);
-    res.json({ ...conv.rows[0], messages: msgs.rows });
+    const msgs = await pool.query('SELECT id, role, content, model, sources, tools, attachments, created_at FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at', [req.params.id]);
+    // Attached files: the chip needs name/kind/size only — the text stays server-side.
+    const messages = msgs.rows.map(m => ({ ...m, attachments: Array.isArray(m.attachments) ? m.attachments.map(a => ({ name: a.name, kind: a.kind, chars: a.chars, truncated: a.truncated })) : null }));
+    res.json({ ...conv.rows[0], messages });
   } catch (error) { console.error('[ai] conversation error:', error); res.status(500).json({ error: 'Failed' }); }
 });
 

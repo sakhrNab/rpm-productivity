@@ -469,6 +469,8 @@ CREATE TABLE IF NOT EXISTS ai_messages (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages (conversation_id, created_at);
+-- Files attached to a user message ("Ask about it"): [{ name, kind, chars, truncated, text }].
+ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS attachments JSONB;
 
 -- Long-term memory for the main assistant: durable facts the user has told it.
 CREATE TABLE IF NOT EXISTS ai_memory (
