@@ -205,3 +205,15 @@
 }
 .vorb-root > .vorb-chips { pointer-events: none; }
 .vorb-chips > * { pointer-events: auto; }
+
+/* The hands-free chip floats above the orb and used to cover page buttons near the
+   bottom-right (attach ✕, refresh, row actions). It now appears only when it's needed:
+   while hands-free is ON (it doubles as the status), or when you reach for the orb —
+   hover/focus with a mouse, or with the orb's panel open on touch screens. */
+.vorb-chip { transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s, color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast); }
+.vorb-chip:not(.on) { opacity: 0; visibility: hidden; transform: translateY(4px); }
+@media (hover: hover) {
+  .vorb-root:hover .vorb-chip, .vorb-root:focus-within .vorb-chip { opacity: 1; visibility: visible; transform: none; }
+}
+.vorb-root:has(.vorb-panel) .vorb-chip { opacity: 1; visibility: visible; transform: none; }
+@media (prefers-reduced-motion: reduce) { .vorb-chip { transition: none; } }

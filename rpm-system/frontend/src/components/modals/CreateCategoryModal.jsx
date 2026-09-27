@@ -2,8 +2,9 @@ import { useState, useContext } from 'react';
 import { AuthContext } from '../../App';
 import { 
   Target, Heart, DollarSign, Users, Activity, Home, Zap, Inbox,
-  Star, Briefcase, Book, Music, Camera, Plane, Coffee, Gift
+  Star, Briefcase, Book, Music, Camera, Plane, Coffee, Gift, Check, Palette, Shapes
 } from 'lucide-react';
+import ModalHead from './ModalHead';
 import './CreateCategoryModal.css';
 
 const COLORS = [
@@ -59,77 +60,98 @@ function CreateCategoryModal({ onClose, onSuccess, initialData }) {
     }
   };
 
+  const SelectedIcon = (ICONS.find(i => i.id === formData.icon) || ICONS[0]).component;
+  const nameLen = formData.name.length;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 className="modal-title">{isEditing ? 'Edit category' : 'Create a new category'}</h3>
-        </div>
+      <div className="modal ccm-modal" style={{ '--cat': formData.color }} onClick={e => e.stopPropagation()}>
+        <ModalHead
+          icon={SelectedIcon}
+          title={isEditing ? 'Edit category' : 'New category'}
+          subtitle="An area of life your projects and actions roll up to."
+          onClose={onClose}
+          badgeStyle={{
+            color: formData.color,
+            background: `linear-gradient(135deg, ${formData.color}38, ${formData.color}10)`,
+            borderColor: `${formData.color}66`,
+          }}
+        />
 
         <form onSubmit={handleSubmit}>
-          <div className="modal-body">
+          <div className="modal-body mk-body">
             {/* Name */}
-            <div className="form-group">
-              <label className="form-label">NAME</label>
+            <label className="mk-field">
+              <span className="form-label">
+                Name
+                <span className={`mk-count ccm-count ${nameLen >= 45 ? 'near' : ''}`}>{nameLen}/50</span>
+              </span>
               <input
                 type="text"
-                className="form-input ccm-name-input"
-                placeholder=""
+                className="form-input mk-hero"
+                placeholder="e.g. Health & Fitness"
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                 maxLength={50}
                 autoFocus
               />
-              <small className="ccm-hint">
-                UP TO 50 CHARACTERS
-              </small>
-            </div>
+            </label>
 
             {/* Color */}
-            <div className="form-group">
-              <label className="form-label">COLOR</label>
-              <div className="color-picker">
+            <div className="mk-section">
+              <p className="ui-kicker"><Palette size={14} /> Colour</p>
+              <div className="ccm-swatches" role="radiogroup" aria-label="Colour">
                 {COLORS.map(color => (
-                  <div
+                  <button
+                    type="button"
                     key={color}
-                    className={`color-option ${formData.color === color ? 'selected' : ''}`}
-                    style={{ background: color }}
+                    role="radio"
+                    aria-checked={formData.color === color}
+                    aria-label={color}
+                    className={`ccm-swatch ${formData.color === color ? 'selected' : ''}`}
+                    style={{ '--sw': color }}
                     onClick={() => setFormData({ ...formData, color })}
-                  />
+                  >
+                    {formData.color === color && <Check size={14} strokeWidth={3} />}
+                  </button>
                 ))}
               </div>
             </div>
 
             {/* Icon */}
-            <div className="form-group">
-              <label className="form-label">ICON</label>
-              <div className="icon-picker">
+            <div className="mk-section">
+              <p className="ui-kicker"><Shapes size={14} /> Icon</p>
+              <div className="ccm-icons" role="radiogroup" aria-label="Icon">
                 {ICONS.map(icon => {
                   const IconComponent = icon.component;
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={icon.id}
-                      className={`icon-option ${formData.icon === icon.id ? 'selected' : ''}`}
+                      role="radio"
+                      aria-checked={formData.icon === icon.id}
+                      aria-label={icon.id}
+                      className={`ccm-icon ${formData.icon === icon.id ? 'selected' : ''}`}
                       onClick={() => setFormData({ ...formData, icon: icon.id })}
                     >
                       <IconComponent size={18} />
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             </div>
           </div>
 
-          <div className="modal-footer">
+          <div className="modal-footer mk-foot">
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button 
-              type="submit" 
-              className="btn btn-primary" 
+            <button
+              type="submit"
+              className="btn btn-primary"
               disabled={loading || !formData.name.trim()}
             >
-              {loading ? 'Saving...' : (isEditing ? 'Save changes' : 'Create category')}
+              <Check size={16} /> {loading ? 'Saving...' : (isEditing ? 'Save changes' : 'Create category')}
             </button>
           </div>
         </form>

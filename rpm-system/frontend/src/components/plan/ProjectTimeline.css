@@ -1,41 +1,98 @@
-.ptv { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
-.ptv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.ptv-seg { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-primary); }
-.ptv-seg button, .ptv-toggle {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 12px; border-radius: 9px;
-  border: 0; background: transparent; color: var(--text-secondary); font: 500 0.82rem var(--font-body); cursor: pointer;
+/* Project timeline wrapper: toolbar, conflict alert, undated tray.
+   ptv-seg / ptv-tray / ptv-tray-head / ptv-chips / ptv-chip / ptv-spin are also used by Roadmap.jsx. */
+.ptv { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+/* ---------- toolbar ---------- */
+.ptv-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px; border-radius: 16px; border: 1px solid var(--border-primary);
+  background: color-mix(in srgb, var(--bg-card) 62%, transparent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
-.ptv-seg button.on { background: var(--bg-card-hover); color: var(--text-primary); box-shadow: inset 0 0 0 1px rgba(78, 205, 196, 0.45); }
-.ptv-toggle { border: 1px solid var(--border-primary); border-radius: 12px; }
-.ptv-toggle.on { color: #fff; border-color: transparent; background: linear-gradient(90deg, rgba(255, 105, 180, 0.35), rgba(78, 205, 196, 0.35)); }
-.ptv-stat { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted); }
+.ptv-bar-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.ptv-bar-status { justify-content: flex-end; padding-right: 4px; }
+
+.ptv-seg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 12px; background: rgba(0, 0, 0, 0.28); border: 1px solid var(--border-primary); }
+.ptv-seg button, .ptv-toggle {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 13px; border-radius: 9px;
+  border: 0; background: transparent; color: var(--text-secondary); font: 600 0.8rem var(--font-body); cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+.ptv-seg button:hover { color: var(--text-primary); }
+.ptv-seg button.on { background: var(--bg-card-hover); color: var(--text-primary); box-shadow: inset 0 0 0 1px rgba(78, 205, 196, 0.5); }
+.ptv-toggle { min-height: 38px; border: 1px solid var(--border-primary); border-radius: 12px; background: rgba(0, 0, 0, 0.18); }
+.ptv-toggle:hover { color: var(--text-primary); border-color: rgba(255, 105, 180, 0.5); }
+.ptv-toggle svg { color: var(--ui-ai, #ff69b4); }
+.ptv-toggle.on { color: #fff; border-color: transparent; background: linear-gradient(90deg, rgba(255, 105, 180, 0.38), rgba(78, 205, 196, 0.34)); box-shadow: 0 0 18px -4px rgba(255, 105, 180, 0.55); }
+.ptv-toggle.on svg { color: #fff; }
+.ptv-seg button:focus-visible, .ptv-toggle:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 1px; }
+
+.ptv-stat { display: inline-flex; align-items: center; gap: 6px; font: 500 0.78rem var(--ui-mono, 'Space Grotesk'); color: var(--text-muted); white-space: nowrap; }
+.ptv-stat b { color: var(--text-primary); font-weight: 700; }
+.ptv-stat svg { color: var(--accent-cyan); }
+.ptv-meter { position: relative; width: 54px; height: 4px; margin-left: 2px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.ptv-meter i { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: linear-gradient(90deg, #4ecdc4, #7ee0d8); box-shadow: 0 0 8px rgba(78, 205, 196, 0.5); }
+.ptv-saving { color: var(--text-secondary); }
+
 .ptv-undo {
-  display: inline-flex; align-items: center; gap: 10px; margin-left: auto; padding: 6px 6px 6px 12px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 10px; max-width: 100%; min-width: 0; padding: 4px 4px 4px 12px; border-radius: 999px;
   background: rgba(78, 205, 196, 0.12); border: 1px solid rgba(78, 205, 196, 0.35); color: var(--text-primary); font-size: 0.8rem;
   animation: ptv-in 0.2s ease;
 }
-.ptv-undo button { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 4px 10px; border: 0; border-radius: 999px; background: var(--accent-cyan); color: #0a1628; font: 700 0.76rem var(--font-body); cursor: pointer; }
+.ptv-undo-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ptv-undo button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px 12px; border: 0; border-radius: 999px; background: var(--accent-cyan); color: var(--ui-ink, #06121f); font: 700 0.76rem var(--font-body); cursor: pointer; }
 @keyframes ptv-in { from { opacity: 0; transform: translateY(-4px); } }
+
+/* ---------- conflict alert ---------- */
 .ptv-alert {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
-  background: rgba(239, 83, 80, 0.1); border: 1px solid rgba(239, 83, 80, 0.35); color: #ffc9c7; font-size: 0.86rem;
+  position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px 10px 16px; border-radius: 14px; overflow: hidden;
+  background: radial-gradient(420px 120px at 0% 50%, rgba(255, 107, 129, 0.14), transparent 70%), rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 107, 129, 0.32); color: #ffc9cf; font-size: 0.86rem;
 }
-.ptv-alert > svg { color: #ef5350; flex: 0 0 auto; }
-.ptv-alert span { flex: 1 1 260px; min-width: 0; }
+.ptv-alert::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: #ff6b81; box-shadow: 0 0 12px rgba(255, 107, 129, 0.8); }
+.ptv-alert > svg { color: #ff6b81; flex: 0 0 auto; }
+.ptv-alert-text { flex: 1 1 240px; min-width: 0; line-height: 1.45; }
+.ptv-alert-text b { color: #ff8a9b; }
 .ptv-alert button, .ptv-tray-head button {
   display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: 10px;
-  border: 1px solid var(--border-primary); background: var(--bg-card); color: var(--text-primary); font: 600 0.8rem var(--font-body); cursor: pointer;
+  border: 1px solid var(--border-primary); background: rgba(0, 0, 0, 0.25); color: var(--text-primary); font: 600 0.8rem var(--font-body); cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease;
 }
-.ptv-alert button:hover:not(:disabled), .ptv-tray-head button:hover:not(:disabled) { border-color: var(--accent-cyan); }
+.ptv-alert button svg, .ptv-tray-head button svg { color: var(--accent-cyan); }
+.ptv-alert button:hover:not(:disabled), .ptv-tray-head button:hover:not(:disabled) { border-color: var(--accent-cyan); background: rgba(78, 205, 196, 0.1); }
 .ptv-alert button:disabled, .ptv-tray-head button:disabled { opacity: 0.5; cursor: default; }
-.ptv-hint { margin: 0; font-size: 0.78rem; color: var(--text-muted); }
-.ptv-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 24px; border-radius: 16px; border: 1px dashed var(--border-primary); color: var(--text-secondary); }
-.ptv-link { display: inline-flex; align-items: center; gap: 6px; color: var(--accent-cyan); font-weight: 600; }
-.ptv-tray { padding: 12px; border-radius: 14px; border: 1px solid var(--border-primary); background: color-mix(in srgb, var(--bg-card) 60%, transparent); }
-.ptv-tray-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-size: 0.86rem; color: var(--text-secondary); }
+
+.ptv-hint { margin: 0; padding: 0 4px; font-size: 0.78rem; color: var(--text-muted); }
+.ptv-empty {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; padding: 28px 18px; text-align: center;
+  border-radius: 16px; border: 1px dashed rgba(255, 255, 255, 0.14); color: var(--text-secondary);
+}
+.ptv-empty > svg { color: var(--accent-cyan); }
+.ptv-link { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(78, 205, 196, 0.35); background: rgba(78, 205, 196, 0.08); color: var(--accent-cyan); font-weight: 600; text-decoration: none; }
+.ptv-link:hover { background: rgba(78, 205, 196, 0.16); }
+
+/* ---------- undated tray ---------- */
+.ptv-tray { padding: 12px 14px; border-radius: 16px; border: 1px dashed rgba(255, 255, 255, 0.14); background: rgba(0, 0, 0, 0.16); }
+.ptv-tray-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-size: 0.84rem; color: var(--text-secondary); }
+.ptv-tray-head > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.ptv-tray-head > span > svg { color: var(--ui-warn, #ffb74d); flex: 0 0 auto; }
+.ptv-tray-head b { font-family: var(--ui-mono, 'Space Grotesk'); color: var(--ui-warn, #ffb74d); }
 .ptv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.ptv-chip { max-width: 100%; min-height: 32px; padding: 5px 12px; border-radius: 999px; border: 1px dashed var(--border-primary); background: transparent; color: var(--text-secondary); font: 500 0.78rem var(--font-body); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ptv-chip:hover { color: var(--text-primary); border-color: var(--accent-cyan); }
+.ptv-chip {
+  display: inline-flex; align-items: center; max-width: 100%; min-height: 32px; padding: 5px 12px; border-radius: 999px;
+  border: 1px dashed rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.03); color: var(--text-secondary);
+  font: 500 0.78rem var(--font-body); text-decoration: none; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+.ptv-chip:hover { color: var(--text-primary); border-color: var(--accent-cyan); border-style: solid; }
 .ptv-spin { animation: ptv-spin 1s linear infinite; }
 @keyframes ptv-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  .ptv-bar { padding: 6px; }
+  .ptv-bar-group:first-child { width: 100%; }
+  .ptv-seg { flex: 1 1 auto; }
+  .ptv-seg button { flex: 1 1 0; justify-content: center; padding: 6px 8px; }
+  .ptv-bar-status { width: 100%; justify-content: space-between; padding: 0 4px 2px; }
+  .ptv-undo { width: 100%; }
+}
 @media (prefers-reduced-motion: reduce) { .ptv-spin, .ptv-undo { animation: none; } }

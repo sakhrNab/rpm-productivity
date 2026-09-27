@@ -1,23 +1,47 @@
-.task-reminders { display: flex; flex-direction: column; gap: 8px; }
-.tr-hint { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text-muted); margin: 0; }
-
-.tr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.tr-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: var(--radius-sm); background: var(--bg-hover); border: 1px solid var(--border-primary); }
-.tr-item-icon { flex-shrink: 0; color: var(--accent-cyan); }
-.tr-when { flex: 1; min-width: 0; font-size: 0.84rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tr-icon { flex-shrink: 0; display: inline-flex; padding: 4px; border: none; background: transparent; color: var(--text-muted); border-radius: 6px; cursor: pointer; }
-.tr-icon:hover { color: var(--accent-cyan); background: rgba(78,205,196,0.12); }
-.tr-del:hover { color: var(--accent-red); background: rgba(255,107,107,0.12); }
-.tr-edit { flex: 1; min-width: 0; font-size: 0.8rem; padding: 5px 6px; }
-.tr-save { flex-shrink: 0; padding: 5px 12px; font-size: 0.78rem; font-weight: 600; border: none; border-radius: 6px; background: var(--accent-cyan); color: #04231f; cursor: pointer; }
-
-.tr-add { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.tr-preset {
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 5px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 500;
-  background: var(--bg-card); border: 1px solid var(--border-primary); color: var(--text-secondary); cursor: pointer;
+/* Reminder editor for one task (inside the action modal). */
+.task-reminders { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tr-hint {
+  display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 14px; border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.14); font-size: 0.84rem; color: var(--text-muted);
 }
-.tr-preset:hover:not(:disabled) { border-color: var(--accent-cyan); color: var(--text-primary); }
-.tr-preset:disabled { opacity: 0.5; cursor: default; }
-.tr-custom { display: inline-flex; align-items: center; gap: 6px; }
-.tr-custom-in { font-size: 0.76rem; padding: 4px 6px; }
+.tr-hint svg { flex: 0 0 auto; color: var(--accent-cyan); }
+
+.tr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tr-item {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 6px 4px 8px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-primary); border-left: 3px solid var(--accent-cyan);
+}
+.tr-item-icon {
+  flex: 0 0 auto; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px;
+  color: var(--accent-cyan); background: rgba(78, 205, 196, 0.12);
+}
+.tr-when { flex: 1; min-width: 0; font: 500 0.86rem var(--ui-mono); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-kind { flex: 0 0 auto; font: 600 0.64rem var(--ui-mono); letter-spacing: 0.1em; text-transform: uppercase; color: #b9a4e8; }
+.tr-icon {
+  flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid transparent;
+  background: transparent; color: var(--text-muted); border-radius: 9px; cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.tr-icon:hover { color: var(--accent-cyan); border-color: rgba(78, 205, 196, 0.4); }
+.tr-del:hover { color: #ff8a9b; border-color: rgba(255, 107, 129, 0.45); background: rgba(255, 107, 129, 0.08); }
+.task-reminders .tr-item .tr-edit.form-input { flex: 1; min-width: 0; padding: 7px 10px; font-size: 0.86rem; color-scheme: dark; }
+.tr-save {
+  flex: 0 0 auto; min-height: 36px; padding: 0 14px; border: 0; border-radius: 9px; cursor: pointer;
+  background: var(--ui-grad); color: var(--ui-ink); font: 600 0.82rem var(--font-body);
+}
+
+.tr-add { display: flex; flex-direction: column; gap: 8px; }
+.tr-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.tr-preset {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 0 12px; border-radius: 999px;
+  font: 500 0.8rem var(--font-body); background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-primary);
+  color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.tr-preset svg { color: var(--accent-cyan); }
+.tr-preset:hover:not(:disabled) { border-color: rgba(78, 205, 196, 0.5); color: var(--text-primary); background: rgba(78, 205, 196, 0.06); }
+.tr-preset:disabled { opacity: 0.45; cursor: not-allowed; }
+.tr-custom { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.task-reminders .tr-custom .tr-custom-in.form-input { flex: 1; min-width: 0; padding: 8px 12px; font: 500 0.86rem var(--ui-mono); color-scheme: dark; }
+.tr-add-btn { flex: 0 0 auto; border-radius: 10px; }
+@media (max-width: 640px) {
+  .task-reminders .tr-custom .tr-custom-in.form-input, .task-reminders .tr-item .tr-edit.form-input { font-size: 16px; }
+}

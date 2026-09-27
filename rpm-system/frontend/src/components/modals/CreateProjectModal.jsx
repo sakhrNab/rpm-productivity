@@ -1,6 +1,9 @@
 import { useState, useContext } from 'react';
 import { AuthContext } from '../../App';
+import { FolderKanban, Compass, Target, Heart, Plus, Check } from 'lucide-react';
 import CreateCategoryModal from './CreateCategoryModal';
+import ModalHead from './ModalHead';
+import Picker from '../Picker';
 import './CreateProjectModal.css';
 
 function CreateProjectModal({ onClose, onSuccess, categories = [], initialData = {}, onCategoriesRefresh }) {
@@ -11,13 +14,8 @@ function CreateProjectModal({ onClose, onSuccess, categories = [], initialData =
     ultimate_purpose: initialData.ultimate_purpose || '',
     category_id: initialData.category_id || '',
   });
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Debug: Log categories
-  console.log('CreateProjectModal - Categories received:', categories);
-  console.log('CreateProjectModal - Categories count:', categories?.length || 0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,8 +38,6 @@ function CreateProjectModal({ onClose, onSuccess, categories = [], initialData =
     }
   };
 
-  const selectedCategory = categories.find(c => c.id === formData.category_id);
-
   const handleCategoryCreated = async (newCategory) => {
     // Close category modal first
     setShowCategoryModal(false);
@@ -57,141 +53,91 @@ function CreateProjectModal({ onClose, onSuccess, categories = [], initialData =
     }
   };
 
+  const isEdit = Boolean(initialData.id);
+  const NEW_CATEGORY = '__new_category__';
+  const categoryOptions = [
+    ...categories.map(cat => ({ value: cat.id, label: cat.name, icon: <span className="mk-dot" style={{ '--c': cat.color }} /> })),
+    { value: NEW_CATEGORY, label: 'Create new category', icon: <Plus size={14} className="cpm-new-icon" />, group: categories.length ? 'New' : undefined },
+  ];
+  const missing = [!formData.name.trim() && 'a name', !formData.category_id && 'a category'].filter(Boolean);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 className="modal-title">{initialData.id ? 'Edit Project' : 'Create a new Project'}</h3>
-        </div>
+      <div className="modal cpm-modal" onClick={e => e.stopPropagation()}>
+        <ModalHead
+          icon={FolderKanban}
+          title={isEdit ? 'Edit project' : 'New project'}
+          subtitle="Name it, then anchor it to a result and a reason."
+          onClose={onClose}
+        />
 
         <form onSubmit={handleSubmit}>
-          <div className="modal-body">
+          <div className="modal-body mk-body">
             {/* Name */}
-            <div className="form-group">
-              <label className="form-label">NAME</label>
+            <label className="mk-field">
+              <span className="form-label">Name</span>
               <input
                 type="text"
-                className="form-input cpm-name-input"
-                placeholder="Name of Project"
+                className="form-input mk-hero"
+                placeholder="Name of project"
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                 autoFocus
               />
-            </div>
-
-            {/* Ultimate Result */}
-            <div className="form-group">
-              <label className="form-label">ULTIMATE RESULT</label>
-              <input
-                type="text"
-                className="form-input cpm-sub-input"
-                placeholder="What you'll gain from completing this Project"
-                value={formData.ultimate_result}
-                onChange={e => setFormData({ ...formData, ultimate_result: e.target.value })}
-              />
-            </div>
-
-            {/* Ultimate Purpose */}
-            <div className="form-group">
-              <label className="form-label">ULTIMATE PURPOSE</label>
-              <input
-                type="text"
-                className="form-input cpm-sub-input"
-                placeholder="Ultimate purpose for completing this Project"
-                value={formData.ultimate_purpose}
-                onChange={e => setFormData({ ...formData, ultimate_purpose: e.target.value })}
-              />
-            </div>
+            </label>
 
             {/* Category */}
-            <div className="form-group">
-              <label className="form-label">CHOOSE CATEGORY</label>
-              <div className="dropdown cpm-relative">
-                <button
-                  type="button"
-                  className="dropdown-trigger"
-                  onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                  style={{ 
-                    width: '200px',
-                    justifyContent: 'flex-start',
-                    background: selectedCategory ? selectedCategory.color + '10' : 'var(--bg-card)'
-                  }}
-                >
-                  {selectedCategory && (
-                    <span style={{ 
-                      width: 16, 
-                      height: 16, 
-                      borderRadius: '4px', 
-                      background: selectedCategory.color,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '10px'
-                    }}>
-                      ≡
-                    </span>
-                  )}
-                  <span>{selectedCategory?.name || 'Select Category'}</span>
-                </button>
-                {showCategoryDropdown && (
-                  <div className="dropdown-menu cpm-menu">
-                    {categories && categories.length > 0 ? (
-                      categories.map(cat => (
-                        <div
-                          key={cat.id}
-                          className="dropdown-item"
-                          onClick={() => {
-                            console.log('Category selected:', cat.name);
-                            setFormData({ ...formData, category_id: cat.id });
-                            setShowCategoryDropdown(false);
-                          }}
-                        >
-                          <span style={{ 
-                            width: 16, 
-                            height: 16, 
-                            borderRadius: '4px', 
-                            background: cat.color,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '10px'
-                          }}>
-                            ≡
-                          </span>
-                          {cat.name}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="dropdown-item cpm-empty-item">
-                        No categories available
-                      </div>
-                    )}
-                    <div
-                      className="dropdown-item cpm-create-item"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowCategoryDropdown(false);
-                        setShowCategoryModal(true);
-                      }}
-                    >
-                      + Create new category
-                    </div>
-                  </div>
-                )}
-              </div>
+            <div className="mk-field">
+              <span className="form-label">Category</span>
+              <Picker
+                value={formData.category_id}
+                options={categoryOptions}
+                onChange={v => {
+                  if (v === NEW_CATEGORY) { setShowCategoryModal(true); return; }
+                  setFormData({ ...formData, category_id: v });
+                }}
+                placeholder={categories.length ? 'Select category' : 'No categories yet'}
+                header="Category"
+              />
+            </div>
+
+            {/* The why */}
+            <div className="mk-section">
+              <p className="ui-kicker"><Compass size={14} /> Result &amp; purpose</p>
+              <label className="mk-field">
+                <span className="form-label cpm-label-result"><Target size={13} /> Ultimate result</span>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="What you'll gain from completing this project"
+                  value={formData.ultimate_result}
+                  onChange={e => setFormData({ ...formData, ultimate_result: e.target.value })}
+                />
+              </label>
+              <label className="mk-field">
+                <span className="form-label cpm-label-purpose"><Heart size={13} /> Ultimate purpose</span>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Why it matters to you"
+                  value={formData.ultimate_purpose}
+                  onChange={e => setFormData({ ...formData, ultimate_purpose: e.target.value })}
+                />
+              </label>
             </div>
           </div>
 
-          <div className="modal-footer">
+          <div className="modal-footer mk-foot">
+            {missing.length > 0 && <span className="mk-foot-note">Needs {missing.join(' and ')}</span>}
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button 
-              type="submit" 
-              className="btn btn-primary" 
+            <button
+              type="submit"
+              className="btn btn-primary"
               disabled={loading || !formData.name.trim() || !formData.category_id}
             >
-              {loading ? (initialData.id ? 'Updating...' : 'Creating...') : (initialData.id ? 'Update Project' : 'Create Project')}
+              <Check size={16} /> {loading ? (isEdit ? 'Updating...' : 'Creating...') : (isEdit ? 'Update project' : 'Create project')}
             </button>
           </div>
         </form>
@@ -199,7 +145,7 @@ function CreateProjectModal({ onClose, onSuccess, categories = [], initialData =
 
       {/* Create Category Modal */}
       {showCategoryModal && (
-        <CreateCategoryModal 
+        <CreateCategoryModal
           onClose={() => setShowCategoryModal(false)}
           onSuccess={handleCategoryCreated}
         />

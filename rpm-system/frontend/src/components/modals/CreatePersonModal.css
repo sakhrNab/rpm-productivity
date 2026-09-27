@@ -1,0 +1,3 @@
+/* Person modal — contents use the shared kit (modalKit.css) */
+.modal.cpe-modal { max-width: 560px; }
+.mk-help.cpe-invite { display: flex; align-items: center; gap: 7px; color: #9fe8e2; }

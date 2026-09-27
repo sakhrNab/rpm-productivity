@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
-import { Star, Check, Clock, FolderOpen, Calendar, MoreVertical, Pencil, Trash2, ExternalLink, Flag, Lock, GitBranch, Bell } from 'lucide-react';
+import { Star, Check, Clock, Calendar, MoreVertical, Pencil, Trash2, ExternalLink, Flag, Lock, GitBranch, Bell } from 'lucide-react';
 import { playDone } from '../utils/sound';
 import './ActionRow.css';
 
 const PRIORITY = {
-  1: { label: 'Low', cls: 'low', color: 'var(--accent-cyan)' },
-  2: { label: 'Med', cls: 'med', color: 'var(--accent-orange)' },
-  3: { label: 'High', cls: 'high', color: 'var(--accent-red)' },
+  1: { label: 'Low', cls: 'low' },
+  2: { label: 'Med', cls: 'med' },
+  3: { label: 'High', cls: 'high' },
 };
 const PRIORITY_OPTS = [
   { value: 3, label: 'High', cls: 'high' },
@@ -67,7 +67,8 @@ function toLocalInput(iso) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete, onChangePriority, onRemind, reminders = [], onDeleteReminder, onUpdateReminder }) {
+// hideToday: on a single-day list (My Day) every row would say "Today" — drop that chip.
+function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete, onChangePriority, onRemind, reminders = [], onDeleteReminder, onUpdateReminder, hideToday = false }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [prioOpen, setPrioOpen] = useState(false);
@@ -105,179 +106,204 @@ function ActionRow({ action, onToggleComplete, onToggleStar, onEdit, onDelete, o
   };
 
   const prio = PRIORITY[action.priority];
-  const stripeColor = prio ? prio.color : 'transparent';
+  const pLevel = prio ? action.priority : 0;
+  const done = !!action.is_completed;
+  const dateStr = action.scheduled_date ? prettyDate(action.scheduled_date) : null;
+  const showDate = !(hideToday && dateStr === 'Today');
+  const catColor = action.category_color || 'var(--accent-pink)';
+  const projColor = projectColor(action.project_id);
 
   return (
-    <div className="action-item" style={{ borderLeft: `3px solid ${stripeColor}` }}>
-      <div
-        className={`action-checkbox ${action.is_completed ? 'completed' : ''}`}
+    <div className={`ar-row p${pLevel} ${done ? 'is-done' : ''}`}>
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={done}
+        aria-label={done ? 'Mark as not done' : 'Mark as done'}
+        className={`ar-check ${done ? 'on' : ''}`}
         onClick={() => { if (!action.is_completed) playDone(); onToggleComplete(action); }}
       >
-        {action.is_completed && <Check size={12} />}
-      </div>
+        <Check size={14} strokeWidth={3} />
+      </button>
 
-      <div className="action-content ar-content" onClick={() => onEdit(action)} title="Open action">
-        <div className={`action-title ${action.is_completed ? 'completed' : ''}`}>
-          {action.title}
-        </div>
-        <div className="action-meta">
+      <div className="ar-main" onClick={() => onEdit(action)} title="Open action">
+        <div className="ar-title">{action.title}</div>
+        <div className="ar-meta">
           {/* Priority — inline, click to change */}
           {onChangePriority ? (
             <span className="ar-prio-wrap" ref={prioRef} onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
-                className={`ar-prio ${prio ? `ar-prio-${prio.cls}` : 'ar-prio-none'} ar-prio-btn`}
+                className={`ar-chip ar-prio ar-prio-${prio ? prio.cls : 'none'}`}
                 onClick={() => setPrioOpen(v => !v)}
                 title="Set priority"
+                aria-haspopup="listbox"
+                aria-expanded={prioOpen}
               >
                 <Flag size={11} /> {prio ? prio.label : 'Priority'}
               </button>
               {prioOpen && (
-                <div className="ar-prio-menu">
-                  {PRIORITY_OPTS.map(o => (
-                    <button
-                      key={o.value}
-                      type="button"
-                      className={`ar-prio-opt ar-prio-${o.cls} ${action.priority === o.value ? 'active' : ''}`}
-                      onClick={() => { setPrioOpen(false); onChangePriority(action, o.value); }}
-                    >
-                      <Flag size={11} /> {o.label}
-                    </button>
-                  ))}
+                <div className="ar-pop ar-prio-menu" role="listbox">
+                  <div className="ar-pop-head">Priority</div>
+                  {PRIORITY_OPTS.map(o => {
+                    const sel = (action.priority || 0) === o.value;
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        role="option"
+                        aria-selected={sel}
+                        className={`ar-pop-opt ar-prio-opt ar-prio-${o.cls} ${sel ? 'active' : ''}`}
+                        onClick={() => { setPrioOpen(false); onChangePriority(action, o.value); }}
+                      >
+                        <i className="ar-prio-dot" /> {o.label}
+                        {sel && <Check size={13} className="ar-pop-check" />}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </span>
           ) : prio && (
-            <span className={`ar-prio ar-prio-${prio.cls}`}><Flag size={11} /> {prio.label}</span>
+            <span className={`ar-chip ar-prio ar-prio-${prio.cls}`}><Flag size={11} /> {prio.label}</span>
           )}
 
-          {/* Category (real color) + project (distinguishable color) */}
-          {action.category_name && (
-            <span className="ar-cat" style={{ color: action.category_color || 'var(--accent-pink)', borderColor: (action.category_color || 'var(--accent-pink)') + '66', background: (action.category_color || 'var(--accent-pink)') + '1f' }}>
-              {action.category_name}
+          {/* Project (distinguishable color), else the category (real color) */}
+          {action.project_name ? (
+            <span className="ar-chip ar-proj" style={{ '--c': projColor }} title={action.category_name ? `${action.category_name} · ${action.project_name}` : action.project_name}>
+              <i className="ar-dot" /> {action.project_name}
             </span>
-          )}
-          {action.project_name && (
-            <span className="ar-proj" style={{ color: projectColor(action.project_id), borderColor: projectColor(action.project_id) + '55' }}>
-              <FolderOpen size={11} /> {action.project_name}
+          ) : action.category_name && (
+            <span className="ar-chip ar-cat" style={{ '--c': catColor }}>
+              <i className="ar-dot" /> {action.category_name}
             </span>
           )}
 
           {action.scheduled_date
-            ? <span><Calendar size={12} /> {prettyDate(action.scheduled_date)}</span>
-            : <span className="ar-unscheduled"><Calendar size={12} /> unscheduled</span>}
-          <span><Clock size={12} /> {prettyDuration(action.duration_hours, action.duration_minutes)}</span>
+            ? showDate && <span className="ar-chip ar-when"><Calendar size={11} /> {dateStr}</span>
+            : <span className="ar-chip ar-when ar-unscheduled"><Calendar size={11} /> Unscheduled</span>}
+          {(Number(action.duration_hours) > 0 || Number(action.duration_minutes) > 0) && (
+            <span className="ar-chip ar-when"><Clock size={11} /> {prettyDuration(action.duration_hours, action.duration_minutes)}</span>
+          )}
+          {reminders.length > 0 && (
+            <span className="ar-chip ar-rem" title={reminders.map(describeReminder).join(' · ')}>
+              <Bell size={11} /> {describeReminder(reminders[0])}{reminders.length > 1 ? ` +${reminders.length - 1}` : ''}
+            </span>
+          )}
           {Array.isArray(action.blocked_by) && action.blocked_by.length > 0 && (
-            <span className="ar-dep ar-dep-blocked" title={'Blocked by: ' + action.blocked_by.map(b => b.title).join(', ')}>
-              <Lock size={12} /> Blocked by {action.blocked_by.length}
+            <span className="ar-chip ar-dep-blocked" title={'Blocked by: ' + action.blocked_by.map(b => b.title).join(', ')}>
+              <Lock size={11} /> Blocked by {action.blocked_by.length}
             </span>
           )}
           {Array.isArray(action.blocks) && action.blocks.length > 0 && (
-            <span className="ar-dep ar-dep-blocks" title={'Blocks: ' + action.blocks.map(b => b.title).join(', ')}>
-              <GitBranch size={12} /> Blocks {action.blocks.length}
+            <span className="ar-chip ar-dep-blocks" title={'Blocks: ' + action.blocks.map(b => b.title).join(', ')}>
+              <GitBranch size={11} /> Blocks {action.blocks.length}
             </span>
           )}
         </div>
       </div>
 
-      {onRemind && (
-        <div className="ar-remind-wrap" ref={remindRef}>
-          <button
-            className="btn btn-icon btn-ghost"
-            aria-label="Remind me about this task"
-            title="Remind me"
-            onClick={() => setRemindOpen(v => !v)}
-          >
-            <Bell size={14} />
-          </button>
-          {remindOpen && (
-            <div className="ar-remind-menu">
-              {reminders.length > 0 && (
-                <div className="ar-remind-existing">
-                  <div className="ar-remind-head">Reminders</div>
-                  {reminders.map(r => (
-                    <div key={r.id} className="ar-remind-item">
-                      {editRemId === r.id ? (
-                        <>
-                          <input
-                            type={r.kind === 'once' ? 'datetime-local' : 'time'}
-                            className="form-input ar-remind-edit-in"
-                            value={editRemVal}
-                            onChange={(e) => setEditRemVal(e.target.value)}
-                            autoFocus
-                          />
-                          <button type="button" className="ar-remind-save" onClick={() => saveEditRem(r)}>Save</button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="ar-remind-item-when">{describeReminder(r)}</span>
-                          {onUpdateReminder && <button type="button" className="ar-remind-icon" title="Edit" onClick={() => startEditRem(r)}><Pencil size={12} /></button>}
-                          {onDeleteReminder && <button type="button" className="ar-remind-icon ar-remind-del" title="Delete" onClick={() => onDeleteReminder(r)}><Trash2 size={12} /></button>}
-                        </>
-                      )}
-                    </div>
-                  ))}
+      <div className="ar-tools">
+        {onRemind && (
+          <div className="ar-remind-wrap" ref={remindRef}>
+            <button
+              type="button"
+              className={`ar-tool ${reminders.length ? 'has' : ''}`}
+              aria-label="Remind me about this task"
+              aria-expanded={remindOpen}
+              title="Remind me"
+              onClick={() => setRemindOpen(v => !v)}
+            >
+              <Bell size={15} />
+            </button>
+            {remindOpen && (
+              <div className="ar-pop ar-remind-menu">
+                {reminders.length > 0 && (
+                  <div className="ar-remind-existing">
+                    <div className="ar-pop-head">Reminders</div>
+                    {reminders.map(r => (
+                      <div key={r.id} className="ar-remind-item">
+                        {editRemId === r.id ? (
+                          <>
+                            <input
+                              type={r.kind === 'once' ? 'datetime-local' : 'time'}
+                              className="form-input ar-remind-edit-in"
+                              value={editRemVal}
+                              onChange={(e) => setEditRemVal(e.target.value)}
+                              autoFocus
+                            />
+                            <button type="button" className="ar-remind-save" onClick={() => saveEditRem(r)}>Save</button>
+                          </>
+                        ) : (
+                          <>
+                            <Bell size={12} className="ar-remind-item-ico" />
+                            <span className="ar-remind-item-when">{describeReminder(r)}</span>
+                            {onUpdateReminder && <button type="button" className="ar-remind-icon" title="Edit" aria-label="Edit reminder" onClick={() => startEditRem(r)}><Pencil size={13} /></button>}
+                            {onDeleteReminder && <button type="button" className="ar-remind-icon ar-remind-del" title="Delete" aria-label="Delete reminder" onClick={() => onDeleteReminder(r)}><Trash2 size={13} /></button>}
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="ar-pop-head">{reminders.length ? 'Add another' : 'Remind me…'}</div>
+                {remindPresets().map(p => (
+                  <button key={p.key} type="button" className="ar-pop-opt" onClick={() => setReminder(p.at)}>
+                    <Clock size={13} /> {p.label}
+                  </button>
+                ))}
+                <div className="ar-remind-custom">
+                  <input
+                    type="datetime-local"
+                    className="form-input"
+                    value={customAt}
+                    onChange={(e) => setCustomAt(e.target.value)}
+                    aria-label="Custom reminder time"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary ar-remind-set"
+                    disabled={!customAt}
+                    onClick={() => customAt && setReminder(new Date(customAt))}
+                  >
+                    Set
+                  </button>
                 </div>
-              )}
-              <div className="ar-remind-head">{reminders.length ? 'Add another' : 'Remind me…'}</div>
-              {remindPresets().map(p => (
-                <button key={p.key} type="button" className="ar-remind-opt" onClick={() => setReminder(p.at)}>
-                  {p.label}
-                </button>
-              ))}
-              <div className="ar-remind-custom">
-                <input
-                  type="datetime-local"
-                  className="form-input"
-                  value={customAt}
-                  onChange={(e) => setCustomAt(e.target.value)}
-                  aria-label="Custom reminder time"
-                />
-                <button
-                  type="button"
-                  className="btn btn-primary ar-remind-set"
-                  disabled={!customAt}
-                  onClick={() => customAt && setReminder(new Date(customAt))}
-                >
-                  Set
-                </button>
               </div>
+            )}
+          </div>
+        )}
+
+        <button
+          type="button"
+          className={`ar-tool ar-star ${action.is_starred ? 'on' : ''}`}
+          aria-label="Toggle star"
+          aria-pressed={!!action.is_starred}
+          onClick={() => onToggleStar(action)}
+        >
+          <Star size={15} fill={action.is_starred ? 'currentColor' : 'none'} />
+        </button>
+
+        <div className="ar-more" ref={menuRef}>
+          <button type="button" className="ar-tool" aria-label="Action options" aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>
+            <MoreVertical size={16} />
+          </button>
+          {menuOpen && (
+            <div className="ar-pop ar-menu" role="menu">
+              <button type="button" role="menuitem" className="ar-pop-opt" onClick={() => { setMenuOpen(false); onEdit(action); }}>
+                <Pencil size={14} /> Edit action
+              </button>
+              {action.project_id && (
+                <button type="button" role="menuitem" className="ar-pop-opt" onClick={() => { setMenuOpen(false); navigate(`/projects/${action.project_id}`); }}>
+                  <ExternalLink size={14} /> Go to project
+                </button>
+              )}
+              <button type="button" role="menuitem" className="ar-pop-opt ar-delete-item" onClick={() => { setMenuOpen(false); onDelete(action); }}>
+                <Trash2 size={14} /> Delete action
+              </button>
             </div>
           )}
         </div>
-      )}
-
-      <button
-        className="btn btn-icon btn-ghost"
-        aria-label="Toggle star"
-        onClick={() => onToggleStar(action)}
-        style={{ color: action.is_starred ? 'var(--accent-orange)' : 'var(--text-muted)' }}
-      >
-        <Star size={14} fill={action.is_starred ? 'currentColor' : 'none'} />
-      </button>
-
-      <div className="dropdown action-actions ar-actions" ref={menuRef}>
-        <button className="btn btn-icon btn-ghost" aria-label="Action options" onClick={() => setMenuOpen(v => !v)}>
-          <MoreVertical size={16} />
-        </button>
-        {menuOpen && (
-          <div className="dropdown-menu ar-menu">
-            <div className="dropdown-item" onClick={() => { setMenuOpen(false); onEdit(action); }}>
-              <Pencil size={14} />
-              Edit action
-            </div>
-            {action.project_id && (
-              <div className="dropdown-item" onClick={() => { setMenuOpen(false); navigate(`/projects/${action.project_id}`); }}>
-                <ExternalLink size={14} />
-                Go to project
-              </div>
-            )}
-            <div className="dropdown-item ar-delete-item" onClick={() => { setMenuOpen(false); onDelete(action); }}>
-              <Trash2 size={14} />
-              Delete action
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

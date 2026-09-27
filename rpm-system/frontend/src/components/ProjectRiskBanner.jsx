@@ -36,24 +36,28 @@ export default function ProjectRiskBanner({ project, onOpenTimeline, onEditActio
 
   if (!overdue.length && !conflicts.length && !goals.length) return null;
   const s = (n) => (n > 1 ? 's' : '');
+  const issues = (overdue.length ? 1 : 0) + (conflicts.length ? 1 : 0) + goals.length;
 
   return (
     <div className="prb" role="status">
-      <span className="prb-icon"><AlertTriangle size={16} /></span>
+      <div className="prb-head">
+        <span className="prb-icon"><AlertTriangle size={16} /></span>
+        <span className="prb-kicker">Needs attention <b>{issues}</b></span>
+      </div>
       <div className="prb-items">
         {overdue.length > 0 && (
           <button type="button" className="prb-item bad" onClick={() => onEditAction?.(overdue[0])} title={overdue.map(a => a.title).join('\n')}>
-            <CalendarX2 size={14} /> <b>{overdue.length}</b> overdue task{s(overdue.length)}
+            <CalendarX2 size={14} /> <span><b>{overdue.length}</b> overdue task{s(overdue.length)}</span>
           </button>
         )}
         {conflicts.length > 0 && (
           <button type="button" className="prb-item warn" onClick={onOpenTimeline} title={conflicts.map(t => t.title).join('\n')}>
-            <GitBranch size={14} /> <b>{conflicts.length}</b> task{s(conflicts.length)} start{conflicts.length > 1 ? '' : 's'} before {conflicts.length > 1 ? 'their prerequisites finish' : 'its prerequisite finishes'} — fix on the timeline
+            <GitBranch size={14} /> <span><b>{conflicts.length}</b> task{s(conflicts.length)} start{conflicts.length > 1 ? '' : 's'} before {conflicts.length > 1 ? 'their prerequisites finish' : 'its prerequisite finishes'}</span> <em>Fix on timeline →</em>
           </button>
         )}
         {goals.slice(0, 2).map(k => (
           <Link key={k.id} to="/compass" className="prb-item bad" title={`${k.title}${k.delta_days ? ` — about ${Math.abs(Math.round(k.delta_days))} days ${k.delta_days > 0 ? 'late' : 'early'} at the current pace` : ''}`}>
-            <Flame size={14} /> “{k.title}” {SLIPPING[k.status]}
+            <Flame size={14} /> <span>“{k.title}” {SLIPPING[k.status]}</span>
           </Link>
         ))}
         {goals.length > 2 && <Link to="/compass" className="prb-item">+{goals.length - 2} more goals</Link>}

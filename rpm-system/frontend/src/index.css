@@ -702,8 +702,6 @@ input::placeholder, textarea::placeholder {
   .action-actions { gap: 0; }
   .ar-remind-wrap + .btn-icon, .ar-actions { margin-left: 0; }
   .ar-cat, .ar-proj { max-width: 44vw; }
-  .md-drag-row { gap: 0; }
-  .md-drag-handle { width: 16px; }
   .md-actions-list, .md-suggest { max-width: 100%; }
 
   /* Header — keep everything on one line, nothing clipped off the right edge */
@@ -714,9 +712,6 @@ input::placeholder, textarea::placeholder {
 
   /* Modals — never scroll sideways; let chip/selector rows wrap */
   .modal { overflow-x: hidden; }
-  .cbm-header { flex-wrap: wrap; gap: 8px; }
-  .cbm-header .cbm-actions { flex-wrap: wrap; }
-  .cbm-header .dropdown-trigger { max-width: 60vw; }
   .page-header { flex-wrap: wrap; gap: var(--spacing-sm); }
 
   /* Project page: compact planner + never let a section force page-wide scroll */
@@ -724,13 +719,10 @@ input::placeholder, textarea::placeholder {
   .planner-header { flex-wrap: wrap; gap: 8px; margin-bottom: var(--spacing-md); }
   .planner-date-range { font-size: 0.75rem; padding: 6px 8px; }
   .planner-day { min-height: 54px; padding: 4px 3px; }
-  .planner-day-header { padding: 5px 1px; font-size: 0.55rem; }
   .planner-day-number { font-size: 0.72rem; }
-  .pd-day-actions > div { font-size: 0.56rem !important; padding: 2px 3px !important; }
   /* Key-result + action rows: keep steppers/controls on-screen */
   .kr-card, .rpm-block, .pd-action-row { min-width: 0; }
   .pd-action-row { gap: 8px; padding: 10px 10px; }
-  .pd-action-date { font-size: 0.68rem; padding: 3px 6px; }
 }
 
 /* Very small phones: drop the brand wordmark so the avatar never clips */
@@ -841,32 +833,6 @@ input::placeholder, textarea::placeholder {
 }
 
 /* Project Detail */
-.project-header {
-  position: relative;
-  min-height: 200px;
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  margin-bottom: var(--spacing-xl);
-}
-
-.project-header-bg {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-}
-
-.project-header-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to right, rgba(10, 22, 40, 0.95) 0%, rgba(10, 22, 40, 0.7) 100%);
-}
-
-.project-header-content {
-  position: relative;
-  padding: var(--spacing-xl);
-}
-
 .project-sections {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -2174,7 +2140,6 @@ select:focus-visible {
   }
   .pd-cover-actions .btn,
   .cd-header-actions .btn { flex: 1 1 auto; justify-content: center; }
-  .pd-title-heading { font-size: 1.6rem; }
   .cd-vision-title { font-size: 1.8rem; }
 
   /* RPM block header: badge + timers wrap instead of being clipped off-screen */

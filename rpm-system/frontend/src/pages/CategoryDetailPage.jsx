@@ -1,9 +1,11 @@
 import { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  ChevronLeft, Image, Star, MoreVertical, Plus, Clock,
-  FolderOpen, Calendar, Check, Hourglass, Edit, Copy, X, Trash2,
-  Move, Download, ChevronUp, ChevronDown, Archive, ArchiveRestore
+  ChevronRight, Image, Star, MoreVertical, Plus, Clock,
+  FolderOpen, Check, Edit, Copy, X, Trash2,
+  Move, Download, ChevronUp, ChevronDown, Archive, ArchiveRestore,
+  Sparkles, Eye, Heart, Users, Flag, Rocket, ListChecks, Layers, CheckCircle2,
+  Target, CalendarDays, Pencil, List, Zap, Quote, FolderKanban
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
@@ -13,7 +15,29 @@ import CreateCategoryModal from '../components/modals/CreateCategoryModal';
 import { fileToCompressedDataURL } from '../utils/image';
 import { useToast } from '../components/ToastProvider';
 import CoachPanel from '../components/CoachPanel';
+import Picker from '../components/Picker';
 import './CategoryDetailPage.css';
+
+// ---- presentational helpers (no data access) ----
+const goalItems = (text) => (text || '').split('\n').map(s => s.replace(/^[\s•\-*]+/, '').trim()).filter(Boolean);
+const prioClass = (a) => `p${Math.max(0, Math.min(3, Number(a?.priority) || 0))}`;
+const fmtDur = (h, m) => {
+  const total = (Number(h) || 0) * 60 + (Number(m) || 0);
+  if (!total) return '';
+  const hh = Math.floor(total / 60), mm = total % 60;
+  return hh ? (mm ? `${hh}h ${mm}m` : `${hh}h`) : `${mm}m`;
+};
+const localDay = (v) => {
+  if (!v) return null;
+  const d = new Date(`${String(v).slice(0, 10)}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+const ACTION_FILTERS = [
+  { value: 'all', label: 'View all', icon: <List size={14} /> },
+  { value: 'starred', label: 'Starred', icon: <Star size={14} /> },
+  { value: 'this_week', label: 'This week', icon: <CalendarDays size={14} /> },
+  { value: 'completed', label: 'Completed', icon: <CheckCircle2 size={14} /> },
+];
 
 function CategoryDetailPage() {
   const { id } = useParams();
@@ -188,21 +212,59 @@ function CategoryDetailPage() {
     setEditValue(value || '');
   };
 
-  // Render a multi-line text field as a scannable bulleted list (one goal per line).
+  // Keyboard + pointer props for a click-to-edit display element.
+  const editable = (field, value, label) => ({
+    role: 'button',
+    tabIndex: 0,
+    title: label,
+    onClick: () => handleFieldEdit(field, value),
+    onKeyDown: (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleFieldEdit(field, value); }
+    },
+  });
+
+  // Inline editor for any Big Picture field. Escape cancels, same as the Cancel button.
+  const renderEditor = (rows, placeholder, extraClass = '') => (
+    <div className="cd-editor">
+      <textarea
+        value={editValue}
+        onChange={e => setEditValue(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingField(null); } }}
+        className={`form-input cd-editor-input ${extraClass}`}
+        rows={rows}
+        autoFocus
+        placeholder={placeholder}
+      />
+      <div className="cd-edit-actions">
+        <button type="button" className="btn btn-primary" onClick={handleFieldSave}><Check size={15} /> Save</button>
+        <button type="button" className="btn btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
+        <span className="cd-edit-hint">Esc to cancel</span>
+      </div>
+    </div>
+  );
+
+  // Render a multi-line text field as a scannable list (one goal per line).
   // Same underlying text field — click to edit as plain multiline text.
-  const renderGoalList = (text, field, placeholder) => {
-    const items = (text || '').split('\n').map(s => s.replace(/^[\s•\-*]+/, '').trim()).filter(Boolean);
+  const renderGoalList = (text, field, placeholder, variant = 'numbered') => {
+    const items = goalItems(text);
     if (items.length === 0) {
       return (
-        <p className="big-picture-content cd-clickable-prewrap cd-goal-empty" onClick={() => handleFieldEdit(field, text)}>
-          {placeholder}
-        </p>
+        <button type="button" className="ui-empty cd-empty-cta" onClick={() => handleFieldEdit(field, text)}>
+          {variant === 'check' ? <Rocket size={20} /> : <Flag size={20} />}
+          <span>{placeholder}</span>
+          <span className="cd-empty-link">Add goals · one per line</span>
+        </button>
       );
     }
     return (
-      <ul className="cd-goal-list" onClick={() => handleFieldEdit(field, text)} title="Click to edit (one goal per line)">
-        {items.map((it, i) => <li key={i}>{it}</li>)}
-      </ul>
+      <ol className={`cd-goal-list cd-goal-list--${variant}`} {...editable(field, text, 'Click to edit (one goal per line)')}>
+        {items.map((it, i) => (
+          <li key={i}>
+            <span className="cd-goal-mark" aria-hidden="true">{variant === 'check' ? '' : String(i + 1).padStart(2, '0')}</span>
+            <span className="cd-goal-text">{it}</span>
+          </li>
+        ))}
+      </ol>
     );
   };
 
@@ -462,47 +524,361 @@ function CategoryDetailPage() {
   }
 
   if (!category) {
-    return <div>Category not found</div>;
+    return (
+      <div className="cd">
+        <div className="ui-empty cd-notfound">
+          <FolderOpen size={22} />
+          <span>Category not found.</span>
+          <Link className="btn btn-secondary" to="/categories">Back to categories</Link>
+        </div>
+      </div>
+    );
   }
 
   const details = category.details || {};
 
-  return (
-    <div>
-      {/* Breadcrumb */}
-      <div className="page-breadcrumb">
-        <Link to="/categories">Categories</Link>
-        <ChevronLeft size={14} className="cd-breadcrumb-chevron" />
-        <span style={{ color: category.color }}>{category.name}</span>
-      </div>
+  // ---- Presentational figures, derived only from data this page already loaded ----
+  const allProjects = category.projects || [];
+  const activeProjects = allProjects.filter(p => !p.is_archived);
+  const archivedProjects = allProjects.filter(p => p.is_archived);
+  const liveActions = actions.filter(a => !a.is_cancelled);
+  const openActions = liveActions.filter(a => !a.is_completed);
+  const doneActions = liveActions.filter(a => a.is_completed);
+  const weekStart = new Date();
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+  const doneThisWeek = doneActions.filter(a => a.completed_at && new Date(a.completed_at) >= weekStart).length;
+  const plannedThisWeek = openActions.filter(a => a.is_this_week).length;
+  const activeBlocks = blocks.filter(b => !b.is_completed).length;
+  const pctDone = liveActions.length ? Math.round((doneActions.length / liveActions.length) * 100) : 0;
+  const vision = details.ultimate_vision || category.description || '';
+  const roles = (details.roles || '').split(/[,\n;•]+/).map(s => s.trim()).filter(Boolean);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-      {/* Header */}
-      <div className="category-header">
-        <div 
-          className="category-header-bg"
-          style={{ 
-            backgroundImage: category.cover_image 
-              ? `url(${category.cover_image})` 
-              : 'linear-gradient(135deg, #1a2d4a 0%, #0d1d35 100%)'
-          }}
-        />
-        <div className="category-header-overlay" />
-        <div className="category-header-content">
-          <div className="cd-header-actions">
+  // ---- Rows ----
+  const renderActionRow = (action) => {
+    const dur = fmtDur(action.duration_hours, action.duration_minutes);
+    const menuOpen = openActionMenu === action.id;
+    return (
+      <div key={action.id} className={`cd-row ${prioClass(action)}${action.is_completed ? ' is-done' : ''}`}>
+        <button
+          type="button"
+          className={`cd-check${action.is_completed ? ' on' : ''}`}
+          onClick={() => toggleActionComplete(action)}
+          aria-pressed={!!action.is_completed}
+          aria-label={action.is_completed ? 'Mark not done' : 'Mark done'}
+        >
+          {action.is_completed && <Check size={13} strokeWidth={3} />}
+        </button>
+        <div className="cd-row-main">
+          <span className="cd-row-title">{action.title}</span>
+          <div className="cd-row-meta">
+            {action.project_name && (
+              <button
+                type="button"
+                className="cd-meta cd-meta--link"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (action.project_id) navigate(`/projects/${action.project_id}`);
+                }}
+                title={action.project_name}
+              >
+                <FolderOpen size={12} />
+                <span>{action.project_name}</span>
+              </button>
+            )}
             <button
-              className="btn btn-secondary cd-btn-sm"
-              onClick={() => setShowEditCategory(true)}
+              type="button"
+              className="cd-meta"
+              onClick={(e) => { e.stopPropagation(); handleEditAction(action); }}
+              title={`${action.duration_hours}h ${action.duration_minutes}m`}
+              aria-label={dur ? `Duration ${dur} — edit` : 'Set duration'}
             >
-              <Edit size={14} />
-              Edit
+              <Clock size={12} />
+              {dur && <span>{dur}</span>}
             </button>
             <button
-              className="btn btn-secondary cd-btn-sm"
+              type="button"
+              className={`cd-meta cd-week${action.is_this_week ? ' on' : ''}`}
+              onClick={(e) => { e.stopPropagation(); toggleThisWeek(action); }}
+              aria-pressed={!!action.is_this_week}
+            >
+              {action.is_this_week ? <CalendarDays size={12} /> : <Plus size={12} />}
+              <span>This week</span>
+            </button>
+          </div>
+        </div>
+        <div className="action-actions cd-row-end">
+          <button
+            type="button"
+            className={`cd-icon-btn cd-star${action.is_starred ? ' on' : ''}`}
+            onClick={(e) => { e.stopPropagation(); toggleActionStar(action); }}
+            aria-pressed={!!action.is_starred}
+            aria-label={action.is_starred ? 'Unstar' : 'Star'}
+          >
+            <Star size={15} fill={action.is_starred ? 'currentColor' : 'none'} />
+          </button>
+          <div className="cd-relative">
+            <button
+              type="button"
+              className={`cd-icon-btn${menuOpen ? ' on' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenActionMenu(openActionMenu === action.id ? null : action.id);
+              }}
+              aria-label="More options"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+            >
+              <MoreVertical size={15} />
+            </button>
+            {menuOpen && (
+              <div className="dropdown-menu cd-menu" role="menu" onClick={(e) => e.stopPropagation()}>
+                <button type="button" role="menuitem" className="dropdown-item" onClick={() => handleEditAction(action)}>
+                  <Edit size={14} />
+                  <span>Edit Action</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="dropdown-item"
+                  onClick={() => !action.is_completed && handleDuplicateAction(action)}
+                  disabled={action.is_completed}
+                  title={action.is_completed ? 'Cannot duplicate completed action' : ''}
+                >
+                  <Copy size={14} />
+                  <span>Duplicate Action</span>
+                </button>
+                <button type="button" role="menuitem" className="dropdown-item" onClick={() => handleCancelAction(action)}>
+                  <X size={14} />
+                  <span>Cancel Action</span>
+                </button>
+                <button type="button" role="menuitem" className="dropdown-item cd-danger" onClick={() => handleDeleteAction(action)}>
+                  <Trash2 size={14} />
+                  <span>Delete Action</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderBlockActionRow = (action, idx) => {
+    const dur = fmtDur(action.duration_hours, action.duration_minutes);
+    const menuOpen = !!(openBlockActionMenu && openBlockActionMenu.actionId === action.id);
+    return (
+      <div key={action.id} className={`rpm-block-action cd-row cd-row--map ${prioClass(action)}`}>
+        <span className="cd-idx">{idx + 1}</span>
+        <button
+          type="button"
+          className={`cd-check${action.is_completed ? ' on' : ''}`}
+          onClick={() => toggleActionComplete(action)}
+          aria-pressed={!!action.is_completed}
+          aria-label={action.is_completed ? 'Mark not done' : 'Mark done'}
+        >
+          {action.is_completed && <Check size={13} strokeWidth={3} />}
+        </button>
+        <div className="cd-row-main">
+          <span className="cd-row-title">{action.title}</span>
+          <div className="cd-row-meta">
+            <button
+              type="button"
+              className="cd-meta"
+              onClick={(e) => { e.stopPropagation(); handleEditAction(action); }}
+              title={`${action.duration_hours}h ${action.duration_minutes}m`}
+              aria-label={dur ? `Duration ${dur} — edit` : 'Set duration'}
+            >
+              <Clock size={12} />
+              {dur && <span>{dur}</span>}
+            </button>
+            <button
+              type="button"
+              className={`cd-meta cd-week${action.is_this_week ? ' on' : ''}`}
+              onClick={(e) => { e.stopPropagation(); toggleThisWeek(action); }}
+              aria-pressed={!!action.is_this_week}
+            >
+              {action.is_this_week ? <CalendarDays size={12} /> : <Plus size={12} />}
+              <span>This week</span>
+            </button>
+          </div>
+        </div>
+        <div className="cd-row-end">
+          <button
+            type="button"
+            className={`cd-icon-btn cd-star${action.is_starred ? ' on' : ''}`}
+            onClick={(e) => { e.stopPropagation(); toggleActionStar(action); }}
+            aria-pressed={!!action.is_starred}
+            aria-label={action.is_starred ? 'Unstar' : 'Star'}
+          >
+            <Star size={15} fill={action.is_starred ? 'currentColor' : 'none'} />
+          </button>
+          <div className="cd-relative-z">
+            <button
+              type="button"
+              className={`cd-icon-btn${menuOpen ? ' on' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                setOpenBlockActionMenu(openBlockActionMenu === action.id ? null : {
+                  actionId: action.id,
+                  top: rect.bottom + 4,
+                  right: window.innerWidth - rect.right
+                });
+              }}
+              aria-label="More options"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+            >
+              <MoreVertical size={15} />
+            </button>
+            {menuOpen && (
+              <div
+                className="dropdown-menu cd-menu cd-menu--fixed"
+                role="menu"
+                style={{ right: `${openBlockActionMenu.right}px`, top: `${openBlockActionMenu.top}px` }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button type="button" role="menuitem" className="dropdown-item" onClick={() => handleEditAction(action)}>
+                  <Edit size={14} />
+                  <span>Edit Action</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="dropdown-item"
+                  onClick={() => !action.is_completed && handleDuplicateAction(action)}
+                  disabled={action.is_completed}
+                >
+                  <Copy size={14} />
+                  <span>Duplicate Action</span>
+                </button>
+                <button type="button" role="menuitem" className="dropdown-item" onClick={() => handleRemoveFromBlock(action)}>
+                  <Trash2 size={14} />
+                  <span>Remove From Block</span>
+                </button>
+                <button type="button" role="menuitem" className="dropdown-item" onClick={() => handleCancelAction(action)}>
+                  <X size={14} />
+                  <span>Cancel Action</span>
+                </button>
+                <button type="button" role="menuitem" className="dropdown-item cd-danger" onClick={() => handleDeleteAction(action)}>
+                  <Trash2 size={14} />
+                  <span>Delete Action</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---- Project cards ----
+  const renderProjectCard = (project, archived) => {
+    const total = Number(project.total_actions) || 0;
+    const done = Number(project.completed_actions) || 0;
+    const krs = Number(project.total_key_results) || 0;
+    const krsDone = Number(project.completed_key_results) || 0;
+    const nBlocks = Number(project.total_blocks) || 0;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    const result = project.ultimate_result || project.description;
+    return (
+      <div
+        key={project.id}
+        className={`cd-proj${archived ? ' is-archived' : ''}${dragProjectId === project.id ? ' cd-dragging' : ''}`}
+        draggable
+        role="link"
+        tabIndex={0}
+        aria-label={`Open project ${project.name}`}
+        onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) navigate(`/projects/${project.id}`); }}
+        onDragStart={(e) => { setDragProjectId(project.id); e.dataTransfer.effectAllowed = 'move'; }}
+        onDragEnd={() => { setDragProjectId(null); setDropZone(null); }}
+        onDragOver={!archived ? (e) => { if (projectsAreActiveReorder(project.id)) { e.preventDefault(); handleProjectReorderOver(project.id); } } : undefined}
+        onDrop={!archived ? (e) => { if (projectsAreActiveReorder(project.id)) { e.preventDefault(); e.stopPropagation(); handleProjectReorderDrop(); } } : undefined}
+        onClick={() => { if (!dragProjectId) navigate(`/projects/${project.id}`); }}
+      >
+        <div
+          className={`cd-proj-cover${project.cover_image ? ' has-img' : ''}`}
+          style={project.cover_image ? { backgroundImage: `url(${project.cover_image})` } : undefined}
+        />
+        <div className="cd-proj-tools">
+          {!archived && (
+            <button
+              type="button"
+              className="cd-proj-tool cd-proj-tool--done"
+              title="Mark done & archive"
+              aria-label="Mark done & archive"
+              onClick={(e) => { e.stopPropagation(); handleCompleteProject(project); }}
+            >
+              <Check size={15} />
+            </button>
+          )}
+          <button
+            type="button"
+            className="cd-proj-tool"
+            title={archived ? 'Restore to active' : 'Archive project'}
+            aria-label={archived ? 'Restore to active' : 'Archive project'}
+            onClick={(e) => { e.stopPropagation(); handleArchiveProject(project, !archived); }}
+          >
+            {archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+          </button>
+        </div>
+        <div className="cd-proj-body">
+          {(project.is_completed || archived) && (
+            <div className="cd-proj-flags">
+              {project.is_completed
+                ? <span className="ui-chip ui-chip--good"><Check size={11} /> Done</span>
+                : <span className="ui-chip"><Archive size={11} /> Archived</span>}
+            </div>
+          )}
+          <h3 className="cd-proj-title">{project.name}</h3>
+          {result && <p className="cd-proj-result">{result}</p>}
+          {total > 0 && (
+            <div className="cd-proj-progress">
+              <div className="ui-meter"><i style={{ '--pct': `${pct}%` }} /></div>
+              <span>{done}/{total}</span>
+            </div>
+          )}
+          {(krs > 0 || nBlocks > 0) && (
+            <div className="cd-proj-meta">
+              {krs > 0 && <span><Target size={12} /> {krsDone}/{krs} key results</span>}
+              {nBlocks > 0 && <span><Layers size={12} /> {nBlocks} {nBlocks === 1 ? 'block' : 'blocks'}</span>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="cd" style={{ '--cat': category.color || '#4ecdc4' }}>
+      {/* ===== Hero ===== */}
+      <header className={`cd-hero${category.cover_image ? ' has-cover' : ''}`}>
+        {category.cover_image && (
+          <div className="cd-hero-cover" style={{ backgroundImage: `url(${category.cover_image})` }} />
+        )}
+        <div className="cd-hero-top">
+          <nav className="cd-crumbs" aria-label="Breadcrumb">
+            <Link to="/categories">Categories</Link>
+            <ChevronRight size={13} aria-hidden="true" />
+            <span className="cd-crumb-cat"><i className="cd-dot" />{category.name}</span>
+          </nav>
+          <div className="cd-hero-actions">
+            <button type="button" className="cd-hero-btn" onClick={() => setShowEditCategory(true)} title="Edit category">
+              <Edit size={15} />
+              <span>Edit</span>
+            </button>
+            <button
+              type="button"
+              className="cd-hero-btn"
               onClick={() => coverInputRef.current?.click()}
               disabled={coverUploading}
+              title="Change cover image"
             >
-              <Image size={14} />
-              {coverUploading ? 'Uploading…' : 'Change Cover Image'}
+              <Image size={15} />
+              <span>{coverUploading ? 'Uploading…' : 'Cover'}</span>
             </button>
           </div>
           <input
@@ -512,505 +888,294 @@ function CategoryDetailPage() {
             className="cd-hidden"
             onChange={handleCoverUpload}
           />
-
-          <div 
-            style={{ 
-              background: category.color, 
-              padding: '4px 12px', 
-              borderRadius: '4px',
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              letterSpacing: '0.1em',
-              width: 'fit-content',
-              marginBottom: '16px'
-            }}
-          >
-            MY ULTIMATE VISION
-          </div>
-          
-          {editingField === 'ultimate_vision' ? (
-            <div>
-              <textarea
-                value={editValue}
-                onChange={e => setEditValue(e.target.value)}
-                className="form-input cd-vision-input"
-                rows={3}
-                autoFocus
-                placeholder="Living the life that I desire…"
-              />
-              <div className="cd-edit-actions">
-                <button className="btn btn-primary" onClick={handleFieldSave}>Save</button>
-                <button className="btn btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
-              </div>
-            </div>
-          ) : (
-            <h1
-              className="cd-vision-title cd-clickable"
-              onClick={() => handleFieldEdit('ultimate_vision', details.ultimate_vision || category.description || '')}
-              title="Click to edit your ultimate vision"
-            >
-              {details.ultimate_vision || category.description || 'Click to add your ultimate vision...'}
-            </h1>
-          )}
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="category-tabs">
-        <button 
-          className={`category-tab ${activeTab === 'big-picture' ? 'active' : ''}`}
+        <div className="cd-hero-body">
+          <div className="cd-hero-text">
+            <p className="cd-hero-kicker">Area of life</p>
+            <h1 className="cd-hero-title ui-title-grad">{category.name}</h1>
+            <p className="cd-hero-line">
+              {liveActions.length
+                ? <><b>{pctDone}%</b> of {liveActions.length} actions done{plannedThisWeek > 0 && <> · <b>{plannedThisWeek}</b> planned this week</>}</>
+                : 'No actions yet — start with a project or an RPM block.'}
+            </p>
+          </div>
+          <div className="cd-ring" role="img" aria-label={`${pctDone}% of actions done`}>
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <circle className="cd-ring-bg" cx="32" cy="32" r="27" />
+              {pctDone > 0 && <circle className="cd-ring-fg" cx="32" cy="32" r="27" pathLength="100" strokeDasharray="100" strokeDashoffset={100 - pctDone} />}
+            </svg>
+            <span className="cd-ring-label"><b>{pctDone}%</b><em>done</em></span>
+          </div>
+        </div>
+
+        <div className="cd-stats">
+          <div className="ui-stat"><FolderKanban size={18} /><b>{activeProjects.length}</b><span>active projects</span></div>
+          <div className="ui-stat"><ListChecks size={18} /><b>{openActions.length}</b><span>open actions</span></div>
+          <div className="ui-stat cd-stat--good"><CheckCircle2 size={18} /><b>{doneThisWeek}</b><span>done this week</span></div>
+          <div className="ui-stat"><Layers size={18} /><b>{activeBlocks}</b><span>RPM blocks</span></div>
+        </div>
+      </header>
+
+      {/* ===== Tabs ===== */}
+      <div className="ui-seg cd-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'big-picture'}
+          className={activeTab === 'big-picture' ? 'on' : ''}
           onClick={() => setActiveTab('big-picture')}
         >
+          <Sparkles size={15} />
           The Big Picture
         </button>
-        <button 
-          className={`category-tab ${activeTab === 'actions' ? 'active' : ''}`}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'actions'}
+          className={activeTab === 'actions' ? 'on' : ''}
           onClick={() => setActiveTab('actions')}
         >
-          Actions and Blocks
+          <ListChecks size={15} />
+          Actions &amp; Blocks
+          {openActions.length > 0 && <span className="cd-tab-count">{openActions.length}</span>}
         </button>
       </div>
 
       {activeTab === 'big-picture' ? (
-        <div>
-          {/* My Roles */}
-          <div className="big-picture-section">
-            <div className="big-picture-header">
-              <div className="big-picture-icon" style={{ background: category.color }}>
-                👤
-              </div>
-              <span className="big-picture-label">MY ROLES</span>
-            </div>
-            {editingField === 'roles' ? (
-              <div>
-                <textarea
-                  value={editValue}
-                  onChange={e => setEditValue(e.target.value)}
-                  className="form-input"
-                  rows={3}
-                  autoFocus
-                />
-                <div className="cd-edit-actions">
-                  <button className="btn btn-primary" onClick={handleFieldSave}>Save</button>
-                  <button className="btn btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
-                </div>
-              </div>
+        <div className="cd-bp">
+          {/* Ultimate vision — the emotional centre of the area */}
+          <section className="ui-card cd-vision">
+            <Quote className="cd-vision-glyph" size={96} aria-hidden="true" />
+            <p className="ui-kicker"><Eye size={14} /> My ultimate vision</p>
+            {editingField === 'ultimate_vision' ? (
+              renderEditor(4, 'Living the life that I desire…', 'cd-editor-input--vision')
+            ) : vision ? (
+              <blockquote className="cd-vision-text cd-editable" {...editable('ultimate_vision', vision, 'Click to edit your ultimate vision')}>
+                {vision}
+                <Pencil size={14} className="cd-edit-pen" aria-hidden="true" />
+              </blockquote>
             ) : (
-              <p 
-                className="big-picture-content cd-clickable"
-                onClick={() => handleFieldEdit('roles', details.roles)}
-              >
-                {details.roles || 'Click to add your roles...'}
-              </p>
+              <button type="button" className="ui-empty cd-empty-cta" onClick={() => handleFieldEdit('ultimate_vision', '')}>
+                <Eye size={20} />
+                <span>Describe the future this area of your life is building toward.</span>
+                <span className="cd-empty-link">Write your vision</span>
+              </button>
             )}
+          </section>
+
+          <div className="cd-bp-grid">
+            {/* Ultimate purpose */}
+            <section className="ui-card cd-purpose">
+              <p className="ui-kicker"><Heart size={14} /> My ultimate purpose</p>
+              {editingField === 'ultimate_purpose' ? (
+                renderEditor(3, 'Why does this matter to you?')
+              ) : details.ultimate_purpose ? (
+                <p className="cd-purpose-text cd-editable" {...editable('ultimate_purpose', details.ultimate_purpose, 'Click to edit your ultimate purpose')}>
+                  {details.ultimate_purpose}
+                  <Pencil size={13} className="cd-edit-pen" aria-hidden="true" />
+                </p>
+              ) : (
+                <button type="button" className="ui-empty cd-empty-cta" onClick={() => handleFieldEdit('ultimate_purpose', details.ultimate_purpose)}>
+                  <Heart size={20} />
+                  <span>Why does this area matter to you? Your purpose is the fuel.</span>
+                  <span className="cd-empty-link">Add your purpose</span>
+                </button>
+              )}
+            </section>
+
+            {/* Roles */}
+            <section className="ui-card cd-roles">
+              <p className="ui-kicker"><Users size={14} /> My roles {roles.length > 0 && <span className="ui-count">{roles.length}</span>}</p>
+              {editingField === 'roles' ? (
+                renderEditor(3, 'e.g. Runner, Athlete')
+              ) : roles.length ? (
+                <div className="cd-role-chips cd-editable" {...editable('roles', details.roles, 'Click to edit your roles')}>
+                  {roles.map((r, i) => <span key={i} className="cd-role">{r}</span>)}
+                  <Pencil size={13} className="cd-edit-pen" aria-hidden="true" />
+                </div>
+              ) : (
+                <button type="button" className="ui-empty cd-empty-cta" onClick={() => handleFieldEdit('roles', details.roles)}>
+                  <Users size={20} />
+                  <span>Who do you need to be here?</span>
+                  <span className="cd-empty-link">Add your roles</span>
+                </button>
+              )}
+            </section>
           </div>
 
-          {/* My Ultimate Purpose */}
-          <div className="big-picture-section">
-            <div className="big-picture-header">
-              <div className="big-picture-icon" style={{ background: category.color }}>
-                🎯
-              </div>
-              <span className="big-picture-label">MY ULTIMATE PURPOSE</span>
-            </div>
-            {editingField === 'ultimate_purpose' ? (
-              <div>
-                <textarea
-                  value={editValue}
-                  onChange={e => setEditValue(e.target.value)}
-                  className="form-input"
-                  rows={3}
-                  autoFocus
-                />
-                <div className="cd-edit-actions">
-                  <button className="btn btn-primary" onClick={handleFieldSave}>Save</button>
-                  <button className="btn btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
-                </div>
-              </div>
-            ) : (
-              <p 
-                className="big-picture-content cd-clickable"
-                onClick={() => handleFieldEdit('ultimate_purpose', details.ultimate_purpose)}
-              >
-                {details.ultimate_purpose || 'Click to add your ultimate purpose...'}
+          <div className="cd-bp-grid">
+            {/* One year goals */}
+            <section className="ui-card cd-goals">
+              <p className="ui-kicker">
+                <Flag size={14} /> One-year goals
+                {goalItems(details.one_year_goals).length > 0 && <span className="ui-count">{goalItems(details.one_year_goals).length}</span>}
               </p>
-            )}
-          </div>
-
-          {/* Goals Row */}
-          <div className="cd-goals-row">
-            {/* One Year Goals */}
-            <div className="big-picture-section cd-no-mb">
-              <div className="big-picture-header">
-                <div className="big-picture-icon" style={{ background: category.color }}>
-                  📅
-                </div>
-                <span className="big-picture-label">ONE YEAR GOALS</span>
-              </div>
               {editingField === 'one_year_goals' ? (
-                <div>
-                  <textarea
-                    value={editValue}
-                    onChange={e => setEditValue(e.target.value)}
-                    className="form-input"
-                    rows={4}
-                    autoFocus
-                  />
-                  <div className="cd-edit-actions">
-                    <button className="btn btn-primary" onClick={handleFieldSave}>Save</button>
-                    <button className="btn btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
-                  </div>
-                </div>
+                renderEditor(5, 'One goal per line')
               ) : (
-                renderGoalList(details.one_year_goals, 'one_year_goals', 'Click to add your one year goals…')
+                renderGoalList(details.one_year_goals, 'one_year_goals', 'Where will this area be a year from now?', 'numbered')
               )}
-            </div>
+            </section>
 
-            {/* 90 Day Goals */}
-            <div className="big-picture-section cd-no-mb">
-              <div className="big-picture-header">
-                <div className="big-picture-icon" style={{ background: category.color }}>
-                  🚀
-                </div>
-                <span className="big-picture-label">90 DAY GOALS</span>
-              </div>
+            {/* 90 day goals */}
+            <section className="ui-card cd-goals">
+              <p className="ui-kicker">
+                <Rocket size={14} /> 90-day goals
+                {goalItems(details.ninety_day_goals).length > 0 && <span className="ui-count">{goalItems(details.ninety_day_goals).length}</span>}
+              </p>
               {editingField === 'ninety_day_goals' ? (
-                <div>
-                  <textarea
-                    value={editValue}
-                    onChange={e => setEditValue(e.target.value)}
-                    className="form-input"
-                    rows={4}
-                    autoFocus
-                  />
-                  <div className="cd-edit-actions">
-                    <button className="btn btn-primary" onClick={handleFieldSave}>Save</button>
-                    <button className="btn btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
-                  </div>
-                </div>
+                renderEditor(5, 'One goal per line')
               ) : (
-                renderGoalList(details.ninety_day_goals, 'ninety_day_goals', 'Click to add your 90 day goals…')
+                renderGoalList(details.ninety_day_goals, 'ninety_day_goals', 'What will you have done in the next 90 days?', 'check')
               )}
-            </div>
+            </section>
           </div>
 
           {/* This category's AI coach */}
           <CoachPanel scope="category" categoryId={id} />
 
-          {/* My Projects */}
-          <div className="big-picture-section">
-            <div className="big-picture-header">
-              <div className="big-picture-icon" style={{ background: category.color }}>
-                📁
-              </div>
-              <span className="big-picture-label">MY PROJECTS</span>
+          {/* Projects */}
+          <section className="cd-projects">
+            <div className="cd-sec-head">
+              <p className="ui-kicker">
+                <FolderKanban size={14} /> My projects
+                {activeProjects.length > 0 && <span className="ui-count">{activeProjects.length}</span>}
+              </p>
+              <button type="button" className="btn btn-secondary cd-sec-btn" onClick={() => setShowProjectModal(true)}>
+                <Plus size={15} />
+                New project
+              </button>
             </div>
-            
-            {(() => {
-              const allProjects = category.projects || [];
-              const activeProjects = allProjects.filter(p => !p.is_archived);
-              const archivedProjects = allProjects.filter(p => p.is_archived);
 
-              const renderCard = (project, archived) => (
-                <div
-                  key={project.id}
-                  className={`project-card${archived ? ' project-card-archived' : ''}${dragProjectId === project.id ? ' cd-dragging' : ''}`}
-                  draggable
-                  onDragStart={(e) => { setDragProjectId(project.id); e.dataTransfer.effectAllowed = 'move'; }}
-                  onDragEnd={() => { setDragProjectId(null); setDropZone(null); }}
-                  onDragOver={!archived ? (e) => { if (projectsAreActiveReorder(project.id)) { e.preventDefault(); handleProjectReorderOver(project.id); } } : undefined}
-                  onDrop={!archived ? (e) => { if (projectsAreActiveReorder(project.id)) { e.preventDefault(); e.stopPropagation(); handleProjectReorderDrop(); } } : undefined}
-                  onClick={() => { if (!dragProjectId) navigate(`/projects/${project.id}`); }}
-                >
-                  <div
-                    className="project-card-bg"
-                    style={{
-                      backgroundImage: project.cover_image
-                        ? `url(${project.cover_image})`
-                        : 'linear-gradient(135deg, #1a2d4a 0%, #0d1d35 100%)'
-                    }}
-                  />
-                  <div className="project-card-tools">
-                    {!archived && (
-                      <button
-                        type="button"
-                        className="project-card-tool project-card-done"
-                        title="Mark done & archive"
-                        onClick={(e) => { e.stopPropagation(); handleCompleteProject(project); }}
-                      >
-                        <Check size={15} />
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="project-card-tool"
-                      title={archived ? 'Restore to active' : 'Archive project'}
-                      onClick={(e) => { e.stopPropagation(); handleArchiveProject(project, !archived); }}
-                    >
-                      {archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
-                    </button>
-                  </div>
-                  <div className="project-card-content">
-                    <div className="project-card-badge" style={{ color: category.color }}>
-                      <span className="cd-color-dot" style={{ background: category.color }} />
-                      {category.name}
-                      {project.is_completed && <span className="project-card-done-badge"><Check size={11} /> Done</span>}
-                    </div>
-                    <h3 className="project-card-title">{project.name}</h3>
-                    <p className="project-card-description">
-                      {project.ultimate_result || project.description}
-                    </p>
-                  </div>
-                </div>
-              );
-
-              return (
-                <>
-                  <div
-                    className={`projects-grid cd-dropzone${dropZone === 'active' ? ' cd-dropzone-over' : ''}`}
-                    onDragOver={(e) => { if (dragProjectId) { e.preventDefault(); setDropZone('active'); } }}
-                    onDragLeave={() => setDropZone(z => (z === 'active' ? null : z))}
-                    onDrop={(e) => { e.preventDefault(); handleProjectDrop(false); }}
-                  >
-                    {activeProjects.map(project => renderCard(project, false))}
-                    {activeProjects.length === 0 && (
-                      <div className="cd-projects-empty">
-                        {archivedProjects.length ? 'No active projects — drop one here to restore it, or create a new one.' : 'No projects yet.'}
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    className="btn btn-secondary cd-mt-16"
-                    onClick={() => setShowProjectModal(true)}
-                  >
-                    <Plus size={16} />
-                    Create New Project
+            <div
+              className={`cd-proj-grid cd-dropzone${dropZone === 'active' ? ' cd-dropzone-over' : ''}`}
+              onDragOver={(e) => { if (dragProjectId) { e.preventDefault(); setDropZone('active'); } }}
+              onDragLeave={() => setDropZone(z => (z === 'active' ? null : z))}
+              onDrop={(e) => { e.preventDefault(); handleProjectDrop(false); }}
+            >
+              {activeProjects.map(project => renderProjectCard(project, false))}
+              {activeProjects.length === 0 && (
+                <div className="ui-empty cd-proj-empty">
+                  <FolderOpen size={22} />
+                  <span>{archivedProjects.length ? 'No active projects — drop one here to restore it, or create a new one.' : 'No projects yet. A project turns a goal here into a plan.'}</span>
+                  <button type="button" className="btn btn-primary" onClick={() => setShowProjectModal(true)}>
+                    <Plus size={15} />
+                    Create a project
                   </button>
+                </div>
+              )}
+            </div>
 
-                  {archivedProjects.length > 0 && (
-                    <div className="cd-archived">
-                      <button
-                        type="button"
-                        className={`cd-archived-toggle${dropZone === 'archived' ? ' cd-dropzone-over' : ''}`}
-                        onClick={() => setArchivedOpen(o => !o)}
-                        onDragOver={(e) => { if (dragProjectId) { e.preventDefault(); setDropZone('archived'); } }}
-                        onDragLeave={() => setDropZone(z => (z === 'archived' ? null : z))}
-                        onDrop={(e) => { e.preventDefault(); handleProjectDrop(true); }}
-                      >
-                        {archivedOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        <Archive size={15} />
-                        <span>Archived</span>
-                        <span className="cd-archived-count">{archivedProjects.length}</span>
-                        <span className="cd-archived-hint">drag a project here to archive</span>
-                      </button>
-                      {archivedOpen && (
-                        <div className="cd-archived-grid">
-                          {archivedProjects.map(project => renderCard(project, true))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </div>
+            {archivedProjects.length > 0 && (
+              <div className="cd-archived">
+                <button
+                  type="button"
+                  className={`cd-archived-toggle${dropZone === 'archived' ? ' cd-dropzone-over' : ''}`}
+                  onClick={() => setArchivedOpen(o => !o)}
+                  aria-expanded={archivedOpen}
+                  onDragOver={(e) => { if (dragProjectId) { e.preventDefault(); setDropZone('archived'); } }}
+                  onDragLeave={() => setDropZone(z => (z === 'archived' ? null : z))}
+                  onDrop={(e) => { e.preventDefault(); handleProjectDrop(true); }}
+                >
+                  <Archive size={15} />
+                  <span>Archived</span>
+                  <span className="cd-archived-count">{archivedProjects.length}</span>
+                  <span className="cd-archived-hint">drag a project here to archive</span>
+                  {archivedOpen ? <ChevronUp size={16} className="cd-archived-chev" /> : <ChevronDown size={16} className="cd-archived-chev" />}
+                </button>
+                {archivedOpen && (
+                  <div className="cd-proj-grid cd-archived-grid">
+                    {archivedProjects.map(project => renderProjectCard(project, true))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
         </div>
       ) : (
-        /* Actions and Blocks Tab */
-        <div className="actions-container">
-          {/* Actions List */}
-          <div className="actions-list">
-            <div className="actions-header">
-              <h3 className="cd-heading-1rem">Actions</h3>
-              <div className="cd-flex-gap-8">
-                <select
-                  className="form-input cd-select-auto"
+        /* ===== Actions and Blocks tab ===== */
+        <div className="cd-work">
+          {/* Actions */}
+          <section className="ui-card cd-panel">
+            <div className="cd-panel-head">
+              <p className="ui-kicker">
+                <ListChecks size={14} /> Actions
+                {filteredActions.length > 0 && <span className="ui-count">{filteredActions.length}</span>}
+              </p>
+              <div className="cd-panel-tools">
+                <Picker
+                  className="cd-filter"
                   value={actionFilter}
-                  onChange={(e) => setActionFilter(e.target.value)}
-                >
-                  <option value="all">View All</option>
-                  <option value="starred">Starred</option>
-                  <option value="this_week">This Week</option>
-                  <option value="completed">Completed</option>
-                </select>
-                <button 
+                  onChange={setActionFilter}
+                  options={ACTION_FILTERS}
+                  header="Show"
+                  title="Filter actions"
+                />
+                <button
                   type="button"
-                  className="btn btn-icon btn-secondary cd-add-btn"
+                  className="cd-icon-btn cd-icon-btn--add"
+                  aria-label="Add action"
+                  title="Add action"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setShowActionModal(true);
                   }}
                 >
-                  <Plus size={16} />
+                  <Plus size={17} />
                 </button>
               </div>
             </div>
 
             {filteredActions.length === 0 ? (
-              <div className="empty-state">
-                <p>{actions.length === 0 ? 'No actions yet. Create your first action!' : 'No actions match the selected filter.'}</p>
+              <div className="ui-empty">
+                <ListChecks size={22} />
+                <span>{actions.length === 0 ? 'No actions yet. Create your first action!' : 'No actions match the selected filter.'}</span>
+                {actions.length === 0 ? (
+                  <button type="button" className="btn btn-primary" onClick={() => setShowActionModal(true)}>
+                    <Plus size={15} /> Add action
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-secondary" onClick={() => setActionFilter('all')}>Show all</button>
+                )}
               </div>
             ) : (
-              filteredActions.map(action => (
-                <div key={action.id} className="action-item">
-                  <div 
-                    className={`action-checkbox ${action.is_completed ? 'completed' : ''}`}
-                    onClick={() => toggleActionComplete(action)}
-                  >
-                    {action.is_completed && <Check size={12} />}
-                  </div>
-                  <div className="action-content">
-                    <div className={`action-title ${action.is_completed ? 'completed' : ''}`}>
-                      {action.title}
-                    </div>
-                  </div>
-                  <div className="action-actions cd-action-actions-row">
-                    {/* Project Icon */}
-                    {action.project_name && (
-                      <button 
-                        type="button"
-                        className="btn btn-icon btn-ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (action.project_id) {
-                            navigate(`/projects/${action.project_id}`);
-                          }
-                        }}
-                        title={action.project_name}
-                      >
-                        <FolderOpen size={14} />
-                      </button>
-                    )}
-                    
-                    {/* Duration Icon */}
-                    <button 
-                      type="button"
-                      className="btn btn-icon btn-ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditAction(action);
-                      }}
-                      title={`${action.duration_hours}h ${action.duration_minutes}m`}
-                    >
-                      <Clock size={14} />
-                    </button>
-                    
-                    {/* Star Icon */}
-                    <button 
-                      type="button"
-                      className="btn btn-icon btn-ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleActionStar(action);
-                      }}
-                      style={{ color: action.is_starred ? 'var(--accent-orange)' : 'var(--text-muted)' }}
-                    >
-                      <Star size={14} fill={action.is_starred ? 'currentColor' : 'none'} />
-                    </button>
-                    
-                    {/* This Week Button */}
-                    <button 
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleThisWeek(action);
-                      }}
-                      style={{ 
-                        fontSize: '0.75rem',
-                        padding: '4px 8px',
-                        background: action.is_this_week ? 'var(--accent-cyan)' : 'transparent',
-                        border: action.is_this_week ? '1px solid var(--accent-cyan)' : '1px solid var(--border-primary)'
-                      }}
-                    >
-                      <Plus size={12} className="cd-mr-4" />
-                      This week
-                    </button>
-                    
-                    {/* More Options Menu */}
-                    <div className="cd-relative">
-                      <button 
-                        type="button"
-                        className="btn btn-icon btn-ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenActionMenu(openActionMenu === action.id ? null : action.id);
-                        }}
-                      >
-                        <MoreVertical size={14} />
-                      </button>
-                      
-                      {openActionMenu === action.id && (
-                        <div 
-                          className="dropdown-menu cd-dropdown-menu-pos"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div 
-                            className="dropdown-item"
-                            onClick={() => handleEditAction(action)}
-                          >
-                            <Edit size={14} />
-                            <span>Edit Action</span>
-                          </div>
-                          <div 
-                            className="dropdown-item"
-                            onClick={() => !action.is_completed && handleDuplicateAction(action)}
-                            style={{ 
-                              opacity: action.is_completed ? 0.5 : 1,
-                              cursor: action.is_completed ? 'not-allowed' : 'pointer',
-                              pointerEvents: action.is_completed ? 'none' : 'auto'
-                            }}
-                            title={action.is_completed ? 'Cannot duplicate completed action' : ''}
-                          >
-                            <Copy size={14} />
-                            <span>Duplicate Action</span>
-                          </div>
-                          <div 
-                            className="dropdown-item"
-                            onClick={() => handleCancelAction(action)}
-                          >
-                            <X size={14} />
-                            <span>Cancel Action</span>
-                          </div>
-                          <div 
-                            className="dropdown-item cd-text-red"
-                            onClick={() => handleDeleteAction(action)}
-                          >
-                            <Trash2 size={14} />
-                            <span>Delete Action</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
+              <div className="cd-rows">
+                {filteredActions.map(renderActionRow)}
+              </div>
             )}
-          </div>
+          </section>
 
           {/* RPM Blocks */}
-          <div className="rpm-blocks-container">
-            <div className="rpm-blocks-header">
-              <h3 className="cd-heading-1rem">RPM Blocks</h3>
-              <button 
+          <section className="cd-blocks">
+            <div className="cd-panel-head cd-panel-head--bare">
+              <p className="ui-kicker">
+                <Layers size={14} /> RPM blocks
+                {blocks.length > 0 && <span className="ui-count">{blocks.length}</span>}
+              </p>
+              <button
                 type="button"
-                className="btn btn-icon btn-secondary cd-add-btn"
+                className="cd-icon-btn cd-icon-btn--add"
+                aria-label="Add RPM block"
+                title="Add RPM block"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   setShowBlockModal(true);
                 }}
               >
-                <Plus size={16} />
+                <Plus size={17} />
               </button>
             </div>
 
             {blocks.length === 0 ? (
-              <div className="empty-state">
-                <p>No blocks yet. Create your first RPM block!</p>
+              <div className="ui-empty">
+                <Layers size={22} />
+                <span>No blocks yet. A block groups actions behind one result and one purpose.</span>
+                <button type="button" className="btn btn-primary" onClick={() => setShowBlockModal(true)}>
+                  <Plus size={15} /> Create your first block
+                </button>
               </div>
             ) : (
               blocks.map(block => {
@@ -1019,345 +1184,160 @@ function CategoryDetailPage() {
                 const completedActions = blockActions.filter(a => a.is_completed && !a.is_cancelled);
                 const cancelledActions = blockActions.filter(a => a.is_cancelled);
                 const activeActions = blockActions.filter(a => !a.is_completed && !a.is_cancelled);
-                
+                const liveCount = completedActions.length + activeActions.length;
+                const blockPct = liveCount ? Math.round((completedActions.length / liveCount) * 100) : 0;
+                const starredDur = fmtDur(stats.starredDuration.hours, stats.starredDuration.minutes);
+                const totalDur = fmtDur(stats.totalDuration.hours, stats.totalDuration.minutes);
+                const due = localDay(block.target_date);
+                const dueDays = due ? Math.round((due - today) / 86400000) : null;
+                const dueTone = !due || block.is_completed ? '' : dueDays < 0 ? ' ui-chip--bad' : dueDays <= 7 ? ' ui-chip--warn' : '';
+                const dueText = due
+                  ? `${dueDays < 0 && !block.is_completed ? 'Overdue · ' : 'Due '}${due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                  : '';
+
                 return (
-                  <div key={block.id} className="rpm-block">
-                    <div className="rpm-block-header">
-                      <div className="rpm-block-badge">
-                        <span className="cd-color-dot" style={{ background: category.color }} />
-                        {category.name}
+                  <article key={block.id} className={`ui-card cd-block${block.is_completed ? ' is-done' : ''}`}>
+                    <div className="rpm-block-header cd-block-head">
+                      <div className="cd-block-tags">
+                        {block.project_name && <span className="ui-chip"><FolderOpen size={11} /> {block.project_name}</span>}
+                        {due && <span className={`ui-chip cd-mono${dueTone}`}><CalendarDays size={11} /> {dueText}</span>}
+                        {block.is_completed && <span className="ui-chip ui-chip--good"><Check size={11} /> Complete</span>}
                       </div>
-                      <div className="cd-action-actions-row">
-                        {/* Starred Actions Duration */}
-                        <div className="cd-duration-stat">
-                          <Star size={14} fill="currentColor" className="cd-text-orange" />
-                          <span>
-                            {stats.starredDuration.hours > 0 ? `${stats.starredDuration.hours}h ` : ''}
-                            {stats.starredDuration.minutes}m
-                          </span>
-                        </div>
-                        {/* Total Duration */}
-                        <div className="cd-duration-stat">
-                          <Clock size={14} />
-                          <span>
-                            {stats.totalDuration.hours > 0 ? `${stats.totalDuration.hours}h ` : ''}
-                            {stats.totalDuration.minutes}m
-                          </span>
-                        </div>
-                        {/* Block Menu */}
+                      <div className="cd-block-tools">
+                        {starredDur && <span className="cd-dur cd-dur--star" title="Time on starred actions"><Star size={12} fill="currentColor" />{starredDur}</span>}
+                        {totalDur && <span className="cd-dur" title="Total planned time"><Clock size={12} />{totalDur}</span>}
                         <div className="cd-relative">
-                          <button 
+                          <button
                             type="button"
-                            className="btn btn-icon btn-ghost"
+                            className={`cd-icon-btn${openBlockMenu === block.id ? ' on' : ''}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               setOpenBlockMenu(openBlockMenu === block.id ? null : block.id);
                             }}
+                            aria-label="Block options"
+                            aria-haspopup="menu"
+                            aria-expanded={openBlockMenu === block.id}
                           >
-                            <MoreVertical size={14} />
+                            <MoreVertical size={15} />
                           </button>
-                          
                           {openBlockMenu === block.id && (
-                            <div
-                              className="dropdown-menu cd-dropdown-menu-pos"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div 
-                                className="dropdown-item"
-                                onClick={() => handleEditBlock(block)}
-                              >
+                            <div className="dropdown-menu cd-menu" role="menu" onClick={(e) => e.stopPropagation()}>
+                              <button type="button" role="menuitem" className="dropdown-item" onClick={() => handleEditBlock(block)}>
                                 <Edit size={14} />
                                 <span>Edit Block</span>
-                              </div>
-                              <div 
-                                className="dropdown-item"
-                                onClick={() => handleDuplicateBlock(block)}
-                              >
+                              </button>
+                              <button type="button" role="menuitem" className="dropdown-item" onClick={() => handleDuplicateBlock(block)}>
                                 <Copy size={14} />
                                 <span>Duplicate Block</span>
-                              </div>
-                              <div
-                                className="dropdown-item"
-                                onClick={() => handleMoveBlock(block)}
-                              >
+                              </button>
+                              <button type="button" role="menuitem" className="dropdown-item" onClick={() => handleMoveBlock(block)}>
                                 <Move size={14} />
                                 <span>Move Block</span>
-                              </div>
-                              <div
-                                className="dropdown-item"
-                                onClick={() => handleExportBlock(block)}
-                              >
+                              </button>
+                              <button type="button" role="menuitem" className="dropdown-item" onClick={() => handleExportBlock(block)}>
                                 <Download size={14} />
                                 <span>Export Block</span>
-                              </div>
-                              <div 
-                                className="dropdown-item"
-                                onClick={() => handleCompleteBlock(block)}
-                              >
+                              </button>
+                              <button type="button" role="menuitem" className="dropdown-item" onClick={() => handleCompleteBlock(block)}>
                                 <Check size={14} />
                                 <span>Complete Block</span>
-                              </div>
+                              </button>
                             </div>
                           )}
                         </div>
                       </div>
                     </div>
-                    <div className="rpm-block-content">
-                      <div className="rpm-block-section">
-                        <div className="rpm-block-label">RESULT</div>
-                        <div className="rpm-block-title">{block.result_title}</div>
+
+                    <p className="cd-block-kicker">Result</p>
+                    <h4 className="cd-block-title">{block.result_title}</h4>
+                    {block.purpose && (
+                      <p className="cd-block-purpose"><span>Purpose</span>{block.purpose}</p>
+                    )}
+                    {liveCount > 0 && (
+                      <div className="cd-block-progress">
+                        <div className="ui-meter"><i style={{ '--pct': `${blockPct}%` }} /></div>
+                        <span>{completedActions.length}/{liveCount} done</span>
                       </div>
-                      <div className="rpm-block-section">
-                        <div className="rpm-block-label">PURPOSE</div>
-                        <div className="rpm-block-purpose">{block.purpose}</div>
-                      </div>
-                      
-                      {/* Massive Action Plan */}
-                      <div className="rpm-block-actions">
-                        <div className="rpm-block-label">MASSIVE ACTION PLAN</div>
-                        {activeActions.length > 0 && activeActions.map((action, idx) => {
-                          const actionIndex = idx + 1;
-                          return (
-                            <div key={action.id} className="rpm-block-action cd-block-action-row">
-                              <span className="cd-action-index">{actionIndex}</span>
-                              <div
-                                className={`action-checkbox ${action.is_completed ? 'completed' : ''} cd-block-checkbox`}
-                                onClick={() => toggleActionComplete(action)}
-                              >
-                                {action.is_completed && <Check size={10} />}
-                              </div>
-                              <span className="cd-flex-1">{action.title}</span>
-                              <div className="cd-action-icons">
-                                {/* Duration Icon */}
-                                <button 
-                                  type="button"
-                                  className="btn btn-icon btn-ghost cd-p-2"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditAction(action);
-                                  }}
-                                  title={`${action.duration_hours}h ${action.duration_minutes}m`}
-                                >
-                                  <Clock size={12} />
-                                </button>
-                                
-                                {/* Star Icon */}
-                                <button 
-                                  type="button"
-                                  className="btn btn-icon btn-ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleActionStar(action);
-                                  }}
-                                  style={{ 
-                                    padding: '2px',
-                                    color: action.is_starred ? 'var(--accent-orange)' : 'var(--text-muted)'
-                                  }}
-                                >
-                                  <Star size={12} fill={action.is_starred ? 'currentColor' : 'none'} />
-                                </button>
-                                
-                                {/* This Week Button */}
-                                <button 
-                                  type="button"
-                                  className="btn btn-secondary"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleThisWeek(action);
-                                  }}
-                                  style={{ 
-                                    fontSize: '0.7rem',
-                                    padding: '2px 6px',
-                                    background: action.is_this_week ? 'var(--accent-cyan)' : 'transparent',
-                                    border: action.is_this_week ? '1px solid var(--accent-cyan)' : '1px solid var(--border-primary)'
-                                  }}
-                                >
-                                  <Plus size={10} className="cd-mr-2" />
-                                  This week
-                                </button>
-                                
-                                {/* Action Menu */}
-                                <div className="cd-relative-z">
-                                  <button
-                                    type="button"
-                                    className="btn btn-icon btn-ghost cd-p-2"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const rect = e.currentTarget.getBoundingClientRect();
-                                      setOpenBlockActionMenu(openBlockActionMenu === action.id ? null : {
-                                        actionId: action.id,
-                                        top: rect.bottom + 4,
-                                        right: window.innerWidth - rect.right
-                                      });
-                                    }}
-                                  >
-                                    <MoreVertical size={12} />
-                                  </button>
-                                  
-                                  {openBlockActionMenu && openBlockActionMenu.actionId === action.id && (
-                                    <div 
-                                      className="dropdown-menu"
-                                      style={{ 
-                                        position: 'fixed',
-                                        right: `${openBlockActionMenu.right}px`,
-                                        top: `${openBlockActionMenu.top}px`,
-                                        minWidth: '180px',
-                                        zIndex: 10000,
-                                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <div 
-                                        className="dropdown-item"
-                                        onClick={() => handleEditAction(action)}
-                                      >
-                                        <Edit size={14} />
-                                        <span>Edit Action</span>
-                                      </div>
-                                      <div 
-                                        className="dropdown-item"
-                                        onClick={() => !action.is_completed && handleDuplicateAction(action)}
-                                        style={{ 
-                                          opacity: action.is_completed ? 0.5 : 1,
-                                          cursor: action.is_completed ? 'not-allowed' : 'pointer',
-                                          pointerEvents: action.is_completed ? 'none' : 'auto'
-                                        }}
-                                      >
-                                        <Copy size={14} />
-                                        <span>Duplicate Action</span>
-                                      </div>
-                                      <div 
-                                        className="dropdown-item"
-                                        onClick={() => handleRemoveFromBlock(action)}
-                                      >
-                                        <Trash2 size={14} />
-                                        <span>Remove From Block</span>
-                                      </div>
-                                      <div 
-                                        className="dropdown-item"
-                                        onClick={() => handleCancelAction(action)}
-                                      >
-                                        <X size={14} />
-                                        <span>Cancel Action</span>
-                                      </div>
-                                      <div
-                                        className="dropdown-item cd-text-red"
-                                        onClick={() => handleDeleteAction(action)}
-                                      >
-                                        <Trash2 size={14} />
-                                        <span>Delete Action</span>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        
-                        {/* Add Action Button */}
+                    )}
+
+                    {/* Massive Action Plan */}
+                    <div className="cd-map">
+                      <p className="ui-kicker cd-map-kicker">
+                        <Zap size={13} /> Massive action plan
+                        {activeActions.length > 0 && <span className="ui-count">{activeActions.length}</span>}
+                      </p>
+                      {activeActions.length > 0 && (
+                        <div className="cd-rows cd-rows--map">
+                          {activeActions.map(renderBlockActionRow)}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className="cd-add-row"
+                        onClick={() => {
+                          setEditingAction({ block_id: block.id, category_id: block.category_id || id });
+                          setShowActionModal(true);
+                        }}
+                      >
+                        <Plus size={14} />
+                        Add action
+                      </button>
+                    </div>
+
+                    {/* Completed / cancelled — only when there is something to show */}
+                    {completedActions.length > 0 && (
+                      <div className="cd-fold">
                         <button
                           type="button"
-                          className="btn btn-secondary cd-add-action-btn"
-                          onClick={() => {
-                            setEditingAction({ block_id: block.id, category_id: block.category_id || id });
-                            setShowActionModal(true);
-                          }}
+                          className="cd-fold-toggle"
+                          aria-expanded={!!expandedCompleted[block.id]}
+                          onClick={() => setExpandedCompleted(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
                         >
-                          <Plus size={14} />
-                          Add Action
+                          <CheckCircle2 size={14} className="cd-fold-ic--good" />
+                          <span>{stats.completedCount} completed</span>
+                          {expandedCompleted[block.id] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                         </button>
-                      </div>
-                      
-                      {/* Completed Actions Section */}
-                      <div className="cd-mt-16">
-                        <div 
-                          style={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center',
-                            cursor: completedActions.length > 0 ? 'pointer' : 'default',
-                            marginBottom: '8px'
-                          }}
-                          onClick={() => completedActions.length > 0 && setExpandedCompleted(prev => ({
-                            ...prev,
-                            [block.id]: !prev[block.id]
-                          }))}
-                        >
-                          <span className="cd-section-header-muted">
-                            {stats.completedCount} COMPLETED ACTIONS
-                          </span>
-                          {completedActions.length > 0 && (
-                            expandedCompleted[block.id] ? (
-                              <ChevronUp size={14} />
-                            ) : (
-                              <ChevronDown size={14} />
-                            )
-                          )}
-                        </div>
-                        {expandedCompleted[block.id] && completedActions.length > 0 && completedActions.map((action, idx) => (
-                          <div key={action.id} className="rpm-block-action cd-done-action-row">
-                            <span className="cd-action-index">{idx + 1}</span>
-                            <div className="action-checkbox completed cd-completed-checkbox">
-                              <Check size={10} />
-                            </div>
-                            <span className="cd-strike">{action.title}</span>
+                        {expandedCompleted[block.id] && completedActions.map((action, idx) => (
+                          <div key={action.id} className="rpm-block-action cd-row cd-row--static is-done">
+                            <span className="cd-idx">{idx + 1}</span>
+                            <span className="cd-check on" aria-hidden="true"><Check size={13} strokeWidth={3} /></span>
+                            <span className="cd-row-title">{action.title}</span>
                           </div>
                         ))}
                       </div>
-                      
-                      {/* Cancelled Actions Section */}
-                      <div className="cd-mt-16">
-                        <div 
-                          style={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center',
-                            cursor: cancelledActions.length > 0 ? 'pointer' : 'default',
-                            marginBottom: '8px'
-                          }}
-                          onClick={() => cancelledActions.length > 0 && setExpandedCancelled(prev => ({
-                            ...prev,
-                            [block.id]: !prev[block.id]
-                          }))}
+                    )}
+                    {cancelledActions.length > 0 && (
+                      <div className="cd-fold">
+                        <button
+                          type="button"
+                          className="cd-fold-toggle"
+                          aria-expanded={!!expandedCancelled[block.id]}
+                          onClick={() => setExpandedCancelled(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
                         >
-                          <span className="cd-section-header-muted">
-                            {stats.cancelledCount} CANCELED ACTIONS
-                          </span>
-                          {cancelledActions.length > 0 && (
-                            expandedCancelled[block.id] ? (
-                              <ChevronUp size={14} />
-                            ) : (
-                              <ChevronDown size={14} />
-                            )
-                          )}
-                        </div>
-                        {expandedCancelled[block.id] && cancelledActions.length > 0 && cancelledActions.map((action, idx) => (
-                          <div key={action.id} className="rpm-block-action cd-done-action-row">
-                            <span className="cd-action-index">{idx + 1}</span>
-                            <X size={14} className="cd-text-red" />
-                            <span className="cd-strike">{action.title}</span>
+                          <X size={14} className="cd-fold-ic--bad" />
+                          <span>{stats.cancelledCount} canceled</span>
+                          {expandedCancelled[block.id] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </button>
+                        {expandedCancelled[block.id] && cancelledActions.map((action, idx) => (
+                          <div key={action.id} className="rpm-block-action cd-row cd-row--static is-done">
+                            <span className="cd-idx">{idx + 1}</span>
+                            <span className="cd-check cd-check--x" aria-hidden="true"><X size={13} strokeWidth={3} /></span>
+                            <span className="cd-row-title">{action.title}</span>
                           </div>
                         ))}
                       </div>
-                    </div>
-                    
-                    {/* Block Footer */}
-                    <div className="rpm-block-footer cd-block-footer">
-                      <span>{stats.completedCount} COMPLETED ACTIONS</span>
-                      <span>{stats.cancelledCount} CANCELED ACTIONS</span>
-                    </div>
-                  </div>
+                    )}
+                  </article>
                 );
               })
             )}
-          </div>
+          </section>
         </div>
       )}
 
       {/* Modals */}
       {showActionModal && categories && (
-        <CreateActionModal 
+        <CreateActionModal
           onClose={() => {
             setShowActionModal(false);
             setEditingAction(null);
@@ -1371,7 +1351,7 @@ function CategoryDetailPage() {
         />
       )}
       {showBlockModal && categories && (
-        <CreateBlockModal 
+        <CreateBlockModal
           onClose={() => {
             setShowBlockModal(false);
             setEditingBlock(null);

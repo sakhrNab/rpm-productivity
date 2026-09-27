@@ -1,0 +1,93 @@
+/* =====================================================================
+   Modal contents kit — shared by every create/edit/preview modal.
+   The SHELL (overlay, .modal surface, sticky header/footer, bottom sheet)
+   lives in styles/ui.css; this file only designs what goes inside it.
+   Note on specificity: index.css styles `.modal input:not(..):not(..)` at
+   (0,3,1) and loads after component CSS, so overrides of inputs below use
+   four class-level parts to win cleanly.
+   ===================================================================== */
+
+/* ---------- header ---------- */
+.modal-header.mk-head { display: flex; align-items: center; justify-content: flex-start; gap: 14px; }
+.mk-head .mk-badge { width: 42px; height: 42px; }
+.mk-head-text { flex: 1; min-width: 0; }
+.mk-head .modal-title { margin: 0; overflow-wrap: anywhere; text-transform: none; letter-spacing: -0.01em; }
+.mk-sub { margin: 3px 0 0; font-size: 0.84rem; line-height: 1.4; color: var(--text-secondary); }
+.mk-close {
+  flex: 0 0 auto; align-self: flex-start; display: grid; place-items: center; width: 36px; height: 36px;
+  border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.mk-close:hover { color: var(--text-primary); border-color: rgba(78, 205, 196, 0.45); background: rgba(255, 255, 255, 0.04); }
+.mk-close:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* ---------- body / sections / fields ---------- */
+.modal-body.mk-body { display: flex; flex-direction: column; gap: 20px; }
+.mk-body .form-group { margin: 0; }
+.mk-section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.mk-section + .mk-section { padding-top: 18px; border-top: 1px solid var(--ui-hair); }
+.mk-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.mk-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.mk-body .mk-field > .form-label { display: flex; align-items: center; gap: 6px; margin: 0; }
+.mk-optional { margin-left: auto; font: 500 0.66rem var(--ui-mono); letter-spacing: 0.08em; color: var(--text-muted); opacity: 0.8; text-transform: uppercase; }
+.mk-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 560px) {
+  .mk-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mk-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.mk-help { margin: 0; font-size: 0.78rem; line-height: 1.45; color: var(--text-muted); }
+.mk-help strong { color: var(--text-secondary); font-weight: 600; }
+.mk-count { font: 500 0.7rem var(--ui-mono); letter-spacing: 0.06em; color: var(--text-muted); }
+.mk-count.near { color: var(--ui-warn); }
+
+/* Headline field: the thing being named. Larger Outfit type in the same well. */
+.modal .mk-body .mk-hero.mk-hero { font: 600 1.18rem/1.35 'Outfit', var(--font-display); letter-spacing: -0.005em; padding: 14px 16px; }
+
+/* ---------- Picker inside a modal: same "well" as the text inputs ---------- */
+.mk-body .picker-trigger {
+  min-height: 48px; padding: 11px 14px; border-radius: 12px; font-size: 0.95rem;
+  background: rgba(2, 8, 20, 0.55); border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.mk-body .picker-trigger:hover:not(:disabled) { background: rgba(2, 8, 20, 0.7); border-color: rgba(255, 255, 255, 0.26); }
+.mk-body .picker-trigger.open, .mk-body .picker-trigger:focus-visible { border-color: var(--accent-cyan); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 0 3px rgba(78, 205, 196, 0.25); }
+.mk-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--text-muted)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c, #7d8aa3) 22%, transparent); }
+
+/* ---------- priority segmented control (rail colours: p3 pink · p2 cyan · p1 purple · p0 slate) ---------- */
+.mk-body .mk-prio { display: flex; width: 100%; }
+.mk-body .mk-prio > button { flex: 1 1 0; justify-content: center; min-width: 0; }
+.mk-body .mk-prio > button.on { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 70%, transparent); background: color-mix(in srgb, var(--c) 16%, var(--bg-card-hover)); }
+.mk-prio .mk-dot { width: 8px; height: 8px; box-shadow: none; }
+.mk-p0 { --c: #7d8aa3; } .mk-p1 { --c: #9575cd; } .mk-p2 { --c: #4ecdc4; } .mk-p3 { --c: #ff69b4; }
+
+/* ---------- toggle chip + toggle row ---------- */
+.mk-toggle-chip {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 0 14px; border-radius: 12px;
+  border: 1px solid var(--border-primary); background: rgba(255, 255, 255, 0.03); color: var(--text-secondary);
+  font: 500 0.86rem var(--font-body); cursor: pointer; white-space: nowrap; transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.mk-toggle-chip:hover { border-color: rgba(78, 205, 196, 0.45); color: var(--text-primary); }
+.mk-toggle-chip.on { color: #ffc56e; border-color: rgba(255, 183, 77, 0.45); background: rgba(255, 183, 77, 0.1); }
+.mk-toggle-row {
+  display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 14px; border-radius: 12px;
+  border: 1px solid var(--border-primary); background: rgba(255, 255, 255, 0.025); cursor: pointer;
+}
+.mk-toggle-row > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mk-toggle-row b { font-size: 0.88rem; font-weight: 600; color: var(--text-primary); }
+.mk-toggle-row small { font-size: 0.76rem; color: var(--text-muted); }
+.mk-toggle-row.is-disabled { cursor: not-allowed; opacity: 0.55; }
+
+/* ---------- footer ---------- */
+.modal-footer.mk-foot { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.mk-foot .btn { min-height: 42px; white-space: nowrap; }
+.mk-foot-note { margin-right: auto; min-width: 0; font: 500 0.72rem var(--ui-mono); letter-spacing: 0.06em; color: var(--text-muted); }
+.mk-foot .btn-danger-ghost { color: #ff8a9b; }
+.mk-foot .btn-danger-ghost:hover { border-color: rgba(255, 107, 129, 0.5); background: rgba(255, 107, 129, 0.08); }
+
+@media (max-width: 640px) {
+  /* 16px text in fields stops iOS zooming on focus */
+  .modal .mk-body input:not([type="checkbox"]):not([type="radio"]):not(.mk-hero), .modal .mk-body textarea, .mk-body .picker-trigger { font-size: 16px; }
+  .mk-sub { font-size: 0.8rem; }
+  .mk-foot .btn { flex: 1 1 0; justify-content: center; min-height: 46px; }
+  .mk-foot-note { display: none; }
+}

@@ -1,94 +1,67 @@
-.insp-preview-overlay {
-  padding: var(--spacing-lg);
-}
-
+/* Inspiration preview — a media-first card that shares the modal shell's surface
+   (gradient navy, light hairline on top) and becomes a bottom sheet on phones. */
 .insp-preview {
-  position: relative;
-  width: 100%;
-  max-width: 560px;
-  max-height: 90vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg), 0 0 60px rgba(255, 105, 180, 0.15);
+  position: relative; display: flex; flex-direction: column; width: 100%; max-width: 580px; max-height: 90vh; overflow: hidden;
+  border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(600px 240px at 100% 100%, rgba(255, 105, 180, 0.1), transparent 62%),
+    linear-gradient(180deg, #13244a 0%, #0c1834 100%);
+  box-shadow: 0 40px 120px -20px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   animation: rpm-rise 200ms ease;
 }
-
-.insp-preview-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 2;
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: #fff;
-  background: rgba(10, 22, 40, 0.55);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  transition: background var(--transition-fast);
+.insp-preview::before {
+  content: ''; position: absolute; left: 24px; right: 24px; top: 0; height: 1px; z-index: 3; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(78, 205, 196, 0.7), rgba(255, 105, 180, 0.6), transparent);
 }
-.insp-preview-close:hover { background: rgba(10, 22, 40, 0.85); }
+.insp-preview-close {
+  position: absolute; top: 12px; right: 12px; z-index: 4; display: grid; place-items: center; width: 38px; height: 38px;
+  border-radius: 12px; color: #fff; background: rgba(6, 18, 31, 0.72); border: 1px solid rgba(255, 255, 255, 0.16); cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.insp-preview-close:hover { border-color: rgba(78, 205, 196, 0.6); background: rgba(6, 18, 31, 0.9); }
 
 .insp-preview-media {
-  width: 100%;
-  max-height: 58vh;
-  min-height: 160px;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex: 0 1 auto; min-height: 160px; max-height: 56vh; overflow: hidden; display: flex; align-items: center; justify-content: center;
   background:
     radial-gradient(120% 120% at 0% 0%, rgba(255, 105, 180, 0.18), transparent 55%),
     radial-gradient(120% 120% at 100% 100%, rgba(78, 205, 196, 0.18), transparent 55%),
-    var(--bg-secondary);
+    #081328;
+  border-bottom: 1px solid var(--ui-hair);
 }
-.insp-preview-media img {
-  width: 100%;
-  max-height: 58vh;
-  object-fit: contain;
-  display: block;
-}
-.insp-preview-noimg {
-  padding: var(--spacing-2xl);
-  color: var(--accent-pink);
-  opacity: 0.7;
-}
+.insp-preview-media img { display: block; width: 100%; max-height: 56vh; object-fit: contain; }
+.insp-preview-noimg { padding: 48px; color: #ff9bd0; opacity: 0.75; filter: drop-shadow(0 0 16px rgba(255, 105, 180, 0.45)); }
 
-.insp-preview-body {
-  padding: var(--spacing-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-  overflow-y: auto;
-}
+.insp-preview-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 18px 24px 16px; }
+.ui-kicker.insp-preview-kicker, .ui-kicker.insp-preview-kicker svg { color: #ff9bd0; }
 .insp-preview-title {
-  font-size: 1.25rem;
-  text-transform: none;
-  letter-spacing: 0;
+  margin: 0; font: 700 1.35rem/1.25 'Outfit', var(--font-display); letter-spacing: -0.01em; text-transform: none; overflow-wrap: anywhere;
 }
-.insp-preview-desc {
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
+.insp-preview-desc { margin: 0; color: var(--text-secondary); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .insp-preview-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
-  color: var(--accent-cyan);
-  word-break: break-all;
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; max-width: 100%; min-height: 36px; margin-top: 4px; padding: 0 14px;
+  border-radius: 999px; font: 500 0.82rem var(--ui-mono); color: var(--accent-cyan); text-decoration: none;
+  background: rgba(78, 205, 196, 0.08); border: 1px solid rgba(78, 205, 196, 0.3);
 }
+.insp-preview-link span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.insp-preview-link:hover { border-color: var(--accent-cyan); background: rgba(78, 205, 196, 0.14); }
+
 .insp-preview-actions {
-  display: flex;
-  gap: var(--spacing-sm);
-  margin-top: var(--spacing-sm);
+  flex: 0 0 auto; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px 18px;
+  border-top: 1px solid var(--ui-hair); background: linear-gradient(180deg, rgba(12, 24, 52, 0.9), rgba(12, 24, 52, 0.98));
 }
-.insp-preview-delete { color: var(--accent-red); }
-.insp-preview-delete:hover { border-color: var(--accent-red); }
+.insp-preview-actions .btn { min-height: 42px; }
+.insp-preview-actions .insp-preview-delete { margin-right: auto; color: #ff8a9b; }
+.insp-preview-actions .insp-preview-delete:hover { border-color: rgba(255, 107, 129, 0.5); background: rgba(255, 107, 129, 0.08); }
+
+@media (max-width: 640px) {
+  .insp-preview {
+    max-width: 100%; max-height: 92vh; max-height: 92dvh; border-radius: 22px 22px 0 0; border-bottom: 0;
+    animation: ui-sheet-up 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .insp-preview-media, .insp-preview-media img { max-height: 46vh; }
+  .insp-preview-body { padding: 16px; }
+  .insp-preview-actions { padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); }
+  .insp-preview-actions .btn { flex: 1 1 0; justify-content: center; min-height: 46px; }
+  .insp-preview-actions .insp-preview-delete { margin-right: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .insp-preview { animation: none; } }

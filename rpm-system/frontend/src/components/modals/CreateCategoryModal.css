@@ -1,8 +1,31 @@
-.ccm-name-input {
-  border-color: var(--accent-cyan);
-}
+/* Category modal — the header badge is a live preview of the chosen icon + colour. */
+.modal.ccm-modal { max-width: 540px; }
+.mk-body .ccm-count { margin-left: auto; }
+.modal .mk-body .mk-hero.mk-hero:focus { border-color: var(--cat, var(--accent-cyan)); }
 
-.ccm-hint {
-  color: var(--text-muted);
-  font-size: 0.75rem;
+.ccm-swatches { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; }
+.ccm-swatch {
+  display: grid; place-items: center; aspect-ratio: 1; width: 100%; max-width: 44px; min-height: 36px; justify-self: center;
+  border-radius: 50%; border: 0; cursor: pointer; color: var(--ui-ink); background: var(--sw);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); transition: transform 0.15s, box-shadow 0.15s;
+}
+.ccm-swatch:hover { transform: scale(1.08); }
+.ccm-swatch.selected { box-shadow: 0 0 0 3px #0c1834, 0 0 0 5px var(--sw), 0 0 18px color-mix(in srgb, var(--sw) 60%, transparent); }
+.ccm-swatch:focus-visible { outline: none; box-shadow: 0 0 0 3px #0c1834, 0 0 0 5px #fff; }
+
+.ccm-icons { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
+.ccm-icon {
+  display: grid; place-items: center; min-height: 44px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--border-primary); background: rgba(255, 255, 255, 0.03); color: var(--text-secondary);
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.ccm-icon:hover { color: var(--text-primary); border-color: rgba(255, 255, 255, 0.24); }
+.ccm-icon.selected {
+  color: var(--cat); border-color: color-mix(in srgb, var(--cat) 70%, transparent);
+  background: color-mix(in srgb, var(--cat) 16%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--cat) 25%, transparent);
+}
+.ccm-icon:focus-visible { outline: none; box-shadow: var(--ring); }
+
+@media (max-width: 480px) {
+  .ccm-swatches, .ccm-icons { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }

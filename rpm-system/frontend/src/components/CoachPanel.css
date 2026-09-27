@@ -1,79 +1,160 @@
+/* Coach panel — category / project / Coaches page. "Mission control" glass (see styles/ui.css).
+   --coach is the coach's own accent (set inline once a coach exists). */
 .coach-panel {
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  border-radius: 16px;
-  padding: 1.25rem 1.35rem;
-  margin: 2rem 0 1.5rem;
+  --coach: #ff69b4;
+  position: relative; min-width: 0; margin: 1.5rem 0;
+  padding: 18px; border-radius: 20px; border: 1px solid var(--border-primary);
+  background:
+    radial-gradient(560px 220px at 100% 0%, color-mix(in srgb, var(--coach) 12%, transparent), transparent 65%),
+    var(--ui-glass);
+  box-shadow: var(--ui-shadow);
 }
-.coach-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 0.6rem; }
-.coach-title { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 0.98rem; }
-.coach-title svg { color: var(--accent-cyan); }
-.coach-head-actions { display: inline-flex; gap: 6px; }
-.coach-mini { display: inline-flex; align-items: center; gap: 4px; font-size: 0.74rem; font-weight: 600; padding: 4px 9px; border-radius: 999px; background: var(--bg-hover); border: 1px solid var(--border-primary); color: var(--text-secondary); cursor: pointer; }
-.coach-mini:hover { color: var(--text-primary); border-color: var(--accent-cyan); }
-.coach-mini.danger:hover { color: var(--accent-red); border-color: rgba(255,107,107,0.5); }
+.coach-panel::before {                                /* AI hairline along the top edge */
+  content: ''; position: absolute; left: 22px; right: 22px; top: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(78, 205, 196, 0.6), color-mix(in srgb, var(--coach) 70%, transparent), transparent);
+}
+.coach-panel--locked { background: color-mix(in srgb, var(--bg-card) 60%, transparent); }
+.coach-panel--locked::before { opacity: 0.35; }
+@media (min-width: 720px) { .coach-panel { padding: 20px 22px; } }
+
+/* ---------- head ---------- */
+.coach-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; min-width: 0; }
+.coach-title { display: inline-flex; align-items: center; gap: 12px; min-width: 0; }
+.coach-badge {
+  flex: 0 0 auto; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; color: var(--ui-ai);
+  background: linear-gradient(135deg, rgba(78, 205, 196, 0.2), rgba(255, 105, 180, 0.2)); border: 1px solid var(--border-primary);
+}
+.coach-panel--locked .coach-badge { color: var(--text-muted); background: rgba(255, 255, 255, 0.04); }
+.coach-name-block { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.coach-status { font: 600 0.66rem var(--ui-mono); letter-spacing: 0.12em; text-transform: uppercase; color: #ff9bd0; }
+.coach-status.is-locked { color: var(--text-muted); }
+.coach-name { font: 600 1.05rem/1.25 'Outfit', var(--font-display); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coach-resp { font-size: 0.76rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52ch; }
+.coach-head-actions { display: inline-flex; gap: 6px; flex: 0 0 auto; }
+
+.coach-mini {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 12px;
+  border-radius: 11px; border: 1px solid var(--border-primary); background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary); font: 600 0.78rem var(--font-body); cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.coach-mini--icon { width: 36px; padding: 0; }
+.coach-mini:hover, .coach-mini:focus-visible { color: var(--text-primary); border-color: var(--accent-cyan); outline: none; }
+.coach-mini.danger:hover, .coach-mini.danger:focus-visible { color: var(--ui-bad); border-color: rgba(255, 107, 129, 0.5); }
+@media (max-width: 420px) { .coach-mini-label { display: none; } .coach-head-actions .coach-mini:first-child { width: 36px; padding: 0; } }
+
 .coach-spin { animation: coach-spin 0.9s linear infinite; }
 @keyframes coach-spin { to { transform: rotate(360deg); } }
-
-.coach-locked { display: flex; align-items: center; gap: 7px; font-size: 0.86rem; color: var(--text-muted); margin: 0; }
-.coach-invite p { margin: 0 0 0.7rem; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; }
-.coach-cta { display: inline-flex; align-items: center; gap: 0.4rem; }
-
-.coach-draft-note { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 0.7rem; }
-.coach-field { display: flex; flex-direction: column; gap: 5px; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.8rem; }
-.coach-persona { min-height: 140px; resize: vertical; line-height: 1.5; font-size: 0.85rem; }
-.coach-draft-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
-
-.coach-chat { display: flex; flex-direction: column; }
-.coach-empty { font-size: 0.86rem; color: var(--text-muted); line-height: 1.5; margin: 0.2rem 0 0.8rem; }
-.coach-messages { display: flex; flex-direction: column; gap: 0.7rem; max-height: 46vh; overflow-y: auto; margin-bottom: 0.8rem; }
-.coach-msg { font-size: 0.9rem; line-height: 1.55; }
-.coach-msg.user { align-self: flex-end; max-width: 85%; background: var(--accent-cyan); color: #04231f; padding: 8px 12px; border-radius: 14px 14px 4px 14px; font-weight: 500; }
-.coach-msg.assistant { align-self: flex-start; max-width: 92%; }
-.coach-msg.assistant .asst-md { font-size: 0.9rem; }
-.coach-cursor { color: var(--accent-cyan); }
-
-.coach-composer { display: flex; gap: 8px; align-items: flex-end; }
-.coach-input { flex: 1; min-height: 40px; max-height: 140px; resize: none; line-height: 1.4; }
-.coach-send { flex-shrink: 0; width: 42px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
-
-/* Memory overlay */
-.coach-mem-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; padding: 5vh 1rem; }
-.coach-mem { width: 100%; max-width: 480px; max-height: 80vh; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border-primary); border-radius: 16px; padding: 1.1rem 1.2rem; box-shadow: var(--shadow-lg); }
-.coach-mem-head { display: flex; align-items: center; justify-content: space-between; font-weight: 700; margin-bottom: 0.8rem; }
-.coach-mem-head span { display: inline-flex; align-items: center; gap: 7px; }
-.coach-mem-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.coach-mem-list li { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 10px; background: var(--bg-hover); border: 1px solid var(--border-primary); }
-.coach-mem-list li.pinned { border-color: rgba(78,205,196,0.4); }
-.coach-mem-kind { flex-shrink: 0; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; color: var(--accent-cyan); background: rgba(78,205,196,0.12); border-radius: 999px; padding: 1px 7px; }
-.coach-mem-content { flex: 1; min-width: 0; font-size: 0.84rem; }
-.coach-mem-btn { flex-shrink: 0; display: inline-flex; padding: 4px; border: none; background: transparent; color: var(--text-muted); border-radius: 6px; cursor: pointer; }
-.coach-mem-btn:hover { color: var(--accent-cyan); background: var(--bg-card); }
-.coach-mem-btn.danger:hover { color: var(--accent-red); }
-.coach-mem-note { font-size: 0.76rem; color: var(--text-muted); margin: 0.9rem 0 0; line-height: 1.45; }
-
-/* Avatar + identity */
-.coach-avatar { display: inline-grid; place-items: center; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
-.coach-name-block { display: inline-flex; flex-direction: column; min-width: 0; }
-.coach-name { font-weight: 700; font-size: 0.98rem; line-height: 1.2; }
-.coach-resp { font-size: 0.74rem; color: var(--text-muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 44ch; }
-.coach-title { align-items: center; gap: 9px; }
 .coach-loading { display: grid; place-items: center; min-height: 80px; }
 .coach-loading .coach-spin { color: var(--accent-cyan); }
 
-.coach-identity-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 0.8rem; }
-.coach-emoji-pick { display: inline-flex; flex-wrap: wrap; gap: 3px; }
-.coach-emoji { width: 30px; height: 30px; font-size: 1rem; border-radius: 8px; border: 1px solid var(--border-primary); background: var(--bg-hover); cursor: pointer; display: grid; place-items: center; }
-.coach-emoji:hover { border-color: var(--accent-cyan); }
-.coach-emoji.on { border-color: var(--accent-cyan); background: rgba(78,205,196,0.16); }
-.coach-color { width: 34px; height: 34px; padding: 0; border: 1px solid var(--border-primary); border-radius: 8px; background: none; cursor: pointer; }
-.coach-settings { display: flex; flex-direction: column; }
+/* ---------- locked ---------- */
+.coach-locked p { margin: 0 0 10px; font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; }
+.coach-missing { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.coach-missing li {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 12px; border-radius: 999px;
+  font: 500 0.78rem var(--font-body); color: #ffc56e; background: rgba(255, 183, 77, 0.08); border: 1px dashed rgba(255, 183, 77, 0.4);
+}
+.coach-missing li svg { flex: 0 0 auto; }
 
-/* Task-awareness snapshot strip */
-.coach-snap { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 0.8rem; }
-.coach-snap-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.coach-snap-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--bg-hover); border: 1px solid var(--border-primary); color: var(--text-secondary); }
-.coach-snap-chip.warn { color: var(--accent-orange); border-color: rgba(255,183,77,0.4); background: rgba(255,183,77,0.1); }
-.coach-snap-chip.bad { color: var(--accent-red); border-color: rgba(255,107,107,0.4); background: rgba(255,107,107,0.1); }
-.coach-snap-brief { display: inline-flex; align-items: center; gap: 5px; font-size: 0.74rem; font-weight: 600; padding: 4px 11px; border-radius: 999px; cursor: pointer; color: #04231f; border: none; background: linear-gradient(120deg, var(--accent-cyan), #7c6bf5); }
+/* ---------- invite ---------- */
+.coach-invite { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.coach-invite p { margin: 0; color: var(--text-secondary); font-size: 0.92rem; line-height: 1.55; max-width: 64ch; }
+.coach-perks { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.coach-perks li { display: inline-flex; align-items: center; gap: 6px; font: 500 0.76rem var(--ui-mono); color: var(--text-muted); }
+.coach-perks svg { color: var(--ui-good); }
+.coach-cta { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 42px; }
+
+/* ---------- draft / settings ---------- */
+.coach-draft, .coach-settings { display: flex; flex-direction: column; }
+.coach-draft-note { font-size: 0.88rem; color: var(--text-secondary); margin: 0 0 12px; }
+.coach-field {
+  display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;
+  font: 600 0.7rem var(--ui-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
+}
+.coach-field .form-input { font: 400 16px/1.45 var(--font-body); letter-spacing: normal; text-transform: none; color: var(--text-primary); }
+.coach-persona { min-height: 150px; resize: vertical; line-height: 1.55; }
+.coach-draft-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.coach-draft-actions .btn { min-height: 40px; }
+
+.coach-identity-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.coach-emoji-pick { display: flex; flex-wrap: wrap; gap: 4px; }
+.coach-emoji {
+  display: grid; place-items: center; width: 36px; height: 36px; font-size: 1.05rem; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border-primary); background: rgba(255, 255, 255, 0.03); transition: border-color 0.15s, background 0.15s;
+}
+.coach-emoji:hover, .coach-emoji:focus-visible { border-color: var(--accent-cyan); outline: none; }
+.coach-emoji.on { border-color: var(--accent-cyan); background: rgba(78, 205, 196, 0.16); box-shadow: 0 0 12px rgba(78, 205, 196, 0.25); }
+.coach-color { width: 36px; height: 36px; padding: 0; border: 1px solid var(--border-primary); border-radius: 10px; background: none; cursor: pointer; }
+
+/* ---------- avatar ---------- */
+.coach-avatar { display: inline-grid; place-items: center; border-radius: 13px; object-fit: cover; flex-shrink: 0; }
+
+/* ---------- chat ---------- */
+.coach-chat { display: flex; flex-direction: column; min-width: 0; }
+.coach-snap { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.coach-snap-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.coach-snap-chips .ui-chip { font-family: var(--ui-mono); font-weight: 600; }
+.coach-snap-brief {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border-radius: 999px; border: 0; cursor: pointer;
+  font: 700 0.78rem var(--font-body); color: var(--ui-ink); background: var(--ui-grad-ai); box-shadow: 0 0 18px rgba(255, 105, 180, 0.25);
+}
 .coach-snap-brief:disabled { opacity: 0.6; cursor: default; }
+.coach-empty { font-size: 0.88rem; color: var(--text-muted); line-height: 1.55; margin: 0 0 12px; }
+
+.coach-messages { display: flex; flex-direction: column; gap: 10px; max-height: 46vh; overflow-y: auto; margin-bottom: 12px; scrollbar-color: rgba(255, 255, 255, 0.15) transparent; }
+.coach-messages:empty { display: none; }
+.coach-msg { font-size: 0.92rem; line-height: 1.55; overflow-wrap: anywhere; }
+.coach-msg.user {
+  align-self: flex-end; max-width: 85%; padding: 9px 14px; border-radius: 16px 16px 4px 16px; font-weight: 500;
+  color: var(--ui-ink); background: linear-gradient(135deg, #4ecdc4, #7ee0d8);
+}
+.coach-msg.assistant {
+  align-self: flex-start; max-width: 92%; padding: 10px 14px; border-radius: 4px 16px 16px 16px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--ui-hair);
+  border-left: 3px solid color-mix(in srgb, var(--coach) 70%, transparent);
+}
+.coach-msg.assistant:empty { display: none; }
+.coach-msg.assistant .asst-md { font-size: 0.92rem; }
+.coach-cursor { color: var(--accent-cyan); }
+
+.coach-composer {
+  display: flex; gap: 8px; align-items: flex-end; padding: 6px; border-radius: 16px;
+  border: 1px solid var(--border-primary); background: rgba(6, 18, 31, 0.45); transition: border-color 0.15s;
+}
+.coach-composer:focus-within { border-color: rgba(78, 205, 196, 0.55); }
+.coach-composer .coach-input { flex: 1; min-width: 0; min-height: 40px; max-height: 140px; resize: none; line-height: 1.4; font-size: 16px; border: 0; background: transparent; }
+.coach-composer .coach-input:focus, .coach-composer .coach-input:focus-visible { box-shadow: none; outline: none; border: 0; }
+.coach-send { flex-shrink: 0; width: 44px; height: 40px; padding: 0; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* ---------- memory overlay ---------- */
+.coach-mem-overlay {
+  position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 5vh 16px;
+  background: rgba(3, 9, 20, 0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.coach-mem {
+  position: relative; width: 100%; max-width: 500px; max-height: 80vh; overflow-y: auto; padding: 18px 20px;
+  border-radius: 22px; border: 1px solid rgba(255, 255, 255, 0.12);
+  background: radial-gradient(500px 200px at 0% 0%, rgba(78, 205, 196, 0.1), transparent 62%), linear-gradient(180deg, #13244a, #0c1834);
+  box-shadow: 0 40px 120px -20px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.coach-mem-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; font: 600 1.05rem 'Outfit', var(--font-display); }
+.coach-mem-head span { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.coach-mem-head svg { color: var(--ui-ai); }
+.coach-mem-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.coach-mem-list li { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--ui-hair); }
+.coach-mem-list li.pinned { border-color: rgba(78, 205, 196, 0.4); background: rgba(78, 205, 196, 0.06); }
+.coach-mem-kind { flex-shrink: 0; padding: 2px 8px; border-radius: 999px; font: 700 0.62rem var(--ui-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-cyan); background: rgba(78, 205, 196, 0.12); }
+.coach-mem-content { flex: 1; min-width: 0; font-size: 0.86rem; line-height: 1.45; overflow-wrap: anywhere; }
+.coach-mem-btn { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid transparent; background: transparent; color: var(--text-muted); border-radius: 9px; cursor: pointer; }
+.coach-mem-btn:hover, .coach-mem-btn:focus-visible { color: var(--accent-cyan); border-color: var(--border-primary); outline: none; }
+.coach-mem-btn.danger:hover, .coach-mem-btn.danger:focus-visible { color: var(--ui-bad); }
+.coach-mem-note { font-size: 0.78rem; color: var(--text-muted); margin: 14px 0 0; line-height: 1.5; }
+
+/* Category page: the panel sits in a gap-spaced column, no extra margin */
+.cd .coach-panel { margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-spin { animation-duration: 2.4s; }
+  .coach-panel *, .coach-mem * { transition: none !important; }
+}

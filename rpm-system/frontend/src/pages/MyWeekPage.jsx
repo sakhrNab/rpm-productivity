@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
-import { Plus, Sparkles, X, Check } from 'lucide-react';
+import { Plus, Sparkles, X, Check, CalendarRange } from 'lucide-react';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
@@ -180,14 +180,18 @@ function MyWeekPage() {
 
       <CapacityStrip start={weekStart} today={format(new Date(), 'yyyy-MM-dd')} refreshKey={actions} onChanged={loadActions} navigable />
 
-      <div className="actions-list mw-actions-list">
-        <div className="actions-header">
-          <h3>This Week's Actions</h3>
-          <span className="list-count">{actions.length} actions</span>
+      <section className="ui-card mw-list" aria-label="This week's actions">
+        <div className="mw-list-head">
+          <p className="ui-kicker"><CalendarRange size={14} /> This week’s actions <span className="ui-count">{actions.length ? `${actions.filter(a => a.is_completed).length}/${actions.length}` : ''}</span></p>
+          {actions.length > 0 && <div className="ui-meter mw-list-meter" aria-hidden="true"><i style={{ '--pct': `${Math.round((actions.filter(a => a.is_completed).length / actions.length) * 100)}%` }} /></div>}
         </div>
 
         {actions.length === 0 ? (
-          <div className="empty-state"><p>No actions scheduled for this week</p></div>
+          <div className="ui-empty">
+            <CalendarRange size={26} />
+            <p>Nothing planned this week yet. Pick the one thing that matters most.</p>
+            <button type="button" className="btn btn-primary" onClick={() => setShowActionModal(true)}><Plus size={16} /> Add Action</button>
+          </div>
         ) : (
           <SortableActionGroups
             groups={groups}
@@ -208,7 +212,7 @@ function MyWeekPage() {
             )}
           />
         )}
-      </div>
+      </section>
 
       {showActionModal && categories && (
         <CreateActionModal

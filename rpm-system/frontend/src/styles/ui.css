@@ -1,0 +1,169 @@
+/* =====================================================================
+   RPM UI foundation — "mission control" (the language of the file planner,
+   timelines, roadmap and capacity strip), shared by every page and modal.
+   Loaded after index.css. Page/component CSS builds on these primitives.
+   ===================================================================== */
+
+:root {
+  --ui-good: #4ecdc4;
+  --ui-warn: #ffb74d;
+  --ui-bad: #ff6b81;
+  --ui-ai: #ff69b4;
+  --ui-info: #9575cd;
+  --ui-ink: #06121f;                                   /* text on bright fills */
+  --ui-mono: 'Space Grotesk', var(--font-body);
+  --ui-hair: rgba(255, 255, 255, 0.08);
+  --ui-glass:
+    radial-gradient(900px 320px at 0% -10%, rgba(78, 205, 196, 0.08), transparent 60%),
+    radial-gradient(800px 320px at 110% 120%, rgba(255, 105, 180, 0.07), transparent 60%),
+    color-mix(in srgb, var(--bg-card) 72%, transparent);
+  --ui-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 20px 60px -24px rgba(0, 0, 0, 0.7);
+  --ui-grad: linear-gradient(90deg, #4ecdc4, #7ee0d8);
+  --ui-grad-ai: linear-gradient(90deg, #4ecdc4, #ff69b4);
+}
+
+/* ---------- primitives ---------- */
+/* NOTE: no backdrop-filter on panels — it turns them into containing blocks for
+   position:fixed menus (Picker, dropdowns) and breaks their placement. */
+.ui-card {
+  position: relative; min-width: 0; padding: 18px; border-radius: 20px;
+  border: 1px solid var(--border-primary); background: var(--ui-glass); box-shadow: var(--ui-shadow);
+}
+.ui-kicker {
+  display: flex; align-items: center; gap: 8px; margin: 0;
+  font: 600 0.72rem var(--ui-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
+}
+.ui-kicker svg { flex: 0 0 auto; color: var(--accent-cyan); }
+.ui-kicker .ui-count { font-weight: 700; color: var(--text-secondary); letter-spacing: 0.04em; }
+.ui-title-grad {
+  background: linear-gradient(90deg, #fff 30%, #9fe8e2 70%, #ffb3d9);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.ui-icon-badge {
+  flex: 0 0 auto; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; color: var(--accent-cyan);
+  background: linear-gradient(135deg, rgba(78, 205, 196, 0.2), rgba(255, 105, 180, 0.16)); border: 1px solid var(--border-primary);
+}
+.ui-chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 3px 10px; border-radius: 999px;
+  font: 500 0.74rem var(--font-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text-secondary); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-primary);
+}
+.ui-chip svg { flex: 0 0 auto; }
+.ui-chip--good { color: var(--ui-good); background: rgba(78, 205, 196, 0.1); border-color: rgba(78, 205, 196, 0.3); }
+.ui-chip--warn { color: #ffc56e; background: rgba(255, 183, 77, 0.1); border-color: rgba(255, 183, 77, 0.32); }
+.ui-chip--bad  { color: #ff8a9b; background: rgba(255, 107, 129, 0.1); border-color: rgba(255, 107, 129, 0.35); }
+.ui-chip--ai   { color: #ff9bd0; background: rgba(255, 105, 180, 0.1); border-color: rgba(255, 105, 180, 0.35); }
+.ui-chip--info { color: #b9a4e8; background: rgba(149, 117, 205, 0.12); border-color: rgba(149, 117, 205, 0.35); }
+.ui-stat {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center;
+  padding: 10px 14px; border-radius: 14px; border: 1px solid var(--border-primary); background: color-mix(in srgb, var(--bg-card) 70%, transparent);
+}
+.ui-stat > svg { grid-row: span 2; color: var(--accent-cyan); }
+.ui-stat b { font: 700 1.1rem var(--ui-mono); color: var(--text-primary); line-height: 1.2; }
+.ui-stat span { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+.ui-meter { position: relative; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+.ui-meter > i {
+  position: absolute; inset: 0 auto 0 0; width: var(--pct, 0%); border-radius: 3px;
+  background: var(--ui-grad); box-shadow: 0 0 10px rgba(78, 205, 196, 0.5); transition: width 0.6s ease;
+}
+.ui-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 26px 18px; text-align: center;
+  border-radius: 16px; border: 1px dashed rgba(255, 255, 255, 0.14); color: var(--text-muted); font-size: 0.88rem;
+}
+.ui-empty svg { color: var(--accent-cyan); opacity: 0.85; }
+.ui-seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-primary); }
+.ui-seg > button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: 9px;
+  border: 0; background: transparent; color: var(--text-secondary); font: 500 0.82rem var(--font-body); cursor: pointer;
+}
+.ui-seg > button:hover { color: var(--text-primary); }
+.ui-seg > button.on, .ui-seg > button[aria-selected="true"] { background: var(--bg-card-hover); color: var(--text-primary); box-shadow: inset 0 0 0 1px rgba(78, 205, 196, 0.45); }
+
+/* ---------- modal shell (every modal) ---------- */
+.modal-overlay {
+  background:
+    radial-gradient(900px 600px at 50% 30%, rgba(78, 205, 196, 0.08), transparent 70%),
+    rgba(3, 9, 20, 0.72);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  backdrop-filter: blur(10px) saturate(1.1);
+}
+.modal {
+  position: relative;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(700px 260px at 0% 0%, rgba(78, 205, 196, 0.11), transparent 62%),
+    radial-gradient(600px 240px at 100% 0%, rgba(255, 105, 180, 0.09), transparent 62%),
+    linear-gradient(180deg, #13244a 0%, #0c1834 100%);
+  box-shadow: 0 40px 120px -20px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+.modal::before {                                         /* hairline of light along the top edge */
+  content: ''; position: absolute; left: 24px; right: 24px; top: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(78, 205, 196, 0.7), rgba(255, 105, 180, 0.6), transparent);
+}
+.modal-header {
+  position: sticky; top: 0; z-index: 3;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid var(--ui-hair);
+  background: linear-gradient(180deg, rgba(19, 36, 74, 0.97), rgba(17, 32, 66, 0.92));
+}
+.modal-title {
+  font-family: 'Outfit', var(--font-display); font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25;
+}
+.modal-body { padding: 20px 24px; }
+.modal-footer {
+  position: sticky; bottom: 0; z-index: 3;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--ui-hair);
+  background: linear-gradient(180deg, rgba(12, 24, 52, 0.9), rgba(12, 24, 52, 0.98));
+}
+.form-label {
+  font: 600 0.7rem var(--ui-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
+}
+/* Phones: modals become bottom sheets (thumb-reachable actions, full width). */
+@media (max-width: 640px) {
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .modal {
+    width: 100% !important; max-width: 100% !important; max-height: 92vh; max-height: 92dvh;
+    border-radius: 22px 22px 0 0; border-bottom: 0;
+    animation: ui-sheet-up 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .modal-header { padding: 18px 16px 12px; }
+  .modal-header::before {                                /* grab handle */
+    content: ''; position: absolute; left: 50%; top: 6px; width: 38px; height: 4px; margin-left: -19px;
+    border-radius: 2px; background: rgba(255, 255, 255, 0.2);
+  }
+  .modal-body { padding: 16px; }
+  .modal-footer { padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); }
+}
+@keyframes ui-sheet-up { from { transform: translateY(40px); opacity: 0; } }
+
+/* ---------- loading spinner (every .loading / .spinner) ---------- */
+.loading { position: relative; }
+.spinner {
+  position: relative; width: 46px; height: 46px; border: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(78, 205, 196, 0) 0deg, #4ecdc4 210deg, #ff69b4 320deg, rgba(255, 105, 180, 0) 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+  filter: drop-shadow(0 0 10px rgba(78, 205, 196, 0.45));
+  animation: spin 0.9s linear infinite;
+}
+.loading::after {                                        /* breathing core in the middle of the ring */
+  content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%;
+  background: radial-gradient(circle, #fff, #4ecdc4 60%, transparent 70%);
+  box-shadow: 0 0 14px rgba(78, 205, 196, 0.8); animation: ui-breathe 1.4s ease-in-out infinite;
+}
+.loading:not(:has(.spinner))::after { display: none; }
+@keyframes ui-breathe { 50% { transform: scale(0.55); opacity: 0.6; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2.4s; }
+  .loading::after { animation: none; }
+  .modal { animation: none; }
+}
+
+/* ---------- room for the voice orb ---------- */
+/* The orb is fixed bottom-right on every page; let the last rows of any page scroll clear
+   of it. (The Assistant is a fixed-height chat and handles the orb itself.) */
+body:has(.vorb-root) .main-content:not(:has(.asst)) { padding-bottom: calc(var(--spacing-lg) + 88px); }

@@ -1,5 +1,8 @@
 import { useState, useEffect, useContext } from 'react';
-import { Compass, Sparkles, RefreshCw, CheckCircle2, Circle, Target, ArrowRight, X, Check, Wand2 } from 'lucide-react';
+import {
+  Compass, Sparkles, RefreshCw, CheckCircle2, Circle, Target, ArrowRight, X, Check, Wand2,
+  AlertTriangle, Trophy, ListChecks, History, Globe, Clock,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
@@ -10,6 +13,22 @@ import { useToast } from '../components/ToastProvider';
 import { getCompassState, subscribeCompass, runCompassRequest, patchCompassAction } from '../utils/compassStore';
 import './CompassPage.css';
 
+// Health ring: share of key results on track (or already reached).
+function HealthRing({ pct }) {
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  const known = pct != null;
+  return (
+    <div className="cmp-ring" role="img" aria-label={known ? `${pct}% of key results on track` : 'Forecast loading'}>
+      <svg viewBox="0 0 72 72">
+        <circle className="cmp-ring-bg" cx="36" cy="36" r={r} />
+        <circle className="cmp-ring-fg" cx="36" cy="36" r={r} strokeDasharray={c} strokeDashoffset={known ? c * (1 - pct / 100) : c} />
+      </svg>
+      <span className="cmp-ring-val"><b>{known ? `${pct}%` : '—'}</b><i>on track</i></span>
+    </div>
+  );
+}
+
 // Daily Compass — a short morning ritual. Coach must-win + today's actions (act on
 // them) + key results + AI suggestions you can approve. Request state lives in a
 // module store so it survives navigating away and back mid-load.
@@ -19,6 +38,7 @@ function CompassPage() {
   const { showToast } = useToast();
   const [state, setState] = useState(getCompassState);
   const [suggest, setSuggest] = useState(null);
+  const [forecast, setForecast] = useState(undefined);   // shared up from ForecastPanel (no extra request)
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
 
@@ -50,6 +70,14 @@ function CompassPage() {
     if (h < 18) return 'Good afternoon';
     return 'Good evening';
   })();
+
+  // Hero numbers — derived from data already on the page.
+  const fcKrs = forecast?.keyResults || [];
+  const sum = forecast?.summary || {};
+  const onTrack = sum.on_track || 0;
+  const reached = sum.done || 0;
+  const needAttention = (sum.at_risk || 0) + (sum.off_track || 0) + (sum.stalled || 0) + (sum.overdue || 0);
+  const healthPct = forecast === undefined ? null : fcKrs.length ? Math.round(((onTrack + reached) / fcKrs.length) * 100) : null;
 
   // CRUD: complete/uncomplete an action straight from the compass.
   const toggleComplete = async (a) => {
@@ -97,25 +125,37 @@ function CompassPage() {
 
   return (
     <div className="compass-page">
-      <header className="compass-head">
-        <div className="compass-head-icon"><Compass size={26} /></div>
-        <div>
-          <h1 className="compass-title">{greeting}. Here's your compass.</h1>
-          <p className="compass-date">{format(today, 'EEEE, MMMM d')}</p>
+      {/* ---------- hero ---------- */}
+      <header className="cmp-hero ui-card">
+        <div className="cmp-hero-main">
+          <p className="ui-kicker"><Compass size={14} /> Compass <span className="cmp-kdot" /> {format(today, 'EEEE, MMMM d')}</p>
+          <h1 className="cmp-title ui-title-grad">{greeting}. Here's your compass.</h1>
           <p className="compass-desc" title="Compass reads what's already in your plan against your goals and key results, and hands back today's one must-win. Reflect → focus: information flows OUT of your system. (Brain Dump is the opposite — it captures new thoughts INTO your plan.)">
             <span className="compass-desc-tag">Reflect → focus</span>
-            turns your plan into today's must-win.
+            <span>turns your plan into today's must-win.</span>
             <button type="button" className="compass-crosslink" onClick={() => window.dispatchEvent(new CustomEvent('rpm:open-braindump'))}>
-              New thoughts? Brain-dump them <ArrowRight size={12} />
+              New thoughts? Brain-dump them <ArrowRight size={13} />
             </button>
           </p>
         </div>
+
+        <div className="cmp-hero-board">
+          <HealthRing pct={healthPct} />
+          <div className="cmp-stats">
+            <div className="ui-stat"><Target size={18} /><b>{forecast === undefined ? '—' : fcKrs.length}</b><span>key results</span></div>
+            {onTrack > 0 && <div className="ui-stat cmp-stat-good"><CheckCircle2 size={18} /><b>{onTrack}</b><span>on track</span></div>}
+            {needAttention > 0 && <div className="ui-stat cmp-stat-warn"><AlertTriangle size={18} /><b>{needAttention}</b><span>need attention</span></div>}
+            {reached > 0 && <div className="ui-stat cmp-stat-good"><Trophy size={18} /><b>{reached}</b><span>reached</span></div>}
+            {actions.length > 0 && <div className="ui-stat"><ListChecks size={18} /><b>{doneCount}/{actions.length}</b><span>done today</span></div>}
+          </div>
+        </div>
+
         {hasContent && (
-          <div className="compass-head-right">
-            {state.status === 'ready' && state.usage && <UsageBadge usage={state.usage} />}
+          <div className="cmp-hero-status">
             {state.status === 'ready' && state.generatedAt && (
-              <span className="compass-generated">Updated {whenLabel(state.generatedAt)}</span>
+              <span className="compass-generated"><Clock size={12} /> Updated {whenLabel(state.generatedAt)}</span>
             )}
+            {state.status === 'ready' && state.usage && <UsageBadge usage={state.usage} />}
             <button type="button" className="btn btn-secondary compass-refresh" onClick={run} disabled={state.status === 'loading'}>
               <RefreshCw size={15} className={state.status === 'loading' ? 'spin' : ''} />
               {state.status === 'loading' ? 'Reading…' : 'Refresh'}
@@ -125,13 +165,14 @@ function CompassPage() {
       </header>
 
       <div className="compass-grid">
-        {/* Must-win / coach guidance */}
-        <section className="compass-card compass-guidance">
-          <div className="compass-card-head"><Sparkles size={16} /> Today's must-win</div>
+        {/* ---------- must-win / coach guidance ---------- */}
+        <section className="ui-card compass-guidance">
+          <h2 className="ui-kicker cmp-kicker-ai"><Sparkles size={14} /> Today's must-win</h2>
 
           {(state.status === 'idle' || state.status === 'init') && (
             <div className="compass-invite">
-              <Compass size={30} />
+              <span className="compass-invite-orb" aria-hidden="true"><Compass size={30} /></span>
+              <h3>Where should today's energy go?</h3>
               <p>Get a focused read on today — your must-win, drawn from your goals and where your key results stand.</p>
               <button type="button" className="btn btn-primary compass-cta-big" onClick={run}>
                 <Sparkles size={16} /> Read my compass
@@ -141,7 +182,7 @@ function CompassPage() {
           )}
 
           {isStale && (
-            <p className="compass-stale">Showing your read from {state.dateStr}. <button type="button" className="compass-stale-btn" onClick={run}>Refresh for today</button></p>
+            <p className="compass-stale"><History size={14} /> Showing your read from {state.dateStr}. <button type="button" className="compass-stale-btn" onClick={run}>Refresh for today</button></p>
           )}
 
           {state.status === 'loading' && (
@@ -154,26 +195,28 @@ function CompassPage() {
           )}
 
           {state.status === 'no-model' && (
-            <div className="compass-empty">
-              <p>Pick a default AI model to get your daily guidance.</p>
+            <div className="ui-empty compass-empty">
+              <Sparkles size={24} />
+              <span>Pick a default AI model to get your daily guidance.</span>
               <Link to="/settings" className="btn btn-primary compass-cta">Open Settings <ArrowRight size={15} /></Link>
             </div>
           )}
 
           {state.status === 'error' && (
-            <div className="compass-empty">
+            <div className="compass-error-box">
+              <AlertTriangle size={18} />
               <p className="compass-error">{state.error}</p>
               <button type="button" className="btn btn-secondary" onClick={run}>Try again</button>
             </div>
           )}
 
           {state.status === 'ready' && (
-            state.text ? <Markdown>{state.text}</Markdown> : <p className="compass-muted">No guidance came back — try refreshing.</p>
+            state.text ? <div className="compass-read"><Markdown>{state.text}</Markdown></div> : <p className="compass-muted">No guidance came back — try refreshing.</p>
           )}
 
           {state.status === 'ready' && state.sources?.length > 0 && (
             <div className="compass-sources">
-              <span>Sources</span>
+              <span><Globe size={12} /> Sources</span>
               {state.sources.slice(0, 5).map((s, i) => (
                 <a key={i} href={s.url} target="_blank" rel="noopener noreferrer">{s.title || s.url}</a>
               ))}
@@ -183,7 +226,7 @@ function CompassPage() {
           {state.status === 'ready' && state.text && (
             <div className="compass-act">
               <Link to="/my-day" className="btn btn-primary compass-cta">Go to My Day <ArrowRight size={15} /></Link>
-              <button type="button" className="btn btn-secondary" onClick={runSuggest} disabled={suggest?.loading}>
+              <button type="button" className="btn btn-secondary compass-cta" onClick={runSuggest} disabled={suggest?.loading}>
                 <Wand2 size={15} /> {suggest?.loading ? 'Thinking…' : 'Suggest improvements'}
               </button>
             </div>
@@ -193,10 +236,10 @@ function CompassPage() {
           {suggest && (
             <div className="compass-suggest">
               <div className="compass-suggest-head">
-                <span><Wand2 size={14} /> Suggestions</span>
+                <span className="ui-kicker cmp-kicker-ai"><Wand2 size={14} /> Suggestions</span>
                 <span className="compass-suggest-right">
                   {suggest.usage && <UsageBadge usage={suggest.usage} />}
-                  <button type="button" className="compass-suggest-close" onClick={() => setSuggest(null)} aria-label="Close"><X size={14} /></button>
+                  <button type="button" className="compass-suggest-close" onClick={() => setSuggest(null)} aria-label="Close"><X size={15} /></button>
                 </span>
               </div>
               {suggest.loading && <p className="compass-muted small">Reviewing today's tasks and priorities…</p>}
@@ -204,14 +247,17 @@ function CompassPage() {
               {suggest.text && <Markdown>{suggest.text}</Markdown>}
               {Array.isArray(suggest.proposals) && suggest.proposals.length > 0 && (
                 <div className="asst-proposals">
-                  <div className="asst-proposals-head">Suggested changes — approve what you want</div>
+                  <div className="asst-proposals-head">
+                    <Wand2 size={13} /> Suggested changes — approve what you want
+                    <span className="asst-proposals-count">{suggest.proposals.filter(p => !p.status).length} pending</span>
+                  </div>
                   {suggest.proposals.map((p, idx) => (
                     <div key={idx} className={`asst-proposal ${p.status || ''}`}>
                       <span className="asst-proposal-label">{p.label || p.kind}</span>
                       {!p.status && (
                         <span className="asst-proposal-actions">
-                          <button className="asst-prop-approve" onClick={() => applySuggestion(idx, p)}><Check size={13} /> Approve</button>
-                          <button className="asst-prop-dismiss" onClick={() => dismissSuggestion(idx)}><X size={13} /> Dismiss</button>
+                          <button className="asst-prop-approve" onClick={() => applySuggestion(idx, p)}><Check size={14} /> Approve</button>
+                          <button className="asst-prop-dismiss" onClick={() => dismissSuggestion(idx)}><X size={14} /> Dismiss</button>
                         </span>
                       )}
                       {p.status === 'applying' && <span className="asst-proposal-state">Applying…</span>}
@@ -225,13 +271,16 @@ function CompassPage() {
           )}
         </section>
 
-        {/* Today at a glance — actionable */}
+        {/* ---------- today at a glance (actionable) ---------- */}
         <aside className="compass-side">
-          <section className="compass-card">
-            <div className="compass-card-head">
-              Today's actions
-              {actions.length > 0 && <span className="compass-count">{doneCount}/{actions.length}</span>}
-            </div>
+          <section className="ui-card compass-card">
+            <h2 className="ui-kicker">
+              <ListChecks size={14} /> Today's actions
+              {actions.length > 0 && <span className="ui-count">{doneCount}/{actions.length}</span>}
+            </h2>
+            {actions.length > 0 && (
+              <div className="ui-meter compass-today-meter"><i style={{ '--pct': `${Math.round((doneCount / actions.length) * 100)}%` }} /></div>
+            )}
             {!ctx ? (
               <p className="compass-muted small">Read your compass to see today at a glance.</p>
             ) : actions.length === 0 ? (
@@ -248,9 +297,9 @@ function CompassPage() {
                       aria-label={a.is_completed ? 'Mark not done' : 'Mark done'}
                       title={a.id ? (a.is_completed ? 'Mark not done' : 'Mark done') : ''}
                     >
-                      {a.is_completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                      {a.is_completed ? <CheckCircle2 size={18} /> : <Circle size={18} />}
                     </button>
-                    <span>{a.title}</span>
+                    <span className="compass-list-title">{a.title}</span>
                   </li>
                 ))}
               </ul>
@@ -258,51 +307,51 @@ function CompassPage() {
           </section>
 
           {ctx && Array.isArray(ctx.carried) && ctx.carried.length > 0 && (
-            <section className="compass-card">
-              <div className="compass-card-head">
-                Carried over
-                <span className="compass-count warn">{ctx.carried.length}</span>
-              </div>
+            <section className="ui-card compass-card compass-carried">
+              <h2 className="ui-kicker">
+                <History size={14} /> Carried over
+                <span className="ui-count compass-count-warn">{ctx.carried.length}</span>
+              </h2>
               <ul className="compass-list carried">
                 {ctx.carried.map((a, i) => (
                   <li key={a.id || i}>
-                    <span>{a.title}</span>
-                    <span className="compass-late">{a.days_late}d late</span>
+                    <span className="compass-list-title">{a.title}</span>
+                    <span className="ui-chip ui-chip--warn compass-late">{a.days_late}d late</span>
                   </li>
                 ))}
               </ul>
             </section>
           )}
 
-          <section className="compass-card">
-            <div className="compass-card-head"><Target size={15} /> Key results</div>
-            {!ctx ? (
-              <p className="compass-muted small">—</p>
-            ) : krs.length === 0 ? (
-              <p className="compass-muted small">No active key results.</p>
-            ) : (
-              <ul className="compass-kr">
-                {krs.map((k, i) => {
-                  const cur = Number(k.current_value ?? 0);
-                  const tgt = Number(k.target_value ?? 0);
-                  const pct = tgt > 0 ? Math.min(100, Math.round((cur / tgt) * 100)) : 0;
-                  return (
-                    <li key={i}>
-                      <div className="compass-kr-top">
-                        <span className="compass-kr-title">{k.title}</span>
-                        <span className="compass-kr-val">{cur}/{tgt || '?'} {k.unit || ''}</span>
-                      </div>
-                      <div className="compass-kr-bar"><span style={{ width: `${pct}%` }} /></div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
+          {ctx && (
+            <section className="ui-card compass-card">
+              <h2 className="ui-kicker"><Target size={14} /> Key results{krs.length > 0 && <span className="ui-count">{krs.length}</span>}</h2>
+              {krs.length === 0 ? (
+                <p className="compass-muted small">No active key results.</p>
+              ) : (
+                <ul className="compass-kr">
+                  {krs.map((k, i) => {
+                    const cur = Number(k.current_value ?? 0);
+                    const tgt = Number(k.target_value ?? 0);
+                    const pct = tgt > 0 ? Math.min(100, Math.round((cur / tgt) * 100)) : 0;
+                    return (
+                      <li key={i}>
+                        <div className="compass-kr-top">
+                          <span className="compass-kr-title">{k.title}</span>
+                          <span className="compass-kr-val">{cur}/{tgt || '?'} {k.unit || ''}</span>
+                        </div>
+                        <div className="ui-meter"><i style={{ '--pct': `${pct}%` }} /></div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          )}
         </aside>
       </div>
 
-      <ForecastPanel />
+      <ForecastPanel onData={setForecast} />
     </div>
   );
 }

@@ -1,73 +1,23 @@
-.ckr-modal {
-  max-width: 520px;
-}
+/* Key result modal — shell in styles/ui.css, shared kit in modalKit.css */
+.modal.ckr-modal { max-width: 560px; }
 
-/* Roomier, more intuitive fields inside the modal body */
-.ckr-modal .modal-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 20px 22px;
+/* Title: reads like a one-line headline but wraps + grows with long text */
+.modal .mk-body textarea.ckr-title.mk-hero {
+  min-height: 0; height: auto; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; field-sizing: content;
 }
-.ckr-modal .form-group { margin: 0; }
+.modal .mk-body .ckr-num.ckr-num { font-family: var(--ui-mono); font-weight: 600; }
+.modal .mk-body .ckr-date.ckr-date { font-family: var(--ui-mono); color-scheme: dark; }
 
-.ckr-modal .form-label {
-  display: block;
-  margin-bottom: 7px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--text-secondary);
-  white-space: normal;      /* long labels wrap instead of clipping */
-  word-break: break-word;
-}
+.ckr-measure { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 400px) { .ckr-measure { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ckr-measure > :last-child { grid-column: 1 / -1; } }
 
-.ckr-modal .form-input {
-  line-height: 1.45;
-}
-
-/* Title: looks like a one-line input but wraps + grows with long text */
-.ckr-modal textarea.ckr-title {
-  min-height: 0;
-  height: auto;
-  line-height: 1.4;
-  resize: none;
-  overflow: hidden;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  field-sizing: content;
-}
-
-/* Textareas grow with content and wrap long text */
-.ckr-modal textarea.form-input {
-  min-height: 84px;
-  resize: vertical;
-  field-sizing: content;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-/* Value row: Current / Target / Unit */
-.ckr-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-.ckr-grid-3 {
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
-.ckr-hint {
-  margin: -4px 0 0;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  color: var(--text-muted);
-}
-.ckr-hint strong { color: var(--text-secondary); font-weight: 600; }
-
-@media (max-width: 520px) {
-  .ckr-grid, .ckr-grid-3 { grid-template-columns: 1fr; }
-}
+/* Live preview of the card's progress bar */
+.ckr-preview { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border-primary); background: rgba(255, 255, 255, 0.025); }
+.ckr-preview-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ckr-preview-val { min-width: 0; font: 600 0.9rem var(--ui-mono); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ckr-preview-val i { font-style: normal; color: var(--text-muted); }
+.ckr-preview-pct { font: 700 1.05rem var(--ui-mono); color: var(--accent-cyan); }
+.ckr-preview.is-empty .ckr-preview-val { font: 400 0.82rem var(--font-body); color: var(--text-muted); }
 
 /* ---- Inline progress editor on the key-result card ---- */
 .kr-editor {

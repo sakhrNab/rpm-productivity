@@ -1,12 +1,14 @@
 import { useState, useContext, useEffect } from 'react';
-import { X, Clock, Star, Calendar, FolderOpen, User, Flag, Lock, ChevronDown, Bell } from 'lucide-react';
+import { X, Clock, Star, CalendarDays, FolderOpen, User, Flag, Lock, ChevronDown, Bell, Zap, Check } from 'lucide-react';
 import TaskReminders from '../TaskReminders';
+import Picker from '../Picker';
+import ModalHead from './ModalHead';
 
 const PRIORITY_OPTIONS = [
-  { value: 0, label: 'None', cls: 'none' },
-  { value: 1, label: 'Low', cls: 'low' },
-  { value: 2, label: 'Med', cls: 'med' },
-  { value: 3, label: 'High', cls: 'high' },
+  { value: 0, label: 'None' },
+  { value: 1, label: 'Low' },
+  { value: 2, label: 'Med' },
+  { value: 3, label: 'High' },
 ];
 import { AppContext, AuthContext } from '../../App';
 import './CreateActionModal.css';
@@ -32,9 +34,6 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
   const [dependsOn, setDependsOn] = useState([]); // ids this action is blocked by
   const [originalDeps, setOriginalDeps] = useState([]);
   const [showDepsDropdown, setShowDepsDropdown] = useState(false);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
-  const [showPersonDropdown, setShowPersonDropdown] = useState(false);
   const [createLeverage, setCreateLeverage] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -99,291 +98,254 @@ function CreateActionModal({ onClose, onSuccess, categories, initialData = {} })
     }
   };
 
-  const selectedCategory = categories.find(c => c.id === formData.category_id);
-  const selectedProject = projects.find(p => p.id === formData.project_id);
   const selectedPerson = persons.find(p => p.id === formData.leverage_person_id);
+  const catById = Object.fromEntries(categories.map(c => [c.id, c]));
+  const isEdit = Boolean(initialData.id);
+
+  // Picker options (presentational — same values the old dropdowns wrote)
+  const categoryOptions = categories.map(c => ({
+    value: c.id, label: c.name, icon: <span className="mk-dot" style={{ '--c': c.color }} />,
+  }));
+  const projectOptions = [
+    { value: '', label: 'No project' },
+    ...[...projects]
+      .sort((a, b) => (catById[a.category_id]?.name || '~').localeCompare(catById[b.category_id]?.name || '~'))
+      .map(p => ({
+        value: p.id, label: p.name, group: catById[p.category_id]?.name || 'Other',
+        icon: <span className="mk-dot" style={{ '--c': catById[p.category_id]?.color }} />,
+      })),
+  ];
+  const personOptions = [
+    { value: '', label: 'No person' },
+    ...persons.map(p => ({ value: p.id, label: p.name, hint: p.email || undefined })),
+  ];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
+      <div className="modal cam-modal" onClick={e => e.stopPropagation()}>
+        <ModalHead
+          icon={Zap}
+          title={isEdit ? 'Edit action' : 'New action'}
+          subtitle={isEdit ? 'Tune the details, what it waits on and when to nudge you.' : 'One clear step — give it a day, a home and a priority.'}
+          onClose={onClose}
+        />
         <form onSubmit={handleSubmit}>
-          <div className="modal-body cam-modal-body">
-            {/* Title */}
-            <input
-              type="text"
-              className="form-input cam-title-input"
-              placeholder="Title"
-              value={formData.title}
-              onChange={e => setFormData({ ...formData, title: e.target.value })}
-              autoFocus
-            />
-
-            {/* Notes */}
-            <textarea
-              className="form-input cam-mb-16"
-              placeholder="Add notes"
-              value={formData.notes}
-              onChange={e => setFormData({ ...formData, notes: e.target.value })}
-              rows={3}
-            />
-
-            {/* Quick Options Row */}
-            <div className="form-row cam-quick-row">
-              {/* Category Dropdown */}
-              <div className="dropdown cam-relative">
-                <button
-                  type="button"
-                  className="dropdown-trigger"
-                  onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                  style={{ 
-                    background: selectedCategory ? selectedCategory.color + '20' : 'var(--bg-card)',
-                    borderColor: selectedCategory ? selectedCategory.color : 'var(--border-primary)'
-                  }}
-                >
-                  <span>{selectedCategory?.name || 'CAPTURE'}</span>
-                </button>
-                {showCategoryDropdown && (
-                  <div className="dropdown-menu cam-menu-200">
-                    {categories.map(cat => (
-                      <div
-                        key={cat.id}
-                        className="dropdown-item"
-                        onClick={() => {
-                          setFormData({ ...formData, category_id: cat.id });
-                          setShowCategoryDropdown(false);
-                        }}
-                      >
-                        <span 
-                          style={{ 
-                            width: 12, 
-                            height: 12, 
-                            borderRadius: '50%', 
-                            background: cat.color 
-                          }} 
-                        />
-                        {cat.name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Duration */}
-              <div className="duration-picker">
-                <Clock size={14} className="cam-icon-muted" />
-                <input
-                  type="number"
-                  className="duration-input"
-                  value={formData.duration_hours}
-                  onChange={e => setFormData({ ...formData, duration_hours: parseInt(e.target.value) || 0 })}
-                  min="0"
-                  max="24"
-                />
-                <span className="cam-unit">h</span>
-                <input
-                  type="number"
-                  className="duration-input"
-                  value={formData.duration_minutes}
-                  onChange={e => setFormData({ ...formData, duration_minutes: parseInt(e.target.value) || 0 })}
-                  min="0"
-                  max="59"
-                />
-                <span className="cam-unit">m</span>
-              </div>
-
-              {/* Star */}
-              <button
-                type="button"
-                className="btn btn-icon btn-secondary"
-                onClick={() => setFormData({ ...formData, is_starred: !formData.is_starred })}
-                style={{ 
-                  color: formData.is_starred ? 'var(--accent-orange)' : 'var(--text-muted)'
-                }}
-              >
-                <Star size={16} fill={formData.is_starred ? 'currentColor' : 'none'} />
-              </button>
-
-              {/* Date */}
-              <div className="duration-picker">
-                <Calendar size={14} className="cam-icon-muted" />
-                <input
-                  type="date"
-                  className="cam-date-input"
-                  value={formData.scheduled_date}
-                  onChange={e => setFormData({ ...formData, scheduled_date: e.target.value })}
-                />
-              </div>
-            </div>
-
-            {/* Project */}
-            <div className="form-row cam-mb-16">
-              <span className="cam-field-label">Project</span>
-              <div className="dropdown cam-dropdown-flex">
-                <button
-                  type="button"
-                  className="dropdown-trigger cam-trigger-full"
-                  onClick={() => setShowProjectDropdown(!showProjectDropdown)}
-                >
-                  <FolderOpen size={16} className="cam-icon-muted" />
-                  <span>{selectedProject?.name || 'Choose Project'}</span>
-                </button>
-                {showProjectDropdown && (
-                  <div className="dropdown-menu">
-                    <div
-                      className="dropdown-item"
-                      onClick={() => {
-                        setFormData({ ...formData, project_id: '' });
-                        setShowProjectDropdown(false);
-                      }}
-                    >
-                      No Project
-                    </div>
-                    {projects.map(proj => (
-                      <div
-                        key={proj.id}
-                        className="dropdown-item"
-                        onClick={() => {
-                          // A project belongs to a category — apply it automatically.
-                          setFormData({ ...formData, project_id: proj.id, category_id: proj.category_id || formData.category_id });
-                          setShowProjectDropdown(false);
-                        }}
-                      >
-                        {proj.name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Leverage Person */}
-            <div className="form-row cam-mb-16">
-              <span className="cam-field-label">Leverage/Commit</span>
-              <div className="dropdown cam-dropdown-flex">
-                <button
-                  type="button"
-                  className="dropdown-trigger cam-trigger-full"
-                  onClick={() => setShowPersonDropdown(!showPersonDropdown)}
-                >
-                  <User size={16} className="cam-icon-muted" />
-                  <span>{selectedPerson?.name || 'Choose person (optional)'}</span>
-                </button>
-                {showPersonDropdown && (
-                  <div className="dropdown-menu">
-                    <div
-                      className="dropdown-item"
-                      onClick={() => {
-                        setFormData({ ...formData, leverage_person_id: '' });
-                        setShowPersonDropdown(false);
-                      }}
-                    >
-                      No person
-                    </div>
-                    {persons.length === 0 && (
-                      <div className="dropdown-item cam-dropdown-empty">
-                        No people yet — add them on the People page
-                      </div>
-                    )}
-                    {persons.map(person => (
-                      <div
-                        key={person.id}
-                        className="dropdown-item"
-                        onClick={() => {
-                          setFormData({ ...formData, leverage_person_id: person.id });
-                          setShowPersonDropdown(false);
-                        }}
-                      >
-                        {person.name}
-                        {person.email && <span className="cam-person-email">{person.email}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <label className="cam-leverage-label cam-mb-16">
+          <div className="modal-body mk-body cam-modal-body">
+            {/* What */}
+            <div className="mk-section">
               <input
-                type="checkbox"
-                checked={createLeverage}
-                onChange={e => setCreateLeverage(e.target.checked)}
-                disabled={!formData.leverage_person_id}
+                type="text"
+                className="form-input mk-hero"
+                placeholder="What needs to happen?"
+                aria-label="Title"
+                value={formData.title}
+                onChange={e => setFormData({ ...formData, title: e.target.value })}
+                autoFocus
               />
-              Create Leverage Request
-            </label>
+              <textarea
+                className="form-input cam-notes"
+                placeholder="Notes, links, context (optional)"
+                aria-label="Notes"
+                value={formData.notes}
+                onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                rows={2}
+              />
+            </div>
+
+            {/* When */}
+            <div className="mk-section">
+              <p className="ui-kicker"><CalendarDays size={14} /> When</p>
+              <div className="mk-grid mk-grid-2">
+                <label className="mk-field">
+                  <span className="form-label">Day</span>
+                  <input
+                    type="date"
+                    className="form-input cam-date"
+                    value={formData.scheduled_date}
+                    onChange={e => setFormData({ ...formData, scheduled_date: e.target.value })}
+                  />
+                </label>
+                <div className="mk-field">
+                  <span className="form-label">Duration</span>
+                  <div className="cam-dur">
+                    <Clock size={15} className="cam-dur-icon" />
+                    <input
+                      type="number"
+                      className="duration-input"
+                      aria-label="Hours"
+                      value={formData.duration_hours}
+                      onChange={e => setFormData({ ...formData, duration_hours: parseInt(e.target.value) || 0 })}
+                      min="0"
+                      max="24"
+                    />
+                    <span className="cam-unit">h</span>
+                    <input
+                      type="number"
+                      className="duration-input"
+                      aria-label="Minutes"
+                      value={formData.duration_minutes}
+                      onChange={e => setFormData({ ...formData, duration_minutes: parseInt(e.target.value) || 0 })}
+                      min="0"
+                      max="59"
+                    />
+                    <span className="cam-unit">m</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Where */}
+            <div className="mk-section">
+              <p className="ui-kicker"><FolderOpen size={14} /> Where it lives</p>
+              <div className="mk-grid mk-grid-2">
+                <div className="mk-field">
+                  <span className="form-label">Category</span>
+                  <Picker
+                    value={formData.category_id}
+                    options={categoryOptions}
+                    onChange={v => setFormData({ ...formData, category_id: v })}
+                    placeholder="Capture list"
+                    header="Category"
+                  />
+                </div>
+                <div className="mk-field">
+                  <span className="form-label">Project</span>
+                  <Picker
+                    value={formData.project_id}
+                    options={projectOptions}
+                    // A project belongs to a category — apply it automatically.
+                    onChange={v => {
+                      const proj = projects.find(p => p.id === v);
+                      setFormData({ ...formData, project_id: v, category_id: proj ? (proj.category_id || formData.category_id) : formData.category_id });
+                    }}
+                    placeholder="Choose project"
+                    header="Project"
+                  />
+                </div>
+              </div>
+            </div>
 
             {/* Priority (Chet Holmes: rank what matters most) */}
-            <div className="form-row cam-mb-16">
-              <span className="cam-field-label"><Flag size={14} className="cam-icon-muted" /> Priority</span>
-              <div className="cam-prio-group">
-                {PRIORITY_OPTIONS.map(o => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    className={`cam-prio-btn cam-prio-${o.cls} ${formData.priority === o.value ? 'active' : ''}`}
-                    onClick={() => setFormData({ ...formData, priority: o.value })}
-                  >
-                    {o.label}
-                  </button>
-                ))}
+            <div className="mk-section">
+              <p className="ui-kicker"><Flag size={14} /> Priority</p>
+              <div className="cam-prio-row">
+                <div className="ui-seg mk-prio" role="radiogroup" aria-label="Priority">
+                  {PRIORITY_OPTIONS.map(o => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={formData.priority === o.value}
+                      className={`mk-p${o.value} ${formData.priority === o.value ? 'on' : ''}`}
+                      onClick={() => setFormData({ ...formData, priority: o.value })}
+                    >
+                      <span className="mk-dot" /> {o.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className={`mk-toggle-chip ${formData.is_starred ? 'on' : ''}`}
+                  aria-pressed={formData.is_starred}
+                  onClick={() => setFormData({ ...formData, is_starred: !formData.is_starred })}
+                >
+                  <Star size={15} fill={formData.is_starred ? 'currentColor' : 'none'} />
+                  {formData.is_starred ? 'Starred' : 'Star'}
+                </button>
               </div>
+            </div>
+
+            {/* Leverage */}
+            <div className="mk-section">
+              <p className="ui-kicker"><User size={14} /> Leverage / commit</p>
+              <Picker
+                value={formData.leverage_person_id}
+                options={personOptions}
+                onChange={v => setFormData({ ...formData, leverage_person_id: v })}
+                placeholder="Choose a person (optional)"
+                header="Person"
+              />
+              {persons.length === 0 && <p className="mk-help">No people yet — add them on the People page.</p>}
+              <label className={`mk-toggle-row ${formData.leverage_person_id ? '' : 'is-disabled'}`}>
+                <input
+                  type="checkbox"
+                  checked={createLeverage}
+                  onChange={e => setCreateLeverage(e.target.checked)}
+                  disabled={!formData.leverage_person_id}
+                />
+                <span>
+                  <b>Create leverage request</b>
+                  <small>{selectedPerson ? `Ask ${selectedPerson.name} to own or back this step.` : 'Pick a person first.'}</small>
+                </span>
+              </label>
             </div>
 
             {/* Dependencies — blocked by other actions */}
-            <div className="form-row cam-mb-16">
-              <span className="cam-field-label"><Lock size={14} className="cam-icon-muted" /> Blocked by</span>
-              <div className="dropdown cam-dropdown-flex">
-                <button type="button" className="dropdown-trigger cam-trigger-full" onClick={() => setShowDepsDropdown(v => !v)}>
-                  <span>{dependsOn.length ? `${dependsOn.length} action${dependsOn.length > 1 ? 's' : ''}` : 'Depends on… (optional)'}</span>
-                  <ChevronDown size={14} className="cam-icon-muted cam-ml-auto" />
-                </button>
-                {showDepsDropdown && (
-                  <div className="dropdown-menu cam-deps-menu">
-                    {candidateActions.length === 0 && <div className="dropdown-item cam-dropdown-empty">No other actions yet</div>}
-                    {candidateActions.map(a => {
-                      const checked = dependsOn.includes(a.id);
-                      return (
-                        <div
-                          key={a.id}
-                          className="dropdown-item cam-dep-item"
-                          onClick={() => setDependsOn(prev => checked ? prev.filter(id => id !== a.id) : [...prev, a.id])}
-                        >
-                          <input type="checkbox" readOnly checked={checked} />
-                          <span className="cam-dep-title">{a.title}</span>
-                          {a.project_name && <span className="cam-person-email">{a.project_name}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+            <div className="mk-section">
+              <p className="ui-kicker">
+                <Lock size={14} /> Blocked by
+                {dependsOn.length > 0 && <span className="ui-count">{dependsOn.length}</span>}
+              </p>
+              <button
+                type="button"
+                className={`cam-deps-trigger ${showDepsDropdown ? 'open' : ''}`}
+                aria-expanded={showDepsDropdown}
+                onClick={() => setShowDepsDropdown(v => !v)}
+              >
+                <span>{dependsOn.length ? `Waits on ${dependsOn.length} action${dependsOn.length > 1 ? 's' : ''}` : 'Depends on… (optional)'}</span>
+                <ChevronDown size={15} className="cam-deps-chevron" />
+              </button>
+              {showDepsDropdown && (
+                <div className="cam-deps-list" role="listbox" aria-multiselectable="true">
+                  {candidateActions.length === 0 && <div className="cam-deps-empty">No other actions yet</div>}
+                  {candidateActions.map(a => {
+                    const checked = dependsOn.includes(a.id);
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        role="option"
+                        aria-selected={checked}
+                        className={`cam-dep-item ${checked ? 'on' : ''}`}
+                        onClick={() => setDependsOn(prev => checked ? prev.filter(id => id !== a.id) : [...prev, a.id])}
+                      >
+                        <span className="cam-dep-box">{checked && <Check size={12} />}</span>
+                        <span className="cam-dep-title">{a.title}</span>
+                        {a.project_name && <span className="cam-dep-proj">{a.project_name}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {dependsOn.length > 0 && (
+                <div className="cam-dep-chips">
+                  {dependsOn.map(id => {
+                    const a = candidateActions.find(c => c.id === id);
+                    return (
+                      <span key={id} className="ui-chip ui-chip--bad cam-dep-chip">
+                        <Lock size={11} />
+                        <span className="cam-dep-chip-text">{a ? a.title : 'action'}</span>
+                        <button type="button" onClick={() => setDependsOn(prev => prev.filter(x => x !== id))} aria-label="Remove"><X size={12} /></button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            {dependsOn.length > 0 && (
-              <div className="cam-dep-chips">
-                {dependsOn.map(id => {
-                  const a = candidateActions.find(c => c.id === id);
-                  return (
-                    <span key={id} className="cam-dep-chip">
-                      {a ? a.title : 'action'}
-                      <button type="button" onClick={() => setDependsOn(prev => prev.filter(x => x !== id))} aria-label="Remove"><X size={11} /></button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
 
             {/* Reminders — manage this task's reminders (existing tasks only) */}
-            <div className="form-row cam-mb-16">
-              <span className="cam-field-label"><Bell size={14} className="cam-icon-muted" /> Reminders</span>
+            <div className="mk-section">
+              <p className="ui-kicker"><Bell size={14} /> Reminders</p>
               <TaskReminders actionId={initialData.id} actionTitle={formData.title} />
             </div>
           </div>
 
-          <div className="modal-footer">
+          <div className="modal-footer mk-foot">
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading || !formData.title.trim()}>
-              {loading ? 'Saving...' : initialData.id ? 'Update Action' : 'Save Action'}
+              <Check size={16} /> {loading ? 'Saving...' : isEdit ? 'Update action' : 'Save action'}
             </button>
           </div>
         </form>

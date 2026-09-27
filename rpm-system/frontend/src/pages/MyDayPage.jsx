@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
-import { Plus, Sparkles, X, Check, AlertTriangle, Wand2, Loader2 } from 'lucide-react';
+import { Plus, Sparkles, X, Check, AlertTriangle, Wand2, Loader2, CalendarDays, ListChecks, CheckCircle2, Clock, CircleDot, ArrowDownToLine, Sun } from 'lucide-react';
 import { format } from 'date-fns';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
@@ -15,7 +15,7 @@ import './MyDayPage.css';
 
 function MyDayPage() {
   const { categories, refreshData } = useContext(AppContext);
-  const { api } = useContext(AuthContext);
+  const { api, user } = useContext(AuthContext);
   const { showToast } = useToast();
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -169,84 +169,143 @@ function MyDayPage() {
 
   const groups = groupActions(actions);
 
+  // Presentational read-outs for the hero, derived from what's already loaded.
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 5 ? 'Working late' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const firstName = (user?.name || '').trim().split(/\s+/)[0];
+  const hoursOf = (a) => (Number(a.duration_hours) || 0) + (Number(a.duration_minutes) || 0) / 60;
+  const doneCount = actions.filter(a => a.is_completed).length;
+  const todoCount = actions.length - doneCount;
+  const plannedH = actions.reduce((sum, a) => sum + hoursOf(a), 0);
+  const leftH = actions.filter(a => !a.is_completed).reduce((sum, a) => sum + hoursOf(a), 0);
+  const pct = actions.length ? Math.round((doneCount / actions.length) * 100) : 0;
+  const fmtH = (h) => {
+    const mins = Math.round(h * 60);
+    const hh = Math.floor(mins / 60), mm = mins % 60;
+    if (!hh) return `${mm}m`;
+    return mm ? `${hh}h ${mm}m` : `${hh}h`;
+  };
+  const summary = actions.length === 0
+    ? 'Nothing is planned for today yet — add an action or pull one in from your week.'
+    : todoCount === 0
+      ? 'Everything on today’s list is done. Nicely handled.'
+      : `${todoCount} to go${leftH > 0 ? ` · about ${fmtH(leftH)} of focused work left` : ''}.`;
+  const RING_R = 30, RING_C = 2 * Math.PI * RING_R;
+  const hasAside = !!suggest || overdue.length > 0;
+
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">My Day</h1>
-          <p className="md-date">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
-        </div>
-        <div className="md-header-actions">
-          <button type="button" className="btn btn-secondary" onClick={runSuggest} disabled={suggest?.loading}>
-            <Sparkles size={16} /> {suggest?.loading ? 'Thinking…' : 'AI suggestions'}
-          </button>
-          <button type="button" className="btn btn-primary" onClick={() => setShowActionModal(true)}>
-            <Plus size={16} /> Add Action
-          </button>
-        </div>
-      </div>
-
-      {suggest && (
-        <div className="md-suggest">
-          <div className="md-suggest-head">
-            <span><Sparkles size={15} /> AI suggestions</span>
-            <span className="md-suggest-head-right">
-              {suggest.usage && <UsageBadge usage={suggest.usage} />}
-              <button type="button" className="md-suggest-close" onClick={() => setSuggest(null)} aria-label="Close"><X size={15} /></button>
-            </span>
-          </div>
-          <div className="md-suggest-body">
-            {suggest.loading && <p className="md-suggest-muted">Reviewing your tasks and priorities…</p>}
-            {suggest.error && <p className="md-suggest-error">{suggest.error}</p>}
-            {suggest.text && <Markdown>{suggest.text}</Markdown>}
-            {Array.isArray(suggest.proposals) && suggest.proposals.length > 0 && (
-              <div className="asst-proposals md-suggest-proposals">
-                <div className="asst-proposals-head">Suggested changes — approve what you want</div>
-                {suggest.proposals.map((p, idx) => (
-                  <div key={idx} className={`asst-proposal ${p.status || ''}`}>
-                    <span className="asst-proposal-label">{p.label || p.kind}</span>
-                    {!p.status && (
-                      <span className="asst-proposal-actions">
-                        <button className="asst-prop-approve" onClick={() => applySuggestion(idx, p)}><Check size={13} /> Approve</button>
-                        <button className="asst-prop-dismiss" onClick={() => dismissSuggestion(idx)}><X size={13} /> Dismiss</button>
-                      </span>
-                    )}
-                    {p.status === 'applying' && <span className="asst-proposal-state">Applying…</span>}
-                    {p.status === 'applied' && <span className="asst-proposal-state done"><Check size={13} /> Applied</span>}
-                    {p.status === 'dismissed' && <span className="asst-proposal-state muted">Dismissed</span>}
-                  </div>
-                ))}
-              </div>
-            )}
+    <div className={`md-page ${hasAside ? 'has-aside' : ''}`}>
+      <header className="ui-card md-hero">
+        <div className="md-hero-main">
+          <p className="ui-kicker md-hero-kicker">
+            <span className="md-hero-tag">My Day</span>
+            <CalendarDays size={14} /> {format(now, 'EEEE · d MMM yyyy')}
+          </p>
+          <h1 className="md-hero-title">
+            <span className="ui-title-grad">{greeting}{firstName ? `, ${firstName}` : ''}</span>
+          </h1>
+          <p className="md-hero-sub">{summary}</p>
+          <div className="md-hero-stats">
+            {todoCount > 0 && <div className="ui-stat"><CircleDot size={18} /><b>{todoCount}</b><span>to do</span></div>}
+            {doneCount > 0 && <div className="ui-stat md-stat-good"><CheckCircle2 size={18} /><b>{doneCount}</b><span>done</span></div>}
+            {overdue.length > 0 && <div className="ui-stat md-stat-warn"><AlertTriangle size={18} /><b>{overdue.length}</b><span>overdue</span></div>}
+            {plannedH > 0 && <div className="ui-stat"><Clock size={18} /><b>{fmtH(plannedH)}</b><span>planned</span></div>}
           </div>
         </div>
-      )}
-
-      {overdue.length > 0 && (
-        <div className="md-carried">
-          <div className="md-carried-head">
-            <span className="md-carried-title">
-              <AlertTriangle size={15} /> Carried over <b>{overdue.length}</b>
-            </span>
-            <span className="md-carried-actions">
-              <button type="button" className="md-carried-btn" onClick={triageOverdue} disabled={triaging}>
-                {triaging ? <><Loader2 size={13} className="md-spin" /> Triaging…</> : <><Wand2 size={13} /> Triage with AI</>}
-              </button>
-              <button type="button" className="md-carried-btn" onClick={moveAllToToday}>Move all to today</button>
-            </span>
-          </div>
-          <p className="md-carried-note">These slipped past their planned date. Nothing was moved automatically — decide each one.</p>
-          {overdue.map(a => (
-            <div key={a.id} className="md-carried-row">
-              <button type="button" className="md-carried-check" onClick={() => completeOverdue(a)} title="Mark done" aria-label="Mark done" />
-              <span className="md-carried-name" onClick={() => handleEdit(a)} title="Open to reschedule">{a.title}</span>
-              <span className="md-carried-age" title={`Planned ${String(a.scheduled_date).slice(0, 10)}`}>
-                {a.days_late}d late
-              </span>
-              <button type="button" className="md-carried-mini" onClick={() => moveToToday(a)}>Today</button>
-              <button type="button" className="md-carried-mini drop" onClick={() => dropTask(a)}>Drop</button>
+        <div className="md-hero-side">
+          {actions.length > 0 && (
+            <div className="md-ring" role="img" aria-label={`${pct}% of today done`}>
+              <svg viewBox="0 0 72 72" width="72" height="72" aria-hidden="true">
+                <circle className="md-ring-bg" cx="36" cy="36" r={RING_R} />
+                <circle className="md-ring-fg" cx="36" cy="36" r={RING_R} strokeDasharray={RING_C} strokeDashoffset={RING_C * (1 - pct / 100)} />
+              </svg>
+              <span className="md-ring-val"><b>{pct}%</b><i>done</i></span>
             </div>
-          ))}
+          )}
+          <div className="md-header-actions">
+            <button type="button" className="btn btn-secondary" onClick={runSuggest} disabled={suggest?.loading}>
+              <Sparkles size={16} /> {suggest?.loading ? 'Thinking…' : 'AI suggestions'}
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => setShowActionModal(true)}>
+              <Plus size={16} /> Add Action
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {hasAside && (
+        <div className="md-aside">
+          {suggest && (
+            <div className="md-suggest">
+              <div className="md-suggest-head">
+                <span><Sparkles size={14} /> AI suggestions</span>
+                <span className="md-suggest-head-right">
+                  {suggest.usage && <UsageBadge usage={suggest.usage} />}
+                  <button type="button" className="md-suggest-close" onClick={() => setSuggest(null)} aria-label="Close"><X size={15} /></button>
+                </span>
+              </div>
+              <div className="md-suggest-body">
+                {suggest.loading && <p className="md-suggest-muted"><Loader2 size={14} className="md-spin" /> Reviewing your tasks and priorities…</p>}
+                {suggest.error && <p className="md-suggest-error">{suggest.error}</p>}
+                {suggest.text && <Markdown>{suggest.text}</Markdown>}
+                {Array.isArray(suggest.proposals) && suggest.proposals.length > 0 && (
+                  <div className="asst-proposals md-suggest-proposals">
+                    <div className="asst-proposals-head">Suggested changes — approve what you want</div>
+                    {suggest.proposals.map((p, idx) => (
+                      <div key={idx} className={`asst-proposal ${p.status || ''}`}>
+                        <span className="asst-proposal-label">{p.label || p.kind}</span>
+                        {!p.status && (
+                          <span className="asst-proposal-actions">
+                            <button className="asst-prop-approve" onClick={() => applySuggestion(idx, p)}><Check size={13} /> Approve</button>
+                            <button className="asst-prop-dismiss" onClick={() => dismissSuggestion(idx)}><X size={13} /> Dismiss</button>
+                          </span>
+                        )}
+                        {p.status === 'applying' && <span className="asst-proposal-state">Applying…</span>}
+                        {p.status === 'applied' && <span className="asst-proposal-state done"><Check size={13} /> Applied</span>}
+                        {p.status === 'dismissed' && <span className="asst-proposal-state muted">Dismissed</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {overdue.length > 0 && (
+            <section className="ui-card md-carried" aria-label="Carried over">
+              <div className="md-carried-head">
+                <p className="ui-kicker"><AlertTriangle size={14} /> Carried over <span className="ui-count">{overdue.length}</span></p>
+                <span className="md-carried-actions">
+                  <button type="button" className="md-carried-btn ai" onClick={triageOverdue} disabled={triaging}>
+                    {triaging ? <><Loader2 size={14} className="md-spin" /> Triaging…</> : <><Wand2 size={14} /> Triage with AI</>}
+                  </button>
+                  <button type="button" className="md-carried-btn" onClick={moveAllToToday}><ArrowDownToLine size={14} /> Move all to today</button>
+                </span>
+              </div>
+              <p className="md-carried-note">These slipped past their planned date. Nothing moves on its own — decide each one.</p>
+              <ul className="md-carried-list">
+                {overdue.map(a => (
+                  <li key={a.id} className="md-carried-row">
+                    <button type="button" className="md-carried-check" onClick={() => completeOverdue(a)} title="Mark done" aria-label={`Mark “${a.title}” done`}>
+                      <Check size={13} strokeWidth={3} />
+                    </button>
+                    <button type="button" className="md-carried-name" onClick={() => handleEdit(a)} title="Open to reschedule">{a.title}</button>
+                    <span
+                      className={`ui-chip ${a.days_late > 7 ? 'ui-chip--bad' : 'ui-chip--warn'} md-carried-age`}
+                      title={`Planned ${String(a.scheduled_date).slice(0, 10)}`}
+                    >
+                      {a.days_late}d late
+                    </span>
+                    <span className="md-carried-btns">
+                      <button type="button" className="md-carried-mini" onClick={() => moveToToday(a)}>Today</button>
+                      <button type="button" className="md-carried-mini drop" onClick={() => dropTask(a)}>Drop</button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
       )}
 
@@ -259,16 +318,22 @@ function MyDayPage() {
         />
       )}
 
-      <CapacityStrip start={today} today={today} refreshKey={actions} onChanged={() => { loadActions(); loadOverdue(); }} />
+      <div className="md-cap">
+        <CapacityStrip start={today} today={today} refreshKey={actions} onChanged={() => { loadActions(); loadOverdue(); }} />
+      </div>
 
-      <div className="actions-list md-actions-list">
-        <div className="actions-header">
-          <h3>Today's Actions</h3>
-          <span className="list-count">{actions.length} actions</span>
+      <section className="ui-card md-list" aria-label="Today's actions">
+        <div className="md-list-head">
+          <p className="ui-kicker"><ListChecks size={14} /> Today’s actions <span className="ui-count">{actions.length ? `${doneCount}/${actions.length}` : ''}</span></p>
+          {actions.length > 0 && <div className="ui-meter md-list-meter" aria-hidden="true"><i style={{ '--pct': `${pct}%` }} /></div>}
         </div>
 
         {actions.length === 0 ? (
-          <div className="empty-state"><p>No actions scheduled for today</p></div>
+          <div className="ui-empty">
+            <Sun size={26} />
+            <p>A clear day. Plan one thing that moves you forward.</p>
+            <button type="button" className="btn btn-primary" onClick={() => setShowActionModal(true)}><Plus size={16} /> Add Action</button>
+          </div>
         ) : (
           <SortableActionGroups
             groups={groups}
@@ -276,6 +341,7 @@ function MyDayPage() {
             renderRow={(action) => (
               <ActionRow
                 action={action}
+                hideToday
                 onToggleComplete={toggleComplete}
                 onToggleStar={toggleStar}
                 onEdit={handleEdit}
@@ -289,7 +355,7 @@ function MyDayPage() {
             )}
           />
         )}
-      </div>
+      </section>
 
       {showActionModal && categories && (
         <CreateActionModal

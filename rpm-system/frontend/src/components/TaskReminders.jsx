@@ -63,7 +63,7 @@ export default function TaskReminders({ actionId, actionTitle }) {
   };
 
   if (!actionId) {
-    return <p className="tr-hint"><Clock size={13} /> Save the task first, then you can add reminders.</p>;
+    return <p className="tr-hint"><Clock size={14} /> Save the task first, then you can add reminders.</p>;
   }
 
   return (
@@ -71,7 +71,7 @@ export default function TaskReminders({ actionId, actionTitle }) {
       {reminders.length > 0 && (
         <ul className="tr-list">
           {reminders.map(r => (
-            <li key={r.id} className="tr-item">
+            <li key={r.id} className={`tr-item ${editId === r.id ? 'is-editing' : ''}`}>
               {editId === r.id ? (
                 <>
                   <input type={r.kind === 'once' ? 'datetime-local' : 'time'} className="form-input tr-edit" value={editVal} onChange={e => setEditVal(e.target.value)} autoFocus />
@@ -79,10 +79,11 @@ export default function TaskReminders({ actionId, actionTitle }) {
                 </>
               ) : (
                 <>
-                  <Bell size={13} className="tr-item-icon" />
+                  <span className="tr-item-icon"><Bell size={13} /></span>
                   <span className="tr-when">{describe(r)}</span>
-                  <button type="button" className="tr-icon" title="Edit" onClick={() => startEdit(r)}><Pencil size={13} /></button>
-                  <button type="button" className="tr-icon tr-del" title="Delete" onClick={() => del(r)}><Trash2 size={13} /></button>
+                  {r.kind !== 'once' && <span className="tr-kind">{r.kind}</span>}
+                  <button type="button" className="tr-icon" title="Edit" aria-label="Edit reminder" onClick={() => startEdit(r)}><Pencil size={14} /></button>
+                  <button type="button" className="tr-icon tr-del" title="Delete" aria-label="Delete reminder" onClick={() => del(r)}><Trash2 size={14} /></button>
                 </>
               )}
             </li>
@@ -90,13 +91,15 @@ export default function TaskReminders({ actionId, actionTitle }) {
         </ul>
       )}
       <div className="tr-add">
-        {presets().map(p => (
-          <button key={p.key} type="button" className="tr-preset" onClick={() => add(p.at)}><Plus size={12} /> {p.label}</button>
-        ))}
-        <span className="tr-custom">
-          <input type="datetime-local" className="form-input tr-custom-in" value={customAt} onChange={e => setCustomAt(e.target.value)} />
-          <button type="button" className="tr-preset" disabled={!customAt} onClick={() => customAt && add(new Date(customAt))}>Add</button>
-        </span>
+        <div className="tr-presets">
+          {presets().map(p => (
+            <button key={p.key} type="button" className="tr-preset" onClick={() => add(p.at)}><Plus size={13} /> {p.label}</button>
+          ))}
+        </div>
+        <div className="tr-custom">
+          <input type="datetime-local" className="form-input tr-custom-in" aria-label="Custom reminder time" value={customAt} onChange={e => setCustomAt(e.target.value)} />
+          <button type="button" className="tr-preset tr-add-btn" disabled={!customAt} onClick={() => customAt && add(new Date(customAt))}>Add</button>
+        </div>
       </div>
     </div>
   );

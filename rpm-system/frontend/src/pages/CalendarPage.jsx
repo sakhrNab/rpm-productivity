@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, CalendarDays, CheckCircle2, Clock, CalendarPlus } from 'lucide-react';
 import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval, 
   isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek
@@ -71,59 +71,61 @@ function CalendarPage() {
     return actions.filter(a => a.scheduled_date && String(a.scheduled_date).slice(0, 10) === dayStr);
   };
 
-  return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">Calendar</h1>
-        <button 
-          type="button"
-          className="btn btn-primary"
-          onClick={() => setShowActionModal(true)}
-        >
-          <Plus size={16} />
-          Add Action
-        </button>
-      </div>
+  // Presentational read-outs for the header, from the month already loaded.
+  const inMonth = actions.filter(a => a.scheduled_date && isSameMonth(new Date(String(a.scheduled_date).slice(0, 10) + 'T00:00:00'), currentDate));
+  const doneInMonth = inMonth.filter(a => a.is_completed).length;
+  const viewingThisMonth = isSameMonth(currentDate, new Date());
 
-      <div className="project-planner cal-planner">
-        <div className="planner-header">
-          <button 
-            className="btn btn-icon btn-secondary"
-            onClick={() => setCurrentDate(subMonths(currentDate, 1))}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <h2 className="cal-month-title">{format(currentDate, 'MMMM yyyy')}</h2>
-          <button 
-            className="btn btn-icon btn-secondary"
-            onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-          >
-            <ChevronRight size={16} />
-          </button>
+  return (
+    <div className="cal-page">
+      <div className="ui-card cal-planner">
+        <div className="cal-head">
+          <div className="cal-head-main">
+            <p className="ui-kicker"><CalendarDays size={14} /> Calendar</p>
+            <h1 className="cal-month-title"><span className="ui-title-grad">{format(currentDate, 'MMMM')}</span> <span className="cal-year">{format(currentDate, 'yyyy')}</span></h1>
+            <div className="cal-chips">
+              <span className="ui-chip"><Clock size={12} /> {inMonth.length} scheduled</span>
+              {doneInMonth > 0 && <span className="ui-chip ui-chip--good"><CheckCircle2 size={12} /> {doneInMonth} done</span>}
+            </div>
+          </div>
+          <div className="cal-head-side">
+            <div className="cal-nav">
+              <button type="button" className="cal-nav-btn" aria-label="Previous month" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
+                <ChevronLeft size={18} />
+              </button>
+              {!viewingThisMonth && (
+                <button type="button" className="cal-nav-btn cal-nav-today" onClick={() => setCurrentDate(new Date())}>Today</button>
+              )}
+              <button type="button" className="cal-nav-btn" aria-label="Next month" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
+                <ChevronRight size={18} />
+              </button>
+            </div>
+            <button type="button" className="btn btn-primary cal-add" onClick={() => setShowActionModal(true)}>
+              <Plus size={16} /> Add Action
+            </button>
+          </div>
         </div>
 
-        <div className="calendar-scroll cal-scroll">
+        <div className="cal-scroll">
         <div className="cal-grid">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-            <div
-              key={day}
-              className="cal-day-header"
-            >
-              {day}
+            <div key={day} className="cal-day-header">
+              <span className="cal-dh-long">{day}</span><span className="cal-dh-short" aria-hidden="true">{day[0]}</span>
             </div>
           ))}
-          
+
           {days.map(day => {
             const dayActions = getActionsForDay(day);
             const isToday = isSameDay(day, new Date());
             const isCurrentMonth = isSameMonth(day, currentDate);
             const dayStr = format(day, 'yyyy-MM-dd');
             const isDropTarget = dropKey === dayStr;
+            const dow = day.getDay();
 
             return (
               <div
                 key={day.toISOString()}
-                className="cal-day"
+                className={`cal-day ${isToday ? 'is-today' : ''} ${isCurrentMonth ? '' : 'is-out'} ${isDropTarget ? 'is-drop' : ''} ${dow === 0 || dow === 6 ? 'is-weekend' : ''}`}
                 onDragOver={(e) => { if (dragId) { e.preventDefault(); setDropKey(dayStr); } }}
                 onDragLeave={() => setDropKey(k => (k === dayStr ? null : k))}
                 onDrop={(e) => {
@@ -136,26 +138,17 @@ function CalendarPage() {
                   setSelectedDate(day);
                   setShowActionModal(true);
                 }}
-                style={{
-                  background: isDropTarget ? 'var(--bg-card-hover)' : (isToday ? 'var(--bg-card-hover)' : 'var(--bg-secondary)'),
-                  boxShadow: isDropTarget ? 'inset 0 0 0 2px var(--accent-pink)' : 'none',
-                  opacity: isCurrentMonth ? 1 : 0.5
-                }}
+                title={`Add an action on ${format(day, 'EEE d MMM')}`}
               >
-                <div
-                  className="cal-daynum"
-                  style={{
-                    fontWeight: isToday ? 700 : 400,
-                    color: isToday ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                  }}
-                >
-                  {format(day, 'd')}
+                <div className="cal-day-top">
+                  <span className="cal-daynum">{format(day, 'd')}</span>
+                  <CalendarPlus size={13} className="cal-day-add" aria-hidden="true" />
                 </div>
                 {dayActions.slice(0, 3).map(action => (
                   <div
                     key={action.id}
-                    className="cal-event"
-                    title="Drag to another day, or click to edit"
+                    className={`cal-event ${action.is_completed ? 'is-done' : ''} ${dragId === action.id ? 'is-dragging' : ''}`}
+                    title={`${action.title} — drag to another day, or click to edit`}
                     draggable
                     onDragStart={(e) => { e.stopPropagation(); setDragId(action.id); e.dataTransfer.effectAllowed = 'move'; }}
                     onDragEnd={() => { setDragId(null); setDropKey(null); }}
@@ -165,11 +158,7 @@ function CalendarPage() {
                       setEditingAction(action);
                       setShowActionModal(true);
                     }}
-                    style={{
-                      background: action.category_color || 'var(--accent-pink)',
-                      opacity: dragId === action.id ? 0.4 : (action.is_completed ? 0.7 : 1),
-                      textDecoration: action.is_completed ? 'line-through' : 'none'
-                    }}
+                    style={{ '--c': action.category_color || 'var(--accent-pink)' }}
                   >
                     {action.title}
                   </div>
@@ -178,8 +167,10 @@ function CalendarPage() {
                   <div
                     className="cal-more"
                     role="button"
+                    tabIndex={0}
                     title="Show all actions on this day"
                     onClick={(e) => { e.stopPropagation(); setDayView(day); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setDayView(day); } }}
                   >
                     +{dayActions.length - 3} more
                   </div>
@@ -219,20 +210,30 @@ function CalendarPage() {
           <div className="modal-overlay" onClick={() => setDayView(null)}>
             <div className="modal cal-dayview" onClick={e => e.stopPropagation()}>
               <div className="modal-header cal-dayview-head">
-                <h3 className="modal-title">{format(dayView, 'EEEE, MMM d')}</h3>
-                <span className="cal-dayview-count">{list.length} action{list.length === 1 ? '' : 's'}</span>
+                <div className="cal-dayview-titles">
+                  <p className="ui-kicker">{isSameDay(dayView, new Date()) ? 'Today' : format(dayView, 'yyyy')}</p>
+                  <h3 className="modal-title">{format(dayView, 'EEEE, MMM d')}</h3>
+                </div>
+                <span className="ui-chip cal-dayview-count">
+                  {list.length} action{list.length === 1 ? '' : 's'}
+                  {list.some(a => a.is_completed) ? ` · ${list.filter(a => a.is_completed).length} done` : ''}
+                </span>
               </div>
               <div className="modal-body cal-dayview-list">
-                {list.length === 0 && <p className="cal-dayview-empty">Nothing scheduled.</p>}
+                {list.length === 0 && <div className="ui-empty cal-dayview-empty"><CalendarDays size={22} /><p>Nothing scheduled.</p></div>}
                 {list.map(action => (
                   <button
                     key={action.id}
                     type="button"
                     className={`cal-dayview-item ${action.is_completed ? 'done' : ''}`}
+                    style={{ '--c': action.category_color || 'var(--accent-pink)' }}
                     onClick={() => { setDayView(null); setSelectedDate(null); setEditingAction(action); setShowActionModal(true); }}
                   >
-                    <span className="cal-dayview-dot" style={{ background: action.category_color || 'var(--accent-pink)' }} />
-                    <span className="cal-dayview-title">{action.title}</span>
+                    <span className="cal-dayview-dot" aria-hidden="true">{action.is_completed && <CheckCircle2 size={14} />}</span>
+                    <span className="cal-dayview-main">
+                      <span className="cal-dayview-title">{action.title}</span>
+                      {(action.project_name || action.category_name) && <span className="cal-dayview-sub">{action.project_name || action.category_name}</span>}
+                    </span>
                     {action.scheduled_time && <span className="cal-dayview-time">{String(action.scheduled_time).slice(0, 5)}</span>}
                   </button>
                 ))}

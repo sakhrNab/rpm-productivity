@@ -10,7 +10,8 @@ import { setPendingFile, MAX_UPLOAD_BYTES } from '../utils/pendingFile';
 import {
   Send, Globe, Plus, Trash2, MessageSquare, Sparkles, ChevronDown, ChevronRight,
   Settings as SettingsIcon, Zap, Wand2, Check, X, ExternalLink, Info,
-  Mic, Volume2, VolumeX, Radio, Square, Paperclip, FileText, Loader2, GanttChart, MessageCircle, FileUp
+  Mic, Volume2, VolumeX, Radio, Square, Paperclip, FileText, Loader2, GanttChart, MessageCircle, FileUp,
+  Target, TrendingUp, CalendarDays, ListChecks
 } from 'lucide-react';
 import './AssistantPage.css';
 
@@ -53,6 +54,13 @@ function Markdown({ children }) {
 const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const fmtChars = (n) => (n >= 1000 ? `${Math.round(n / 1000)}k chars` : `${n} chars`);
 const DEFAULT_FILE_QUESTION = 'What is in this file, and what should I do with it?';
+// Empty-state starters: clicking one only fills the composer (never sends).
+const STARTERS = [
+  { icon: CalendarDays, text: 'Plan my week for my top key result.' },
+  { icon: TrendingUp, text: 'Which of my goals are slipping, and what should I do about it today?' },
+  { icon: ListChecks, text: 'What should my must-win be today?' },
+  { icon: Target, text: 'Break my next project milestone into concrete actions.' },
+];
 
 // A file chip on a user message (name + size; the text itself stays on the server).
 function FileChips({ files }) {
@@ -97,6 +105,8 @@ function AssistantPage() {
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef(null);
   const dragDepth = useRef(0);
+  const inputRef = useRef(null);
+  const pickerRef = useRef(null);
 
   const scrollRef = useRef(null);
   const abortRef = useRef(null);
@@ -144,6 +154,18 @@ function AssistantPage() {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, streaming]);
+
+  // Model menu: also close on outside click and Escape.
+  useEffect(() => {
+    if (!modelMenuOpen) return undefined;
+    const onDown = (e) => { if (!pickerRef.current?.contains(e.target)) setModelMenuOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setModelMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [modelMenuOpen]);
+
+  const applyStarter = (text) => { setInput(text); requestAnimationFrame(() => inputRef.current?.focus()); };
 
   const refreshConversations = () => { api.getAiConversations().then(setConversations).catch(() => {}); };
 
@@ -412,7 +434,10 @@ function AssistantPage() {
         )}
         {proposals.length > 0 && (
           <div className="asst-proposals">
-            <div className="asst-proposals-head"><Wand2 size={13} /> Suggested changes — approve what you want</div>
+            <div className="asst-proposals-head">
+              <Wand2 size={13} /> Suggested changes — approve what you want
+              {proposals.some(({ t }) => !t.status) && <span className="asst-proposals-count">{proposals.filter(({ t }) => !t.status).length} pending</span>}
+            </div>
             {proposals.map(({ t, ti }) => {
               const link = (t.applied && t.applied.link) || t.result.link;
               return (
@@ -420,8 +445,8 @@ function AssistantPage() {
                   <span className="asst-proposal-label">{t.result.label || t.name}</span>
                   {(!t.status) && (
                     <span className="asst-proposal-actions">
-                      <button className="asst-prop-approve" onClick={() => approveProposal(mi, ti, t)}><Check size={13} /> Approve</button>
-                      <button className="asst-prop-dismiss" onClick={() => dismissProposal(mi, ti)}><X size={13} /> Dismiss</button>
+                      <button className="asst-prop-approve" onClick={() => approveProposal(mi, ti, t)}><Check size={14} /> Approve</button>
+                      <button className="asst-prop-dismiss" onClick={() => dismissProposal(mi, ti)}><X size={14} /> Dismiss</button>
                     </span>
                   )}
                   {t.status === 'applying' && <span className="asst-proposal-state">Applying…</span>}
@@ -445,17 +470,18 @@ function AssistantPage() {
     <div className="asst">
       <aside className="asst-sidebar">
         <button className="btn btn-primary asst-newchat" onClick={newChat}><Plus size={16} /> New chat</button>
+        <p className="ui-kicker asst-side-kicker"><MessageSquare size={13} /> Conversations{conversations.length > 0 && <span className="ui-count">{conversations.length}</span>}</p>
         <div className="asst-conv-list">
           {conversations.length === 0 && <div className="asst-conv-empty">No conversations yet.</div>}
           {conversations.map(c => (
             <div key={c.id} className={`asst-conv ${c.id === conversationId ? 'active' : ''}`} onClick={() => openConversation(c.id)}>
               <MessageSquare size={14} />
               <span className="asst-conv-title">{c.title || 'Untitled'}</span>
-              <button className="asst-conv-del" onClick={(e) => deleteConversation(e, c.id)} aria-label="Delete"><Trash2 size={13} /></button>
+              <button className="asst-conv-del" onClick={(e) => deleteConversation(e, c.id)} aria-label="Delete" title="Delete conversation"><Trash2 size={14} /></button>
             </div>
           ))}
         </div>
-        <Link to="/settings" className="asst-settings-link"><SettingsIcon size={14} /> API keys &amp; settings</Link>
+        <Link to="/settings" className="asst-settings-link" title="API keys & settings"><SettingsIcon size={15} /> <span>API keys &amp; settings</span></Link>
       </aside>
 
       <section className={`asst-main ${dragging ? 'is-dragging' : ''}`} {...dropProps}>
@@ -467,14 +493,16 @@ function AssistantPage() {
           </div>
         )}
         <header className="asst-topbar">
-          <div className="asst-model-picker">
-            <button className="asst-model-btn" onClick={() => setModelMenuOpen(o => !o)}>
+          <div className="asst-model-picker" ref={pickerRef}>
+            <button className={`asst-model-btn ${modelMenuOpen ? 'open' : ''}`} onClick={() => setModelMenuOpen(o => !o)} aria-haspopup="listbox" aria-expanded={modelMenuOpen}>
               <Sparkles size={15} />
-              <span>{selectedModel ? selectedModel.label : 'Select model'}</span>
-              <ChevronDown size={14} />
+              <span className="asst-model-btn-label">{selectedModel ? selectedModel.label : 'Select model'}</span>
+              {selectedModel && <span className="asst-model-btn-prov">{PROVIDER_LABEL[selectedModel.provider] || selectedModel.provider}</span>}
+              <ChevronDown size={14} className="asst-model-chev" />
             </button>
             {modelMenuOpen && (
-              <div className="asst-model-menu" onMouseLeave={() => setModelMenuOpen(false)}>
+              <div className="asst-model-menu" role="listbox" aria-label="Model" onMouseLeave={() => setModelMenuOpen(false)}>
+                <div className="asst-model-menu-head">Choose a model</div>
                 {['anthropic', 'openai', 'zhipu', 'deepseek'].map(prov => {
                   const provModels = models.filter(m => m.provider === prov);
                   if (!provModels.length) return null;
@@ -503,10 +531,11 @@ function AssistantPage() {
                               <span className="asst-model-fam-count">{famModels.length}</span>
                             </button>
                             {open && famModels.map(m => (
-                              <button key={m.key} className={`asst-model-item asst-model-sub ${m.key === modelKey ? 'active' : ''}`} disabled={!configured}
+                              <button key={m.key} role="option" aria-selected={m.key === modelKey} className={`asst-model-item asst-model-sub ${m.key === modelKey ? 'active' : ''}`} disabled={!configured}
                                 onClick={() => { setModelKey(m.key); setModelMenuOpen(false); }}>
-                                {m.label}
-                                {m.webSearch && <Globe size={12} className="asst-model-web" />}
+                                <span className="asst-model-item-label">{m.label}</span>
+                                {m.webSearch && <Globe size={12} className="asst-model-web" aria-label="Web search" />}
+                                {m.key === modelKey && <Check size={14} className="asst-model-check" />}
                               </button>
                             ))}
                           </div>
@@ -522,15 +551,15 @@ function AssistantPage() {
           <div className="asst-toggles">
             <button className={`asst-websearch ${rpmMode ? 'on' : ''}`} onClick={() => setRpmMode(v => !v)}
               title="RPM mode: the assistant sees your projects, key results and actions — and can act on them">
-              <Sparkles size={15} /> RPM {rpmMode ? 'on' : 'off'}
+              <Sparkles size={15} /> RPM {rpmMode ? 'on' : 'off'}<i className="asst-tog-dot" />
             </button>
             <button className={`asst-websearch ${autoMode ? 'on' : ''}`} disabled={!rpmMode} onClick={() => setAutoMode(v => !v)}
               title={autoMode ? 'Auto: changes apply immediately' : 'Ask first: changes are suggested for your approval'}>
-              <Wand2 size={15} /> {autoMode ? 'Auto' : 'Ask first'}
+              <Wand2 size={15} /> {autoMode ? 'Auto' : 'Ask first'}<i className="asst-tog-dot" />
             </button>
             <button className={`asst-websearch ${webSearch ? 'on' : ''}`} disabled={!selectedModel?.webSearch} onClick={() => setWebSearch(v => !v)}
               title={selectedModel?.webSearch ? 'Toggle web search' : 'This model has no web search'}>
-              <Globe size={15} /> Web {webSearch ? 'on' : 'off'}
+              <Globe size={15} /> Web {webSearch ? 'on' : 'off'}<i className="asst-tog-dot" />
             </button>
           </div>
           {selectedModel && !selectedModel.webSearch && (
@@ -541,22 +570,34 @@ function AssistantPage() {
         <div className="asst-messages" ref={scrollRef}>
           {noModels && (
             <div className="asst-empty">
-              <Sparkles size={28} />
-              <h2>No models available yet</h2>
+              <span className="ui-icon-badge asst-empty-badge"><Sparkles size={26} /></span>
+              <h2 className="asst-empty-title">No models available yet</h2>
               <p>Add an API key for at least one provider to start chatting.</p>
               <Link to="/settings" className="btn btn-primary">Add API keys</Link>
             </div>
           )}
           {!noModels && messages.length === 0 && (
-            <div className="asst-empty">
-              <Sparkles size={28} />
-              <h2>Ask anything</h2>
-              <p>In RPM mode I can see your projects and suggest or make changes. Try “Plan my week for my top key result.”</p>
+            <div className="asst-empty asst-welcome">
+              <span className="ui-icon-badge asst-empty-badge"><Sparkles size={26} /></span>
+              <p className="ui-kicker">{selectedModel ? selectedModel.label : 'Assistant'} · {rpmMode ? (autoMode ? 'RPM · auto' : 'RPM · ask first') : 'general chat'}</p>
+              <h2 className="asst-empty-title ui-title-grad">Ask anything</h2>
+              <p>In RPM mode I can see your projects and suggest or make changes. Start with one of these, or ask your own.</p>
+              <div className="asst-starters">
+                {STARTERS.map(({ icon: Icon, text }) => (
+                  <button key={text} type="button" className="asst-starter" onClick={() => applyStarter(text)} title="Put this in the message box">
+                    <Icon size={15} /> <span>{text}</span>
+                  </button>
+                ))}
+              </div>
+              <span className="asst-empty-hint"><Paperclip size={12} /> Drop a file anywhere here to plan it or ask about it</span>
             </div>
           )}
           {messages.map((m, i) => (
             <div key={i} className={`asst-msg ${m.role}`}>
-              <div className="asst-msg-role">{m.role === 'user' ? 'You' : (selectedModel?.label || 'Assistant')}</div>
+              <div className="asst-msg-role">
+                {m.role === 'assistant' && <span className="asst-avatar" aria-hidden="true"><Sparkles size={13} /></span>}
+                {m.role === 'user' ? 'You' : (selectedModel?.label || 'Assistant')}
+              </div>
               {m.role === 'user' && <FileChips files={m.attachments} />}
               {renderTools(m, i)}
               <div className="asst-msg-content">
@@ -625,7 +666,7 @@ function AssistantPage() {
             title="Attach a file — plan it, or ask about it" aria-label="Attach a file">
             <Paperclip size={16} />
           </button>
-          <textarea className="asst-input"
+          <textarea ref={inputRef} className="asst-input"
             placeholder={listening ? 'Listening…' : attach?.status === 'ready' ? `Ask about ${attach.file.name}… (or just send)` : (selectedModel ? `Message ${selectedModel.label}…` : 'Select a model to begin…')}
             value={input} onChange={e => setInput(e.target.value)} onKeyDown={onKeyDown} rows={1}
             disabled={!modelKey || streaming} />

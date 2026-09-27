@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
   Sparkles, X, Mic, Loader2, Wand2, Check, FolderPlus, FolderKanban,
-  Target, Zap, Pencil, ArrowRight, CornerDownRight, Lightbulb,
+  Target, Zap, Pencil, ArrowRight, CornerDownRight, Lightbulb, Brain,
 } from 'lucide-react';
 import { AuthContext } from '../App';
 import { useToast } from './ToastProvider';
@@ -152,98 +152,132 @@ export default function BrainDumpModal({ onClose, onApplied, initialPlan = null,
   };
 
   const selectedCount = selected.size;
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  // Presentational tally of what the plan contains, e.g. "2 projects · 6 actions".
+  const tally = plan ? Object.entries((plan.operations || []).reduce((acc, o) => {
+    const k = (OP_META[o.op] ? o.op : 'create_action');
+    acc[k] = (acc[k] || 0) + 1; return acc;
+  }, {})) : [];
+  const inPreview = (phase === 'preview' || phase === 'applying') && plan;
 
   return createPortal(
     <div className="bd-overlay" onMouseDown={onClose}>
-      <div className="bd-modal" onMouseDown={e => e.stopPropagation()} role="dialog" aria-label="Brain Dump">
+      <div className={`bd-modal ${inPreview ? 'is-preview' : ''}`} onMouseDown={e => e.stopPropagation()} role="dialog" aria-label={title}>
         <header className="bd-head">
-          <div className="bd-head-title"><Sparkles size={18} /> {title}</div>
+          <span className="ui-icon-badge bd-badge" aria-hidden="true"><Brain size={20} /></span>
+          <div className="bd-head-text">
+            <h2 className="bd-head-title">{title}</h2>
+            <p className="bd-head-sub">{inPreview ? 'Review the plan — uncheck anything you don’t want.' : 'Empty your head. I’ll turn it into an RPM plan you approve.'}</p>
+          </div>
           <button className="bd-close" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </header>
 
         {(phase === 'input' || phase === 'loading') && (
-          <div className="bd-body">
-            <p className="bd-tagline" title="Brain Dump captures new thoughts INTO your plan as structured RPM items. It's the opposite of Compass, which reflects your existing plan back as today's focus.">
-              <span className="bd-tagline-tag">Capture → organize</span>
-              empties your head into your plan. <Link to="/compass" onClick={onClose} className="bd-crosslink">Already planned? Check your Compass <ArrowRight size={12} /></Link>
-            </p>
-            <p className="bd-lead">Dump everything on your mind — goals, tasks, worries, deadlines. I’ll organize it into your RPM plan for you to review.</p>
-            <div className="bd-input-wrap">
-              <textarea
-                className="bd-textarea"
-                placeholder="e.g. I need to ship the app this month, mom's birthday is coming up, I keep skipping workouts, investor deck due Friday, want to learn Spanish this year…"
-                value={text}
-                onChange={e => setText(e.target.value)}
-                disabled={phase === 'loading'}
-                autoFocus
-              />
-              {SR && (
-                <button
-                  type="button"
-                  className={`bd-mic ${listening ? 'live' : ''}`}
-                  onMouseDown={startVoice}
-                  onMouseUp={stopVoice}
-                  onMouseLeave={() => listening && stopVoice()}
-                  onTouchStart={(e) => { e.preventDefault(); startVoice(); }}
-                  onTouchEnd={(e) => { e.preventDefault(); stopVoice(); }}
+          <>
+            <div className="bd-body">
+              <p className="bd-tagline" title="Brain Dump captures new thoughts INTO your plan as structured RPM items. It's the opposite of Compass, which reflects your existing plan back as today's focus.">
+                <span className="ui-chip ui-chip--ai bd-tagline-tag"><Sparkles size={12} /> Capture → organize</span>
+                <Link to="/compass" onClick={onClose} className="bd-crosslink">Already planned? Check your Compass <ArrowRight size={12} /></Link>
+              </p>
+              <div className={`bd-input-wrap ${listening ? 'is-live' : ''}`}>
+                <textarea
+                  className="bd-textarea"
+                  placeholder="e.g. I need to ship the app this month, mom's birthday is coming up, I keep skipping workouts, investor deck due Friday, want to learn Spanish this year…"
+                  aria-label="What's on your mind"
+                  value={text}
+                  onChange={e => setText(e.target.value)}
                   disabled={phase === 'loading'}
-                  title="Hold to talk"
-                >
-                  <Mic size={16} /> {listening ? 'Listening… release to stop' : 'Hold to talk'}
-                </button>
-              )}
+                  autoFocus
+                />
+                <div className="bd-input-bar">
+                  <span className="bd-words">{words > 0 ? `${words} word${words === 1 ? '' : 's'}` : 'Goals, tasks, worries, deadlines'}</span>
+                  {SR && (
+                    <button
+                      type="button"
+                      className={`bd-mic ${listening ? 'live' : ''}`}
+                      onMouseDown={startVoice}
+                      onMouseUp={stopVoice}
+                      onMouseLeave={() => listening && stopVoice()}
+                      onTouchStart={(e) => { e.preventDefault(); startVoice(); }}
+                      onTouchEnd={(e) => { e.preventDefault(); stopVoice(); }}
+                      disabled={phase === 'loading'}
+                      title="Hold to talk"
+                    >
+                      <Mic size={15} /> {listening ? 'Listening… release to stop' : 'Hold to talk'}
+                    </button>
+                  )}
+                </div>
+                {phase === 'loading' && <div className="bd-scan" aria-hidden="true" />}
+              </div>
+              {error && <p className="bd-error">{error}</p>}
+              {!modelKey && <p className="bd-hint">No AI model selected. <Link to="/settings" onClick={onClose}>Choose one in Settings →</Link></p>}
             </div>
-            {error && <p className="bd-error">{error}</p>}
-            {!modelKey && <p className="bd-hint">No AI model selected. <Link to="/settings" onClick={onClose}>Choose one in Settings →</Link></p>}
-            <div className="bd-actions">
+            <div className="bd-foot">
+              <span className="bd-foot-note">You review everything before it’s added.</span>
               <button className="btn btn-primary bd-build" onClick={build} disabled={phase === 'loading' || !text.trim()}>
                 {phase === 'loading' ? <><Loader2 size={16} className="bd-spin" /> Building your plan…</> : <><Wand2 size={16} /> Build my plan</>}
               </button>
             </div>
-          </div>
+          </>
         )}
 
-        {(phase === 'preview' || phase === 'applying') && plan && (
-          <div className="bd-body">
-            {plan.summary && <p className="bd-summary">{plan.summary}</p>}
-            {Array.isArray(plan.notes) && plan.notes.length > 0 && (
-              <div className="bd-notes">
-                <div className="bd-notes-head"><Lightbulb size={14} /> Things to consider</div>
-                <ul>{plan.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
-              </div>
-            )}
-            <p className="bd-lead bd-review-lead">Review what I’ll create and where it lands. Uncheck anything you don’t want.</p>
-            <div className="bd-tree">
-              {plan.operations.map((o, i) => {
-                const m = OP_META[o.op] || OP_META.create_action;
-                const Icon = m.icon;
-                const on = selected.has(i);
-                return (
-                  <div
-                    key={i}
-                    className={`bd-op bd-op-${m.cls} ${on ? '' : 'off'}`}
-                    style={{ marginLeft: `${(meta.depth[i] || 0) * 22}px` }}
-                    onClick={() => toggle(i)}
-                  >
-                    <span className={`bd-check ${on ? 'on' : ''}`}>{on && <Check size={12} />}</span>
-                    {meta.depth[i] > 0 && <CornerDownRight size={13} className="bd-op-nest" />}
-                    <span className={`bd-op-icon bd-op-icon-${m.cls}`}><Icon size={14} /></span>
-                    <span className="bd-op-main">
-                      <span className="bd-op-title">{opTitle(o)}</span>
-                      <span className="bd-op-tags">
-                        <span className="bd-op-kind">{m.label}</span>
-                        {o.op === 'create_action' && o.priority > 0 && <span className={`bd-op-prio p${o.priority}`}>{PRIO[o.priority]}</span>}
-                        {o.scheduled_date && <span className="bd-op-date">{o.scheduled_date}</span>}
-                        {o.target_value != null && <span className="bd-op-date">target {o.target_value}{o.unit ? ` ${o.unit}` : ''}</span>}
-                        {meta.landsIn[i] && <span className="bd-op-lands"><ArrowRight size={11} /> {meta.landsIn[i]}</span>}
+        {inPreview && (
+          <>
+            <div className="bd-body">
+              {plan.summary && <p className="bd-summary">{plan.summary}</p>}
+              {tally.length > 0 && (
+                <div className="bd-tally">
+                  {tally.map(([op, n]) => {
+                    const m = OP_META[op];
+                    const Icon = m.icon;
+                    return <span key={op} className={`bd-tally-item bd-t-${m.cls}`}><Icon size={13} /> <b>{n}</b> {m.label.toLowerCase()}</span>;
+                  })}
+                </div>
+              )}
+              {Array.isArray(plan.notes) && plan.notes.length > 0 && (
+                <div className="bd-notes">
+                  <div className="bd-notes-head"><Lightbulb size={14} /> Things to consider</div>
+                  <ul>{plan.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
+                </div>
+              )}
+              <p className="ui-kicker bd-review-kicker">
+                <CornerDownRight size={13} /> What I’ll create
+                <span className="ui-count">{selectedCount}/{plan.operations.length}</span>
+              </p>
+              <div className="bd-tree">
+                {plan.operations.map((o, i) => {
+                  const m = OP_META[o.op] || OP_META.create_action;
+                  const Icon = m.icon;
+                  const on = selected.has(i);
+                  return (
+                    <div
+                      key={i}
+                      className={`bd-op bd-op-${m.cls} ${o.op === 'create_action' && o.priority > 0 ? `bd-rail-p${o.priority}` : ''} ${on ? '' : 'off'}`}
+                      style={{ marginLeft: `${Math.min(meta.depth[i] || 0, 4) * 18}px` }}
+                      onClick={() => toggle(i)}
+                      role="checkbox"
+                      aria-checked={on}
+                    >
+                      <span className={`bd-check ${on ? 'on' : ''}`}>{on && <Check size={12} strokeWidth={3} />}</span>
+                      {meta.depth[i] > 0 && <CornerDownRight size={13} className="bd-op-nest" />}
+                      <span className={`bd-op-icon bd-op-icon-${m.cls}`}><Icon size={14} /></span>
+                      <span className="bd-op-main">
+                        <span className="bd-op-title">{opTitle(o)}</span>
+                        <span className="bd-op-tags">
+                          <span className="bd-op-kind">{m.label}</span>
+                          {o.op === 'create_action' && o.priority > 0 && <span className={`bd-op-prio p${o.priority}`}>{PRIO[o.priority]}</span>}
+                          {o.scheduled_date && <span className="bd-op-date">{o.scheduled_date}</span>}
+                          {o.target_value != null && <span className="bd-op-date">target {o.target_value}{o.unit ? ` ${o.unit}` : ''}</span>}
+                          {meta.landsIn[i] && <span className="bd-op-lands"><ArrowRight size={11} /> {meta.landsIn[i]}</span>}
+                        </span>
                       </span>
-                    </span>
-                  </div>
-                );
-              })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className="bd-actions bd-preview-actions">
-              <button className="btn btn-ghost" onClick={() => { if (initialPlan) onClose(); else setPhase('input'); }} disabled={phase === 'applying'}>{initialPlan ? 'Cancel' : 'Back'}</button>
+            <div className="bd-foot bd-preview-actions">
+              <button className="btn btn-secondary" onClick={() => { if (initialPlan) onClose(); else setPhase('input'); }} disabled={phase === 'applying'}>{initialPlan ? 'Cancel' : 'Back'}</button>
               <div className="bd-actions-right">
                 {plan.usage && <UsageBadge usage={plan.usage} />}
                 <span className="bd-count">{selectedCount} of {plan.operations.length} selected</span>
@@ -252,7 +286,7 @@ export default function BrainDumpModal({ onClose, onApplied, initialPlan = null,
                 </button>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>,

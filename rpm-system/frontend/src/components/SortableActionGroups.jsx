@@ -8,6 +8,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
+import './ActionRow.css';
 
 // Touch- and mouse-friendly reordering for the priority-grouped action lists.
 // Uses @dnd-kit (pointer + touch + keyboard) with a dedicated drag handle so the
@@ -22,17 +23,17 @@ function SortableRow({ id, children }) {
     position: isDragging ? 'relative' : undefined,
   };
   return (
-    <div ref={setNodeRef} style={style} className={`md-drag-row ${isDragging ? 'dragging' : ''}`}>
+    <div ref={setNodeRef} style={style} className={`ag-row ${isDragging ? 'dragging' : ''}`}>
       <button
         type="button"
-        className="md-drag-handle"
+        className="ag-handle"
         aria-label="Drag to reorder"
         {...attributes}
         {...listeners}
       >
-        <GripVertical size={16} />
+        <GripVertical size={15} />
       </button>
-      <div className="md-drag-row-body">{children}</div>
+      <div className="ag-row-body">{children}</div>
     </div>
   );
 }
@@ -60,19 +61,22 @@ export default function SortableActionGroups({ groups, onReorder, renderRow }) {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       {groups.map(group => (
-        <div key={group.gkey} className="md-group">
-          <div className={`md-group-head md-group-${group.cls}`}>
-            <span>{group.label}</span>
-            <span className="md-group-count">{group.items.length}</span>
+        <section key={group.gkey} className={`ag-group ${group.cls}`} aria-label={group.label}>
+          <div className="ag-head">
+            <i className="ag-dot" />
+            <span className="ag-label">{group.label}</span>
+            <span className="ag-count">{group.items.length}</span>
           </div>
-          <SortableContext items={group.items.map(it => it.id)} strategy={verticalListSortingStrategy}>
-            {group.items.map(action => (
-              <SortableRow key={action.id} id={action.id}>
-                {renderRow(action)}
-              </SortableRow>
-            ))}
-          </SortableContext>
-        </div>
+          <div className="ag-list">
+            <SortableContext items={group.items.map(it => it.id)} strategy={verticalListSortingStrategy}>
+              {group.items.map(action => (
+                <SortableRow key={action.id} id={action.id}>
+                  {renderRow(action)}
+                </SortableRow>
+              ))}
+            </SortableContext>
+          </div>
+        </section>
       ))}
     </DndContext>
   );

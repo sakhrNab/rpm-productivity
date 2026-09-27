@@ -147,31 +147,54 @@ export default function CoachPanel({ scope = 'category', categoryId, projectId, 
 
   if (phase === 'loading') return coachId ? <div className="coach-panel coach-loading"><Loader2 size={18} className="coach-spin" /></div> : null;
 
+  const locked = phase === 'none' && !ready;
+  const status = locked ? 'Locked' : phase === 'none' ? 'Available' : phase === 'draft' ? 'Draft' : 'AI coach';
+
   return (
-    <section className="coach-panel" style={coach?.color ? { borderColor: coach.color + '55' } : undefined}>
+    <section
+      className={`coach-panel coach-panel--${locked ? 'locked' : phase}`}
+      style={coach?.color ? { borderColor: coach.color + '55', '--coach': coach.color } : undefined}
+    >
       <div className="coach-head">
         <span className="coach-title">
-          {coach ? <Avatar c={coach} /> : <Sparkles size={18} />}
+          {coach ? <Avatar c={coach} size={42} /> : <span className="coach-badge">{locked ? <Lock size={18} /> : <Sparkles size={18} />}</span>}
           <span className="coach-name-block">
+            <span className={`coach-status${locked ? ' is-locked' : ''}`}>{status}</span>
             <span className="coach-name">{coach ? coach.name : 'AI Coach'}</span>
             {coach?.responsibilities && <span className="coach-resp">{coach.responsibilities}</span>}
           </span>
         </span>
         {phase === 'ready' && (
           <span className="coach-head-actions">
-            <button type="button" className="coach-mini" onClick={openMem} title="What this coach remembers"><Brain size={14} /> Memory</button>
-            <button type="button" className="coach-mini" onClick={openSettings} title="Coach settings"><Settings2 size={14} /></button>
-            <button type="button" className="coach-mini danger" onClick={removeCoach} title="Remove coach"><Trash2 size={14} /></button>
+            <button type="button" className="coach-mini" onClick={openMem} title="What this coach remembers"><Brain size={15} /> <span className="coach-mini-label">Memory</span></button>
+            <button type="button" className="coach-mini coach-mini--icon" onClick={openSettings} title="Coach settings" aria-label="Coach settings"><Settings2 size={15} /></button>
+            <button type="button" className="coach-mini coach-mini--icon danger" onClick={removeCoach} title="Remove coach" aria-label="Remove coach"><Trash2 size={15} /></button>
           </span>
         )}
       </div>
 
-      {phase === 'none' && !ready && (
-        <p className="coach-locked"><Lock size={13} /> Add {missing.length ? missing.join(' and ') : 'a vision or purpose and a goal'} to this category to unlock its dedicated coach.</p>
+      {locked && (
+        <div className="coach-locked">
+          <p>
+            {missing.length
+              ? <>This category's dedicated coach unlocks once it has:</>
+              : <>Add a vision or purpose and a goal to this category to unlock its dedicated coach.</>}
+          </p>
+          {missing.length > 0 && (
+            <ul className="coach-missing">
+              {missing.map(m => <li key={m}><Lock size={12} /> {m}</li>)}
+            </ul>
+          )}
+        </div>
       )}
       {phase === 'none' && ready && (
         <div className="coach-invite">
           <p>Give this {scope} its own coach — a specialist that knows only this area's goals and gets to know you over time.</p>
+          <ul className="coach-perks">
+            <li><Check size={12} /> Knows only this {scope}</li>
+            <li><Check size={12} /> Remembers across chats</li>
+            <li><Check size={12} /> Sees today's tasks</li>
+          </ul>
           <button type="button" className="btn btn-primary coach-cta" onClick={draftIt} disabled={busy}>
             {busy ? <><Loader2 size={15} className="coach-spin" /> Drafting…</> : <><Wand2 size={15} /> Set up a coach</>}
           </button>
@@ -203,10 +226,10 @@ export default function CoachPanel({ scope = 'category', categoryId, projectId, 
           {snap && (snap.today?.length || snap.week_count || snap.overdue?.length || snap.at_risk?.length) ? (
             <div className="coach-snap">
               <span className="coach-snap-chips">
-                <span className="coach-snap-chip"><CalendarDays size={12} /> {snap.today?.length || 0} today</span>
-                <span className="coach-snap-chip">{snap.week_count || 0} this week</span>
-                {snap.overdue?.length > 0 && <span className="coach-snap-chip warn"><Clock size={12} /> {snap.overdue.length} overdue</span>}
-                {snap.at_risk?.length > 0 && <span className="coach-snap-chip bad"><TrendingDown size={12} /> {snap.at_risk.length} slipping</span>}
+                {snap.today?.length > 0 && <span className="ui-chip ui-chip--good"><CalendarDays size={12} /> {snap.today.length} today</span>}
+                {snap.week_count > 0 && <span className="ui-chip">{snap.week_count} this week</span>}
+                {snap.overdue?.length > 0 && <span className="ui-chip ui-chip--warn"><Clock size={12} /> {snap.overdue.length} overdue</span>}
+                {snap.at_risk?.length > 0 && <span className="ui-chip ui-chip--bad"><TrendingDown size={12} /> {snap.at_risk.length} slipping</span>}
               </span>
               {messages.length === 0 && (snap.today?.length || snap.overdue?.length || snap.at_risk?.length) ? (
                 <button type="button" className="coach-snap-brief" onClick={() => send('Brief me on this area — what should I do right now, given today\'s tasks and anything slipping?')} disabled={streaming}>
@@ -230,7 +253,7 @@ export default function CoachPanel({ scope = 'category', categoryId, projectId, 
           <div className="coach-composer">
             <textarea className="form-input coach-input" placeholder={`Message ${coach.name}…`} value={input}
               onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} rows={1} disabled={streaming} />
-            <button type="button" className="btn btn-primary coach-send" onClick={send} disabled={!input.trim() || streaming}><Send size={16} /></button>
+            <button type="button" className="btn btn-primary coach-send" onClick={send} disabled={!input.trim() || streaming} aria-label="Send"><Send size={16} /></button>
           </div>
         </div>
       )}
@@ -260,7 +283,7 @@ export default function CoachPanel({ scope = 'category', categoryId, projectId, 
       {showMem && (
         <div className="coach-mem-overlay" onMouseDown={() => setShowMem(false)}>
           <div className="coach-mem" onMouseDown={e => e.stopPropagation()}>
-            <div className="coach-mem-head"><span><Brain size={15} /> What {coach?.name} remembers</span><button className="coach-mini" onClick={() => setShowMem(false)}>Close</button></div>
+            <div className="coach-mem-head"><span><Brain size={15} /> What {coach?.name} remembers</span><button type="button" className="coach-mini" onClick={() => setShowMem(false)}>Close</button></div>
             {memory.length === 0
               ? <p className="coach-empty">Nothing yet — it builds up as you talk.</p>
               : <ul className="coach-mem-list">
@@ -268,8 +291,8 @@ export default function CoachPanel({ scope = 'category', categoryId, projectId, 
                     <li key={m.id} className={m.pinned ? 'pinned' : ''}>
                       <span className="coach-mem-kind">{m.kind}</span>
                       <span className="coach-mem-content">{m.content}</span>
-                      <button className="coach-mem-btn" onClick={() => togglePin(m)} title={m.pinned ? 'Unpin' : 'Pin (never forget)'}>{m.pinned ? <Pin size={13} /> : <PinOff size={13} />}</button>
-                      <button className="coach-mem-btn danger" onClick={() => delMem(m)} title="Forget this"><Trash2 size={13} /></button>
+                      <button type="button" className="coach-mem-btn" onClick={() => togglePin(m)} title={m.pinned ? 'Unpin' : 'Pin (never forget)'} aria-label={m.pinned ? 'Unpin' : 'Pin'}>{m.pinned ? <Pin size={13} /> : <PinOff size={13} />}</button>
+                      <button type="button" className="coach-mem-btn danger" onClick={() => delMem(m)} title="Forget this" aria-label="Forget this"><Trash2 size={13} /></button>
                     </li>
                   ))}
                 </ul>}

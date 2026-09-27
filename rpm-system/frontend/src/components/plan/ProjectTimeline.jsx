@@ -88,28 +88,35 @@ export default function ProjectTimeline({ projectId, refreshKey, onEdit, onChang
   return (
     <div className="ptv">
       <div className="ptv-bar">
-        <div className="ptv-seg" role="tablist" aria-label="Zoom">
-          {['day', 'week', 'month'].map(z => (
-            <button key={z} type="button" className={zoom === z ? 'on' : ''} onClick={() => setZoom(z)}>{z[0].toUpperCase() + z.slice(1)}s</button>
-          ))}
+        <div className="ptv-bar-group">
+          <div className="ptv-seg" role="tablist" aria-label="Zoom">
+            {['day', 'week', 'month'].map(z => (
+              <button key={z} type="button" role="tab" aria-selected={zoom === z} className={zoom === z ? 'on' : ''} onClick={() => setZoom(z)}>{z[0].toUpperCase() + z.slice(1)}s</button>
+            ))}
+          </div>
+          <button type="button" className={`ptv-toggle ${spotlight ? 'on' : ''}`} onClick={() => setSpotlight(s => !s)} aria-pressed={spotlight}>
+            <Route size={14} /> Critical path
+          </button>
         </div>
-        <button type="button" className={`ptv-toggle ${spotlight ? 'on' : ''}`} onClick={() => setSpotlight(s => !s)} aria-pressed={spotlight}>
-          <Route size={14} /> Critical path
-        </button>
-        <span className="ptv-stat"><CheckCircle2 size={14} /> {done}/{total} done</span>
-        {busy && <span className="ptv-stat"><Loader2 size={14} className="ptv-spin" /> Saving…</span>}
-        {undo && (
-          <span className="ptv-undo" role="status">
-            {undo.label}
-            <button type="button" onClick={doUndo}><Undo2 size={13} /> Undo</button>
+        <div className="ptv-bar-group ptv-bar-status">
+          <span className="ptv-stat ptv-done" title={`${done} of ${total} tasks done`}>
+            <CheckCircle2 size={14} /> <b>{done}</b>/{total} done
+            <span className="ptv-meter" aria-hidden="true"><i style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} /></span>
           </span>
-        )}
+          {busy && <span className="ptv-stat ptv-saving"><Loader2 size={14} className="ptv-spin" /> Saving…</span>}
+          {undo && (
+            <span className="ptv-undo" role="status">
+              <span className="ptv-undo-label">{undo.label}</span>
+              <button type="button" onClick={doUndo}><Undo2 size={13} /> Undo</button>
+            </span>
+          )}
+        </div>
       </div>
 
       {sched.conflicts.length > 0 && (
         <div className="ptv-alert">
           <AlertTriangle size={16} />
-          <span>
+          <span className="ptv-alert-text">
             <b>{sched.conflicts.length} task{sched.conflicts.length > 1 ? 's start' : ' starts'} before {sched.conflicts.length > 1 ? 'their prerequisites finish' : 'its prerequisite finishes'}</b>
             {' — '}{sched.conflicts.slice(0, 3).map(t => `“${t.title}”`).join(', ')}{sched.conflicts.length > 3 ? '…' : ''}
           </span>
@@ -135,7 +142,7 @@ export default function ProjectTimeline({ projectId, refreshKey, onEdit, onChang
       {tl.unscheduled.length > 0 && (
         <div className="ptv-tray">
           <div className="ptv-tray-head">
-            <span><b>{tl.unscheduled.length}</b> without a date</span>
+            <span><CalendarPlus size={14} /> <b>{tl.unscheduled.length}</b> without a date</span>
             <button type="button" disabled={busy} onClick={() => apply(autoSchedule(tl.unscheduled, tl.tasks, data.today), `Scheduled ${tl.unscheduled.length} task${tl.unscheduled.length > 1 ? 's' : ''}`)}>
               <Wand2 size={14} /> Auto-schedule after their prerequisites
             </button>

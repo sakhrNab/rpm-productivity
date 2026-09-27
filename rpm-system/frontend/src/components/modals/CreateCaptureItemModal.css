@@ -1,3 +1,2 @@
-.cci-modal {
-  max-width: 500px;
-}
+/* Capture item modal — contents use the shared kit (modalKit.css) */
+.modal.cci-modal { max-width: 520px; }

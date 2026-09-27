@@ -152,7 +152,7 @@
 /* saved tasks: finished = quiet + check; conflict = starts before a prerequisite ends */
 .ptl-bar.done { --c: #7d8aa3; opacity: 0.55; cursor: pointer; filter: saturate(0.5); }
 .ptl-bar.done .ptl-bar-title { text-decoration: line-through; }
-.ptl-bar.conflict { outline: 1.5px dashed #ef5350; outline-offset: 2px; }
+.ptl-bar.conflict { outline: 1.5px dashed #ff6b81; outline-offset: 2px; }
 .ptl-bar.conflict .ptl-pin { color: #ffb3b1; }
 
 /* critical path: a current flowing through the border */
@@ -174,7 +174,7 @@
   background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0 6px, transparent 6px 12px);
   box-shadow: none;
 }
-.ptl-bar.late { box-shadow: 0 0 0 1px #ef5350, 0 0 18px rgba(239, 83, 80, 0.55); }
+.ptl-bar.late { box-shadow: 0 0 0 1px #ff6b81, 0 0 18px rgba(255, 107, 129, 0.55); }
 
 /* slack runway: from a task's end to its deadline */
 .ptl-runway {
@@ -184,7 +184,7 @@
 .ptl-bell, .ptl-deadline { position: absolute; top: 3px; display: inline-flex; z-index: 3; transition: left 0.45s cubic-bezier(0.2, 0.9, 0.3, 1); }
 .ptl-bell { color: #ffb74d; filter: drop-shadow(0 0 4px rgba(255, 183, 77, 0.7)); }
 .ptl-deadline { color: var(--text-secondary); top: auto; bottom: 2px; }
-.ptl-deadline.late { color: #ef5350; animation: ptl-pulse 1.4s ease-in-out infinite; }
+.ptl-deadline.late { color: #ff6b81; animation: ptl-pulse 1.4s ease-in-out infinite; }
 @keyframes ptl-pulse { 50% { opacity: 0.35; } }
 
 /* ---------- edges ---------- */

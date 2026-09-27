@@ -1,5 +1,6 @@
 import { useState, useContext } from 'react';
-import { X } from 'lucide-react';
+import { Inbox, Check } from 'lucide-react';
+import ModalHead from './ModalHead';
 import { AuthContext } from '../../App';
 import './CreateCaptureItemModal.css';
 
@@ -36,53 +37,55 @@ function CreateCaptureItemModal({ onClose, onSuccess, projectId, initialData = {
     }
   };
 
+  const isEdit = Boolean(initialData.id);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal cci-modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 className="modal-title">{initialData.id ? 'Edit Capture Item' : 'Add Capture Item'}</h3>
-          <button type="button" className="btn btn-icon btn-ghost" onClick={onClose}>
-            <X size={20} />
-          </button>
-        </div>
+        <ModalHead
+          icon={Inbox}
+          title={isEdit ? 'Edit capture item' : 'Capture it'}
+          subtitle="Park the thought now — turn it into an action when you're ready."
+          onClose={onClose}
+        />
 
         <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            <div className="form-group">
-              <label className="form-label">Title</label>
+          <div className="modal-body mk-body">
+            <label className="mk-field">
+              <span className="form-label">Title</span>
               <input
                 type="text"
-                className="form-input"
-                placeholder="Capture item title"
+                className="form-input mk-hero"
+                placeholder="What's on your mind?"
                 value={formData.title}
                 onChange={e => setFormData({ ...formData, title: e.target.value })}
                 autoFocus
                 required
               />
-            </div>
+            </label>
 
-            <div className="form-group">
-              <label className="form-label">Notes (optional)</label>
+            <label className="mk-field">
+              <span className="form-label">Notes <span className="mk-optional">optional</span></span>
               <textarea
                 className="form-input"
-                placeholder="Additional notes"
+                placeholder="Context, links, why it matters"
                 value={formData.notes}
                 onChange={e => setFormData({ ...formData, notes: e.target.value })}
                 rows={4}
               />
-            </div>
+            </label>
           </div>
 
-          <div className="modal-footer">
+          <div className="modal-footer mk-foot">
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button 
-              type="submit" 
-              className="btn btn-primary" 
+            <button
+              type="submit"
+              className="btn btn-primary"
               disabled={loading || !formData.title.trim()}
             >
-              {loading ? 'Saving...' : (initialData.id ? 'Update' : 'Add')}
+              <Check size={16} /> {loading ? 'Saving...' : (isEdit ? 'Update' : 'Capture')}
             </button>
           </div>
         </form>
