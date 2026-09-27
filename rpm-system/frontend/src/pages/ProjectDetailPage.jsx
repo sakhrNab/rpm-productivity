@@ -1,9 +1,9 @@
 import { useState, useEffect, useContext, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   ChevronLeft, ChevronRight, Image, Plus, Star, MoreVertical, 
   Check, Clock, Hourglass, Calendar as CalendarIcon, Edit, Trash2, X,
-  Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen, ExternalLink, Target, FileUp
+  Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen, ExternalLink, Target, FileUp, GanttChartSquare
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks } from 'date-fns';
@@ -19,6 +19,8 @@ import { fileToCompressedDataURL } from '../utils/image';
 import { playDone } from '../utils/sound';
 import { useToast } from '../components/ToastProvider';
 import CoachPanel from '../components/CoachPanel';
+import ProjectTimeline from '../components/plan/ProjectTimeline';
+import ErrorBoundary from '../components/ErrorBoundary';
 import './ProjectDetailPage.css';
 
 // Format an API date (a full ISO timestamp for a DATE column) as a friendly
@@ -38,7 +40,8 @@ function ProjectDetailPage() {
   const { showToast } = useToast();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('all');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => (searchParams.get('view') === 'timeline' ? 'timeline' : 'all'));
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingField, setEditingField] = useState(null);
@@ -655,10 +658,28 @@ function ProjectDetailPage() {
         >
           All Actions
         </button>
+        <button
+          className={`category-tab ${activeTab === 'timeline' ? 'active' : ''} pd-flex-center-gap8`}
+          onClick={() => setActiveTab('timeline')}
+        >
+          <GanttChartSquare size={14} />
+          Timeline
+        </button>
       </div>
 
+      {activeTab === 'timeline' && project && (
+        <ErrorBoundary name="project-timeline" resetKey={project} message="The timeline couldn't be drawn.">
+          <ProjectTimeline
+            projectId={project.id}
+            refreshKey={project}
+            onEdit={(id) => { const a = allActions.find(x => x.id === id); if (a) handleEditAction(a); }}
+            onChanged={() => loadProject()}
+          />
+        </ErrorBoundary>
+      )}
+
       {/* Actions list — driven by the tabs above */}
-      {(() => {
+      {activeTab !== 'timeline' && (() => {
         const openNewAction = () => {
           setEditingAction({ project_id: project.id, category_id: project.category_id });
           setShowActionModal(true);

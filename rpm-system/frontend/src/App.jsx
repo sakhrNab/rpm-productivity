@@ -345,6 +345,12 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       return res;
     },
     applyImportPlan: (body) => authFetch(`${API_BASE}/ai/import/apply`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
+    listImports: () => authFetch(`${API_BASE}/ai/imports`).then(r => r.json()),
+    getImport: (id) => authFetch(`${API_BASE}/ai/imports/${id}`).then(r => r.json()),
+    saveImportDraft: (id, draft) => authFetch(`${API_BASE}/ai/imports/${id}`, { method: 'PUT', body: JSON.stringify({ draft }) }).then(r => r.json()),
+    deleteImport: (id) => authFetch(`${API_BASE}/ai/imports/${id}`, { method: 'DELETE' }).then(r => r.json()),
+    getProjectTimeline: (id) => authFetch(`${API_BASE}/projects/${id}/timeline?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`).then(r => r.json()),
+    rescheduleActions: (changes) => authFetch(`${API_BASE}/actions/reschedule`, { method: 'PUT', body: JSON.stringify({ changes }) }).then(r => r.json()),
 
     // Upload (multipart — do NOT use authFetch, which forces JSON content-type)
     uploadImage: async (file) => {

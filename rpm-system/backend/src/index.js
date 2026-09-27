@@ -11,10 +11,12 @@ const { isConfigured: aiKeysConfigured } = require('./ai/crypto');
 const { runChat, AiError, friendlyError } = require('./ai/service');
 const { applyProposal, isUuid } = require('./ai/tools');
 const { buildHistory, buildActionLog, sanitizeClientMessages, MAX_MESSAGE_CHARS } = require('./ai/history');
-const { resolveTimezone } = require('./ai/context');
+const { resolveTimezone, todayInTz } = require('./ai/context');
 const aiMemory = require('./ai/memory');
 const { extractText, ExtractError } = require('./ai/extract');
-const { generateFilePlan, applyFilePlan } = require('./ai/fileplan');
+const { generateFilePlan, applyFilePlan, loadExisting } = require('./ai/fileplan');
+const planImports = require('./ai/imports');
+const { projectTimeline, rescheduleActions } = require('./timeline');
 const { rateLimit } = require('./ratelimit');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
@@ -469,6 +471,15 @@ app.post('/api/projects', authenticateToken, async (req, res) => {
 });
 
 // Reorder projects by an ordered list of ids (drag-and-drop). Before /:id.
+app.get('/api/projects/:id/timeline', authenticateToken, async (req, res) => {
+  try {
+    const data = await projectTimeline(pool, req.userId, req.params.id);
+    if (!data) return res.status(404).json({ error: 'Project not found' });
+    const tz = await resolveTimezone(pool, req.userId, req.query.tz);
+    res.json({ ...data, today: todayInTz(tz) });
+  } catch (e) { console.error('[timeline] get:', e.message); res.status(500).json({ error: 'Failed to load timeline' }); }
+});
+
 app.put('/api/projects/reorder', authenticateToken, async (req, res) => {
   try {
     const { ids } = req.body;
@@ -643,6 +654,13 @@ app.delete('/api/actions/:id/dependencies/:depId', authenticateToken, async (req
     );
     res.json({ success: true });
   } catch (error) { console.error('deps del error:', error); res.status(500).json({ error: 'Failed' }); }
+});
+
+// Batch reschedule (timeline drag + cascade, "fix conflicts", undo). Before /:id on purpose.
+app.put('/api/actions/reschedule', authenticateToken, async (req, res) => {
+  const r = await rescheduleActions(pool, req.userId, req.body?.changes);
+  if (!r.ok) return res.status(400).json(r);
+  res.json(r);
 });
 
 app.put('/api/actions/:id', authenticateToken, async (req, res) => {
@@ -1289,7 +1307,14 @@ app.post('/api/ai/import', authenticateToken, aiLimiter, (req, res, next) => {
     for await (const ev of generateFilePlan({
       pool, userId: req.userId, modelKey, text: extracted.text, fileName, kind: extracted.kind,
       truncated: extracted.truncated, note, timezone: tz, abortSignal: sse.signal,
-    })) sse.send(ev);
+    })) {
+      if (ev.type === 'plan') {
+        // Keep every analysis as a reopenable draft (so leaving the page loses nothing).
+        try { ev.import_id = await planImports.createImport(pool, req.userId, { fileName, fileKind: extracted.kind, plan: ev.plan }); }
+        catch (e) { console.error('[import] save draft:', e.message); }
+      }
+      sse.send(ev);
+    }
   } catch (e) {
     if (!sse.signal.aborted) {
       console.error('[import] plan:', e.message);
@@ -1302,14 +1327,40 @@ app.post('/api/ai/import', authenticateToken, aiLimiter, (req, res, next) => {
 
 app.post('/api/ai/import/apply', authenticateToken, async (req, res) => {
   try {
-    const { plan, placement, options, timezone } = req.body || {};
+    const { plan, placement, options, timezone, import_id } = req.body || {};
     if (!plan || typeof plan !== 'object') return res.status(400).json({ error: 'plan is required' });
     const tz = await resolveTimezone(pool, req.userId, timezone);
-    res.json(await applyFilePlan({ pool, userId: req.userId, plan, placement, options, timezone: tz }));
+    const result = await applyFilePlan({ pool, userId: req.userId, plan, placement, options, timezone: tz });
+    if (import_id) await planImports.markApplied(pool, req.userId, import_id, { projectId: result.project_id, result: result.counts }).catch(e => console.error('[import] mark applied:', e.message));
+    res.json(result);
   } catch (e) {
     if (!(e instanceof AiError)) console.error('[import] apply:', e.message);
     res.status(e instanceof AiError ? 400 : 500).json({ error: e instanceof AiError ? e.message : 'Failed to create the plan' });
   }
+});
+
+// Saved uploads — list, reopen, autosave edits, delete.
+app.get('/api/ai/imports', authenticateToken, async (req, res) => {
+  try { res.json(await planImports.listImports(pool, req.userId)); }
+  catch (e) { console.error('[import] list:', e.message); res.status(500).json({ error: 'Failed' }); }
+});
+app.get('/api/ai/imports/:id', authenticateToken, async (req, res) => {
+  try {
+    const row = await planImports.getImport(pool, req.userId, req.params.id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json({ ...row, existing: await loadExisting(pool, req.userId) });
+  } catch (e) { console.error('[import] get:', e.message); res.status(500).json({ error: 'Failed' }); }
+});
+app.put('/api/ai/imports/:id', authenticateToken, async (req, res) => {
+  try {
+    const r = await planImports.saveDraft(pool, req.userId, req.params.id, req.body?.draft);
+    if (!r.ok) return res.status(r.error === 'draft too large' ? 413 : 404).json(r);
+    res.json(r);
+  } catch (e) { console.error('[import] save:', e.message); res.status(500).json({ error: 'Failed' }); }
+});
+app.delete('/api/ai/imports/:id', authenticateToken, async (req, res) => {
+  try { await planImports.deleteImport(pool, req.userId, req.params.id); res.json({ success: true }); }
+  catch (e) { console.error('[import] delete:', e.message); res.status(500).json({ error: 'Failed' }); }
 });
 
 // Long-term assistant memory — what the assistant remembers about the user.

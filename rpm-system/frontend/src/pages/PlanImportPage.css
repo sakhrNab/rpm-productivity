@@ -295,3 +295,21 @@ body:has(.pim-footer) .vorb-root { bottom: 150px; }
 @media (prefers-reduced-motion: reduce) {
   .pim-drop::before, .pim-orbit span, .pim-beam, .pim-spin, .pim-burst, .pim-burst::before, .pim-burst::after, .pte, .pte-scrim, .pim-count { animation: none; }
 }
+
+/* ---------- saved uploads ---------- */
+.pim-recent { margin-top: 22px; padding: 18px; border-radius: 20px; border: 1px solid var(--border-primary); background: color-mix(in srgb, var(--bg-card) 60%, transparent); }
+.pim-recent-list { display: flex; flex-direction: column; gap: 6px; }
+.pim-recent-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.03); border: 1px solid transparent; color: var(--text-primary); transition: border-color 0.15s, background 0.15s;
+}
+.pim-recent-item:hover, .pim-recent-item:focus-visible { border-color: var(--border-primary); background: rgba(255, 255, 255, 0.05); outline: none; }
+.pim-recent-item > svg { color: var(--accent-cyan); flex: 0 0 auto; }
+.pim-recent-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pim-recent-main b { font-weight: 600; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pim-recent-main span { font-size: 0.76rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pim-recent-status { flex: 0 0 auto; font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; color: #ffd699; background: rgba(255, 183, 77, 0.12); border: 1px solid rgba(255, 183, 77, 0.3); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pim-recent-status.done { color: var(--accent-cyan); background: rgba(78, 205, 196, 0.12); border-color: rgba(78, 205, 196, 0.3); }
+.pim-recent-del { flex: 0 0 auto; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; }
+.pim-recent-del:hover { color: var(--accent-red); background: rgba(239, 83, 80, 0.1); }
+.pim-saved { font-size: 0.76rem; color: var(--text-muted); }

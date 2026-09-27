@@ -149,6 +149,12 @@
   background: #fff; color: #0a1628; font: 700 0.7rem 'Space Grotesk', var(--font-body); white-space: nowrap; pointer-events: none;
 }
 
+/* saved tasks: finished = quiet + check; conflict = starts before a prerequisite ends */
+.ptl-bar.done { --c: #7d8aa3; opacity: 0.55; cursor: pointer; filter: saturate(0.5); }
+.ptl-bar.done .ptl-bar-title { text-decoration: line-through; }
+.ptl-bar.conflict { outline: 1.5px dashed #ef5350; outline-offset: 2px; }
+.ptl-bar.conflict .ptl-pin { color: #ffb3b1; }
+
 /* critical path: a current flowing through the border */
 .ptl-bar.critical { border-color: transparent; }
 .ptl-bar.critical::after {

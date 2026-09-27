@@ -482,6 +482,22 @@ CREATE TABLE IF NOT EXISTS ai_memory (
 );
 CREATE INDEX IF NOT EXISTS idx_ai_memory_user ON ai_memory (user_id, pinned DESC, updated_at DESC);
 
+-- Plan-from-a-file uploads: every analysis is kept (draft → applied) so it can be reopened.
+CREATE TABLE IF NOT EXISTS plan_imports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    file_name TEXT NOT NULL,
+    file_kind TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',          -- draft | applied
+    plan JSONB NOT NULL,                           -- the normalized AI plan
+    draft JSONB,                                   -- the user's edits (tasks, phases, placement choice)
+    project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+    result JSONB,                                  -- counts after apply
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_plan_imports_user ON plan_imports (user_id, updated_at DESC);
+
 -- Action dependencies (blocked-by / blocks). Visual linking only, no enforcement.
 CREATE TABLE IF NOT EXISTS action_dependencies (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

@@ -1,9 +1,9 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FileUp, FileText, Sparkles, Check, X, Loader2, CalendarRange, Route, Bell, Link2, Layers, Clock,
   AlertTriangle, HelpCircle, Lightbulb, Plus, FolderKanban, FolderPlus, PenLine, ArrowRight, RotateCcw,
-  GanttChart, List, Target, Zap,
+  GanttChart, List, Target, Zap, Trash2, History,
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
@@ -11,6 +11,7 @@ import Picker from '../components/Picker';
 import PlanTimeline from '../components/plan/PlanTimeline';
 import { fmtDay, reminderUpcoming } from '../utils/planFormat';
 import TaskEditor from '../components/plan/TaskEditor';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { schedulePlan } from '../utils/planSchedule';
 import './PlanImportPage.css';
 
@@ -41,6 +42,10 @@ export default function PlanImportPage() {
   const { showToast } = useToast();
   const [params] = useSearchParams();
   const presetProject = params.get('project');
+  const navigate = useNavigate();
+  const [importId, setImportId] = useState(null);
+  const [recent, setRecent] = useState([]);
+  const [saveState, setSaveState] = useState('');     // '' | 'saving' | 'saved'
 
   const [stage, setStage] = useState('drop');        // drop | analyzing | studio | done
   const [file, setFile] = useState(null);
@@ -78,8 +83,28 @@ export default function PlanImportPage() {
       setModels(avail);
       if (!avail.some(m => m.key === modelKey) && avail[0]) setModelKey(avail[0].key);
     }).catch(() => {});
+    loadRecent();
+    if (params.get('draft')) openImport(params.get('draft'));
     return () => abortRef.current?.abort();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadRecent = () => api.listImports().then(r => setRecent(Array.isArray(r) ? r : [])).catch(() => {});
+
+  // Reopen a saved upload: drafts continue where you left off; applied ones live in their project now.
+  const openImport = async (id) => {
+    const row = await api.getImport(id).catch(() => null);
+    if (!row || row.error) { showToast('That upload is no longer available.', 'error'); return; }
+    if (row.status === 'applied' && row.project_id) { navigate(`/projects/${row.project_id}?view=timeline`); return; }
+    setFile({ name: row.file_name, size: 0 });
+    loadPlan(row.plan, row.existing, row.draft);
+    setImportId(row.id);
+  };
+  const removeImport = async (e, id) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this saved upload? (Tasks already created are not affected.)')) return;
+    await api.deleteImport(id).catch(() => {});
+    loadRecent();
+  };
 
   useEffect(() => {
     if (stage !== 'analyzing') return undefined;
@@ -126,7 +151,7 @@ export default function PlanImportPage() {
           else if (ev.type === 'stage') setProgress(p => ({ ...p, stage: ev.stage }));
           else if (ev.type === 'progress') setProgress(p => ({ ...p, tasks: ev.tasks }));
           else if (ev.type === 'error') throw new Error(ev.message);
-          else if (ev.type === 'plan') { gotPlan = true; loadPlan(ev.plan, ev.existing); }
+          else if (ev.type === 'plan') { gotPlan = true; setImportId(ev.import_id || null); loadPlan(ev.plan, ev.existing); }
         }
       }
       if (!gotPlan) throw new Error('The analysis ended without a plan — try again.');
@@ -139,8 +164,8 @@ export default function PlanImportPage() {
     }
   };
 
-  const loadPlan = (p, ex) => {
-    setPlan(p);
+  const loadPlan = (p, ex, draft) => {
+    setPlan(draft?.title ? { ...p, title: draft.title } : p);
     setExisting(ex || { categories: [], projects: [] });
     setTasks(p.tasks.map(t => ({
       key: t.key, phase: t.phase, title: t.title, description: t.description, size: t.size, priority: t.priority,
@@ -154,10 +179,31 @@ export default function PlanImportPage() {
     setMode(preset || pl.decision === 'existing_project' ? 'existing' : 'new');
     setProjectId(preset || pl.project_id || '');
     setNewProj({ name: pl.new_project.name, result: pl.new_project.result, purpose: pl.new_project.purpose, category_id: pl.category_id || '', new_category_name: pl.new_category_name || '', newCat: !pl.category_id });
+    if (draft) {                                      // restore the user's edits
+      if (Array.isArray(draft.tasks)) setTasks(draft.tasks);
+      if (Array.isArray(draft.phases)) setPhases(draft.phases);
+      if (Array.isArray(draft.key_results)) setKeyResults(draft.key_results);
+      if (draft.mode) setMode(draft.mode);
+      if (draft.projectId !== undefined) setProjectId(draft.projectId);
+      if (draft.newProj) setNewProj(draft.newProj);
+      if (typeof draft.createBlocks === 'boolean') setCreateBlocks(draft.createBlocks);
+    }
     const span = p.schedule?.span_days || 30;
     setZoom(span <= 21 ? 'day' : span <= 150 ? 'week' : 'month');
     setStage('studio');
   };
+
+  // Autosave edits to the saved upload (debounced) so leaving the page loses nothing.
+  useEffect(() => {
+    if (stage !== 'studio' || !importId) return undefined;
+    setSaveState('saving');
+    const t = setTimeout(() => {
+      api.saveImportDraft(importId, { title: plan?.title, tasks, phases, key_results: keyResults, mode, projectId, newProj, createBlocks })
+        .then(r => setSaveState(r?.ok ? 'saved' : ''))
+        .catch(() => setSaveState(''));
+    }, 900);
+    return () => clearTimeout(t);
+  }, [stage, importId, tasks, phases, keyResults, mode, projectId, newProj, createBlocks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- live schedule ----------
   const today = plan?.today || new Date().toISOString().slice(0, 10);
@@ -235,11 +281,13 @@ export default function PlanImportPage() {
       const res = await api.applyImportPlan({
         plan: { ...plan, tasks, phases, key_results: keyResults },
         placement, options: { create_blocks: createBlocks }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        import_id: importId,
       });
       if (!res || res.error) throw new Error(res?.error || 'Failed to create the plan');
       setResult(res);
       setStage('done');
       refreshData?.();
+      loadRecent();
     } catch (e) {
       showToast(e.message || 'Failed to create the plan', 'error');
     } finally {
@@ -247,7 +295,7 @@ export default function PlanImportPage() {
     }
   };
 
-  const reset = () => { setStage('drop'); setFile(null); setPlan(null); setTasks([]); setResult(null); setNote(''); };
+  const reset = () => { setStage('drop'); setFile(null); setPlan(null); setTasks([]); setResult(null); setNote(''); setImportId(null); setSaveState(''); loadRecent(); };
 
   // ---------- render ----------
   return (
@@ -307,7 +355,29 @@ export default function PlanImportPage() {
             <button type="button" className="btn btn-primary pim-go" disabled={!file || !modelKey} onClick={analyze}>
               <Sparkles size={17} /> Build my plan
             </button>
-            <p className="pim-fine">Nothing is saved until you approve it.</p>
+            <p className="pim-fine">Nothing is added to your plan until you approve it. Each analysis is kept as a draft you can reopen.</p>
+          </div>
+        </section>
+      )}
+
+      {stage === 'drop' && recent.length > 0 && (
+        <section className="pim-recent">
+          <div className="pim-card-head"><History size={16} /> Recent uploads</div>
+          <div className="pim-recent-list">
+            {recent.map(r => (
+              <div key={r.id} role="button" tabIndex={0} className="pim-recent-item" onClick={() => openImport(r.id)}
+                onKeyDown={e => { if (e.key === 'Enter') openImport(r.id); }}>
+                <FileText size={18} />
+                <span className="pim-recent-main">
+                  <b>{r.title || r.file_name}</b>
+                  <span>{r.file_name} · {r.task_count} tasks · {new Date(r.updated_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                </span>
+                {r.status === 'applied'
+                  ? <span className="pim-recent-status done">Created{r.project_name ? ` · ${r.project_name}` : ''}</span>
+                  : <span className="pim-recent-status">Draft</span>}
+                <button type="button" className="pim-recent-del" onClick={e => removeImport(e, r.id)} aria-label="Delete saved upload"><Trash2 size={14} /></button>
+              </div>
+            ))}
           </div>
         </section>
       )}
@@ -477,8 +547,10 @@ export default function PlanImportPage() {
           <p className="pim-hint">Drag a bar (or focus it and use ← →) to move it — everything after it re-flows. Click a task to edit.</p>
 
           {view === 'timeline' ? (
-            <PlanTimeline tasks={scheduled} phases={phases} today={today} zoom={zoom} spotlight={spotlight}
-              selectedKey={editing} onPin={pinTask} onOpen={setEditing} />
+            <ErrorBoundary name="plan-timeline" resetKey={tasks} message="The timeline couldn't be drawn — try the List view.">
+              <PlanTimeline tasks={scheduled} phases={phases} today={today} zoom={zoom} spotlight={spotlight}
+                selectedKey={editing} onPin={pinTask} onOpen={setEditing} />
+            </ErrorBoundary>
           ) : (
             <div className={`pli ${spotlight ? 'spotlight' : ''}`}>
               {phases.map(ph => {
@@ -517,6 +589,7 @@ export default function PlanImportPage() {
             <span className="pim-footer-sum">
               {incl.length} task{incl.length === 1 ? '' : 's'}{createBlocks ? ` · ${phases.filter(ph => incl.some(t => t.phase === ph.key)).length} blocks` : ''}{stats ? ` · ${stats.reminders} reminders` : ''} → <b>{destination || 'choose a project'}</b>
             </span>
+            {saveState && <span className="pim-saved">{saveState === 'saving' ? 'Saving draft…' : 'Draft saved'}</span>}
             <button type="button" className="btn btn-secondary" onClick={reset}><RotateCcw size={14} /> Start over</button>
             <button type="button" className="btn btn-primary pim-create" onClick={apply} disabled={applying || !incl.length}>
               {applying ? <Loader2 size={16} className="pim-spin" /> : <Check size={16} />} Create plan
@@ -539,7 +612,8 @@ export default function PlanImportPage() {
             {result.counts.key_results ? `, ${result.counts.key_results} key results` : ''} — {result.created_project ? 'in a brand-new project.' : `added to ${chosenProject?.name || 'your project'}.`}
           </p>
           <div className="pim-done-actions">
-            <Link to={result.link} className="btn btn-primary"><FolderKanban size={16} /> Open the project</Link>
+            <Link to={`${result.link}?view=timeline`} className="btn btn-primary"><GanttChart size={16} /> Open the timeline</Link>
+            <Link to={result.link} className="btn btn-secondary"><FolderKanban size={16} /> Open the project</Link>
             <Link to="/calendar" className="btn btn-secondary"><CalendarRange size={16} /> See it on the calendar</Link>
             <button type="button" className="btn btn-secondary" onClick={reset}><FileUp size={16} /> Plan another file</button>
           </div>

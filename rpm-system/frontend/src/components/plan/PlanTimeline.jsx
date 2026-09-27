@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { Bell, Flag, Sparkles, Pin, ChevronDown, ChevronRight, Diamond } from 'lucide-react';
+import { Bell, Flag, Sparkles, Pin, ChevronDown, ChevronRight, Diamond, Check, AlertTriangle } from 'lucide-react';
 import { addDays, diffDays } from '../../utils/planSchedule';
 import { fmtDay, MONTHS, reminderUpcoming } from '../../utils/planFormat';
 import './PlanTimeline.css';
@@ -29,7 +29,8 @@ export default function PlanTimeline({ tasks, phases, today, zoom, spotlight, on
   const dw = DAY_W[zoom] || DAY_W.week;
   const [collapsed, setCollapsed] = useState({});
   const [hoverKey, setHoverKey] = useState(null);
-  const [drag, setDrag] = useState(null);           // { key, x0, dx }
+  const [drag, setDrag] = useState(null);           // { key, x0, dx } — for rendering
+  const dragRef = useRef(null);                     // the live drag (see onPointerDown)
   const scrollRef = useRef(null);
 
   // Visible range: a little air before the first task (and today) and after the last date.
@@ -93,21 +94,51 @@ export default function PlanTimeline({ tasks, phases, today, zoom, spotlight, on
   const todayX = x(today);
 
   // Drag to reschedule (pins the task's start; dependents re-flow upstream of this component).
+  // The live drag lives in a ref and is tracked with window listeners for its duration:
+  // no dependence on React re-render timing or on pointer capture (which can throw or
+  // be lost), and it keeps working if the pointer leaves the timeline mid-drag.
+  const cbRef = useRef({ onPin, onOpen, dw });
+  cbRef.current = { onPin, onOpen, dw };
+  const endDrag = useRef(null);
+  useEffect(() => () => endDrag.current?.(), []);
   const onPointerDown = (e, t) => {
     if (e.button !== 0) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setDrag({ key: t.key, x0: e.clientX, dx: 0 });
-  };
-  const onPointerMove = (e) => { if (drag) setDrag(d => ({ ...d, dx: e.clientX - d.x0 })); };
-  const onPointerUp = (e, t) => {
-    if (!drag) return;
-    const days = Math.round(drag.dx / dw);
-    setDrag(null);
-    if (Math.abs(drag.dx) < 4) onOpen(t.key);
-    else if (days) onPin(t.key, addDays(t.start, days));
+    if (t.done) { onOpen(t.key); return; }             // finished tasks don't move
+    e.preventDefault();                                 // no text selection / native drag
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* best effort */ }
+    endDrag.current?.();
+    const start = { key: t.key, x0: e.clientX, from: t.start };
+    dragRef.current = { ...start, dx: 0 };
+    setDrag(dragRef.current);
+    const move = (ev) => {
+      if (!dragRef.current) return;
+      dragRef.current = { ...dragRef.current, dx: ev.clientX - start.x0 };
+      setDrag(dragRef.current);
+    };
+    const up = (ev) => {
+      const dx = ev.clientX - start.x0;
+      cleanup();
+      const { onPin: pin, onOpen: open, dw: w } = cbRef.current;
+      const days = Math.round(dx / w);
+      if (Math.abs(dx) < 4) open(start.key);
+      else if (days) pin(start.key, addDays(start.from, days));
+    };
+    const cancel = () => cleanup();
+    function cleanup() {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      dragRef.current = null;
+      setDrag(null);
+      endDrag.current = null;
+    }
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    endDrag.current = cleanup;
   };
   const onKey = (e, t) => {
-    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); onPin(t.key, addDays(t.start, e.key === 'ArrowRight' ? 1 : -1)); }
+    if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !t.done) { e.preventDefault(); onPin(t.key, addDays(t.start, e.key === 'ArrowRight' ? 1 : -1)); }
     else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(t.key); }
   };
 
@@ -131,7 +162,7 @@ export default function PlanTimeline({ tasks, phases, today, zoom, spotlight, on
 
   return (
     <div className={`ptl ptl-z-${zoom} ${spotlight ? 'spotlight' : ''} ${chain ? 'has-hover' : ''}`}>
-      <div className="ptl-scroll" ref={scrollRef} onPointerMove={onPointerMove}>
+      <div className="ptl-scroll" ref={scrollRef}>
         <div className="ptl-inner" style={{ width: `calc(var(--ptl-label) + ${width}px)`, '--dw': `${dw}px` }}>
           {/* Header */}
           <div className="ptl-header" style={{ height: HEADER_H }}>
@@ -177,7 +208,7 @@ export default function PlanTimeline({ tasks, phases, today, zoom, spotlight, on
             ) : (
               <TaskRow key={r.t.key} r={r} x={x} dw={dw} drag={drag} selected={selectedKey === r.t.key}
                 dim={chain ? !chain.has(r.t.key) : false}
-                onHover={setHoverKey} onPointerDown={onPointerDown} onPointerUp={onPointerUp} onKey={onKey} onOpen={onOpen} />
+                onHover={setHoverKey} onPointerDown={onPointerDown} onKey={onKey} onOpen={onOpen} />
             )))}
 
             <svg className="ptl-edges" width={width} height={rows.height} style={{ left: 'var(--ptl-label)' }} aria-hidden="true">
@@ -203,7 +234,7 @@ export default function PlanTimeline({ tasks, phases, today, zoom, spotlight, on
   );
 }
 
-function TaskRow({ r, x, dw, drag, selected, dim, onHover, onPointerDown, onPointerUp, onKey, onOpen }) {
+function TaskRow({ r, x, dw, drag, selected, dim, onHover, onPointerDown, onKey, onOpen }) {
   const t = r.t;
   const dragging = drag && drag.key === t.key;
   const left = x(t.start);
@@ -211,12 +242,13 @@ function TaskRow({ r, x, dw, drag, selected, dim, onHover, onPointerDown, onPoin
   const inside = w > 110;
   const preview = dragging ? addDays(t.start, Math.round(drag.dx / dw)) : null;
   // A reminder that would already be in the past is not created — don't draw it.
-  const reminderDay = reminderUpcoming(t.start, t.reminder) ? addDays(t.start, -t.reminder.days_before) : null;
+  // Plan tasks carry a relative reminder; saved tasks carry the real next reminder date.
+  const reminderDay = t.reminder_on || (reminderUpcoming(t.start, t.reminder) ? addDays(t.start, -t.reminder.days_before) : null);
   const cls = [
     'ptl-bar', `p${t.priority}`, `s-${t.size}`,
     t.critical && t.include ? 'critical' : '', t.source === 'initiative' ? 'initiative' : '',
     t.late ? 'late' : '', !t.include ? 'excluded' : '', dragging ? 'dragging' : '', selected ? 'selected' : '',
-    inside ? '' : 'compact',
+    inside ? '' : 'compact', t.done ? 'done' : '', t.conflict ? 'conflict' : '',
   ].join(' ');
   return (
     <div className={`ptl-row ptl-task-row ${dim ? 'dim' : ''}`} style={{ top: r.y, height: r.h }}
@@ -228,7 +260,7 @@ function TaskRow({ r, x, dw, drag, selected, dim, onHover, onPointerDown, onPoin
       </button>
       <div className="ptl-track" style={{ left: 'var(--ptl-label)' }}>
         {reminderDay && t.include && (
-          <span className="ptl-bell" style={{ left: x(reminderDay) + dw / 2 - 7 }} title={`Reminder ${fmtDay(reminderDay)} at ${t.reminder.time}`}><Bell size={11} /></span>
+          <span className="ptl-bell" style={{ left: x(reminderDay) + dw / 2 - 7 }} title={`Reminder ${fmtDay(reminderDay)}${t.reminder?.time ? ` at ${t.reminder.time}` : ''}`}><Bell size={11} /></span>
         )}
         {t.deadline && t.include && t.deadline > t.end && (
           <span className="ptl-runway" style={{ left: left + w, width: Math.max(0, x(t.deadline) + dw - 2 - (left + w)) }} title={`${t.slack_days ?? ''}d before the deadline`} />
@@ -241,11 +273,13 @@ function TaskRow({ r, x, dw, drag, selected, dim, onHover, onPointerDown, onPoin
           className={cls}
           style={{ left, width: w, transform: dragging ? `translateX(${drag.dx}px)` : undefined }}
           onPointerDown={(e) => onPointerDown(e, t)}
-          onPointerUp={(e) => onPointerUp(e, t)}
           onKeyDown={(e) => onKey(e, t)}
-          aria-label={`${t.title}: ${fmtDay(t.start)} to ${fmtDay(t.end)}, ${PRIORITY[t.priority]} priority${t.critical ? ', on the critical path' : ''}. Arrow keys move it a day; Enter edits.`}
+          aria-label={`${t.title}: ${fmtDay(t.start)} to ${fmtDay(t.end)}, ${PRIORITY[t.priority]} priority${t.done ? ', done' : ''}${t.conflict ? `, starts before its prerequisite finishes (earliest ${fmtDay(t.suggested_start)})` : ''}${t.critical ? ', on the critical path' : ''}. ${t.done ? 'Enter opens it.' : 'Arrow keys move it a day; Enter edits.'}`}
+          title={t.conflict ? `Starts before its prerequisite finishes — earliest possible: ${fmtDay(t.suggested_start)}` : undefined}
         >
-          {t.pin && <Pin size={10} className="ptl-pin" />}
+          {t.done && <Check size={11} className="ptl-pin" />}
+          {t.conflict && <AlertTriangle size={11} className="ptl-pin" />}
+          {t.pin && !t.done && <Pin size={10} className="ptl-pin" />}
           {inside && <span className="ptl-bar-title">{t.title}</span>}
           {dragging && <span className="ptl-drag-date">{fmtDay(preview)}</span>}
         </button>
