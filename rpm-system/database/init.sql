@@ -498,6 +498,10 @@ CREATE TABLE IF NOT EXISTS plan_imports (
 );
 CREATE INDEX IF NOT EXISTS idx_plan_imports_user ON plan_imports (user_id, updated_at DESC);
 
+-- Capacity: hours the user can actually give to tasks on a weekday / weekend day.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS capacity_hours NUMERIC(4,1) DEFAULT 6;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS weekend_capacity_hours NUMERIC(4,1) DEFAULT 2;
+
 -- Action dependencies (blocked-by / blocks). Visual linking only, no enforcement.
 CREATE TABLE IF NOT EXISTS action_dependencies (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

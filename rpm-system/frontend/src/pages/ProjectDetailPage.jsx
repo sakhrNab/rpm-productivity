@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   ChevronLeft, ChevronRight, Image, Plus, Star, MoreVertical, 
   Check, Clock, Hourglass, Calendar as CalendarIcon, Edit, Trash2, X,
-  Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen, ExternalLink, Target, FileUp, GanttChartSquare
+  Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen, ExternalLink, Target, FileUp, GanttChartSquare, Lock, Unlock
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks } from 'date-fns';
@@ -21,6 +21,7 @@ import { useToast } from '../components/ToastProvider';
 import CoachPanel from '../components/CoachPanel';
 import ProjectTimeline from '../components/plan/ProjectTimeline';
 import ErrorBoundary from '../components/ErrorBoundary';
+import ProjectRiskBanner from '../components/ProjectRiskBanner';
 import './ProjectDetailPage.css';
 
 // Format an API date (a full ISO timestamp for a DATE column) as a friendly
@@ -139,7 +140,14 @@ function ProjectDetailPage() {
   const patchActionEverywhere = (id, patch) =>
     setProject(prev => {
       if (!prev) return prev;
-      const upd = a => (a.id === id ? { ...a, ...patch } : a);
+      // Completing/reopening also updates the lock chips of tasks linked to this one.
+      const link = l => (l.id === id && 'is_completed' in patch ? { ...l, is_completed: patch.is_completed } : l);
+      const upd = a => {
+        const next = a.id === id ? { ...a, ...patch } : a;
+        return 'is_completed' in patch && (next.blocked_by || next.blocks)
+          ? { ...next, blocked_by: (next.blocked_by || []).map(link), blocks: (next.blocks || []).map(link) }
+          : next;
+      };
       return {
         ...prev,
         actions: (prev.actions || []).map(upd),
@@ -643,6 +651,8 @@ function ProjectDetailPage() {
         </div>
       </div>
 
+      <ProjectRiskBanner project={project} onOpenTimeline={() => setActiveTab('timeline')} onEditAction={handleEditAction} />
+
       {/* Actions Tabs */}
       <div className="pd-tabs">
         <button 
@@ -727,6 +737,27 @@ function ProjectDetailPage() {
                     <span className="pd-action-title" onClick={() => handleEditAction(action)} title="Edit action">
                       {action.title}
                     </span>
+                    {(() => {
+                      const waiting = (action.blocked_by || []).filter(b => !b.is_completed);
+                      const freeing = (action.blocks || []).filter(b => !b.is_completed);
+                      if (!action.is_completed && waiting.length) {
+                        const first = allActions.find(a => a.id === waiting[0].id);
+                        return (
+                          <button type="button" className="pd-dep-chip waiting" title={`Waiting on:\n${waiting.map(w => w.title).join('\n')}`}
+                            onClick={() => first && handleEditAction(first)}>
+                            <Lock size={11} /> <span>{waiting[0].title}</span>{waiting.length > 1 && <b>+{waiting.length - 1}</b>}
+                          </button>
+                        );
+                      }
+                      if (!action.is_completed && freeing.length) {
+                        return (
+                          <span className="pd-dep-chip frees" title={`Finishing this unblocks:\n${freeing.map(w => w.title).join('\n')}`}>
+                            <Unlock size={11} /> unblocks {freeing.length}
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
                     {action.scheduled_date && (
                       <span className="pd-action-date"><CalendarIcon size={12} /> {fmtDate(action.scheduled_date)}</span>
                     )}

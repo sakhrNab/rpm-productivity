@@ -1,0 +1,17 @@
+.prb {
+  display: flex; align-items: flex-start; gap: 12px; margin: 0 0 16px; padding: 10px 14px;
+  border-radius: 14px; border: 1px solid rgba(255, 107, 129, 0.3);
+  background: linear-gradient(90deg, rgba(255, 107, 129, 0.1), rgba(255, 183, 77, 0.06) 60%, transparent);
+}
+.prb-icon { flex: 0 0 auto; display: inline-flex; padding-top: 7px; color: #ff6b81; }
+.prb-items { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.prb-item {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; max-width: 100%; padding: 5px 12px;
+  border-radius: 999px; border: 1px solid var(--border-primary); background: rgba(0, 0, 0, 0.2);
+  color: var(--text-secondary); font: 500 0.8rem var(--font-body); text-decoration: none; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.prb-item b { color: var(--text-primary); }
+.prb-item.bad { color: #ff8a9b; border-color: rgba(255, 107, 129, 0.35); }
+.prb-item.warn { color: #ffc56e; border-color: rgba(255, 183, 77, 0.35); }
+.prb-item:hover, .prb-item:focus-visible { background: rgba(255, 255, 255, 0.06); color: var(--text-primary); outline: none; }

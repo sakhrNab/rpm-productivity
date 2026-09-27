@@ -241,7 +241,11 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     updateAction: (id, data) => authFetch(`${API_BASE}/actions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data)
-    }).then(r => r.json()),
+    }).then(r => r.json()).then(r => {
+      // Completing a task can free the ones waiting on it — let the app announce them.
+      if (r?.unblocked?.length) window.dispatchEvent(new CustomEvent('rpm:unblocked', { detail: r.unblocked }));
+      return r;
+    }),
     duplicateAction: (id) => authFetch(`${API_BASE}/actions/${id}/duplicate`, { method: 'POST' }).then(r => r.json()),
     deleteAction: (id) => authFetch(`${API_BASE}/actions/${id}`, { method: 'DELETE' }).then(r => r.json()),
 
@@ -350,6 +354,9 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     saveImportDraft: (id, draft) => authFetch(`${API_BASE}/ai/imports/${id}`, { method: 'PUT', body: JSON.stringify({ draft }) }).then(r => r.json()),
     deleteImport: (id) => authFetch(`${API_BASE}/ai/imports/${id}`, { method: 'DELETE' }).then(r => r.json()),
     getProjectTimeline: (id) => authFetch(`${API_BASE}/projects/${id}/timeline?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`).then(r => r.json()),
+    getRoadmap: () => authFetch(`${API_BASE}/roadmap?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`).then(r => r.json()),
+    getCapacity: (start, end) => authFetch(`${API_BASE}/capacity?start=${start}&end=${end}`).then(r => r.json()),
+    saveCapacitySettings: (data) => authFetch(`${API_BASE}/settings/capacity`, { method: 'PUT', body: JSON.stringify(data) }).then(r => r.json()),
     rescheduleActions: (changes) => authFetch(`${API_BASE}/actions/reschedule`, { method: 'PUT', body: JSON.stringify({ changes }) }).then(r => r.json()),
 
     // Upload (multipart — do NOT use authFetch, which forces JSON content-type)

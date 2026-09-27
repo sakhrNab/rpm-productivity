@@ -19,3 +19,7 @@
   height: 8px;
   border-radius: 50%;
 }
+
+/* Grid | Roadmap switch sits beside the create button. */
+.page-header:has(.pp-view) { gap: 12px; }
+.pp-view { margin-left: auto; }

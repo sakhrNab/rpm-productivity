@@ -8,6 +8,7 @@ import SortableActionGroups from '../components/SortableActionGroups';
 import Markdown from '../components/Markdown';
 import UsageBadge from '../components/UsageBadge';
 import { useToast } from '../components/ToastProvider';
+import CapacityStrip from '../components/CapacityStrip';
 import { sortActions, groupActions } from '../utils/actionSort';
 import './MyWeekPage.css';
 
@@ -176,6 +177,8 @@ function MyWeekPage() {
           </div>
         </div>
       )}
+
+      <CapacityStrip start={weekStart} today={format(new Date(), 'yyyy-MM-dd')} refreshKey={actions} onChanged={loadActions} navigable />
 
       <div className="actions-list mw-actions-list">
         <div className="actions-header">

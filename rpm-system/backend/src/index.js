@@ -17,6 +17,8 @@ const { extractText, ExtractError } = require('./ai/extract');
 const { generateFilePlan, applyFilePlan, loadExisting } = require('./ai/fileplan');
 const planImports = require('./ai/imports');
 const { projectTimeline, rescheduleActions } = require('./timeline');
+const capacity = require('./capacity');
+const { getRoadmap } = require('./roadmap');
 const { rateLimit } = require('./ratelimit');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
@@ -453,7 +455,10 @@ app.get('/api/projects/:id', authenticateToken, async (req, res) => {
     await attachActionsToBlocks(blocksResult.rows);
     const actionsResult = await pool.query('SELECT * FROM v_actions_full WHERE project_id = $1 ORDER BY sort_order', [id]);
     const inspirationResult = await pool.query('SELECT * FROM inspiration_items WHERE project_id = $1 ORDER BY sort_order', [id]);
-    res.json({ ...projectResult.rows[0], key_results: keyResultsResult.rows, capture_items: captureResult.rows, rpm_blocks: blocksResult.rows, actions: actionsResult.rows, inspiration_items: inspirationResult.rows });
+    const actions = await attachDependencies(actionsResult.rows);
+    const withDeps = new Map(actions.map(a => [a.id, a]));
+    for (const b of blocksResult.rows) b.actions = (b.actions || []).map(a => withDeps.get(a.id) || a);
+    res.json({ ...projectResult.rows[0], key_results: keyResultsResult.rows, capture_items: captureResult.rows, rpm_blocks: blocksResult.rows, actions, inspiration_items: inspirationResult.rows });
   } catch (error) { res.status(500).json({ error: 'Failed to fetch project' }); }
 });
 
@@ -549,7 +554,7 @@ app.get('/api/actions', authenticateToken, async (req, res) => {
     else if (completed === 'false') query += ' AND is_completed = false';
     query += ' ORDER BY sort_order';
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    res.json(await attachDependencies(result.rows));
   } catch (error) { res.status(500).json({ error: 'Failed to fetch actions' }); }
 });
 
@@ -682,7 +687,17 @@ app.put('/api/actions/:id', authenticateToken, async (req, res) => {
     values.push(id, req.userId);
     const result = await pool.query(`UPDATE actions SET ${fields.join(', ')} WHERE id = $${paramCount} AND user_id = $${paramCount + 1} RETURNING *`, values);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Action not found' });
-    res.json(result.rows[0]);
+    // Finishing a task can free the tasks waiting on it: report the ones with no unfinished prerequisite left.
+    let unblocked;
+    if (updates.is_completed === true) {
+      const u = await pool.query(
+        `SELECT a.id, a.title, a.scheduled_date FROM action_dependencies d JOIN actions a ON a.id = d.action_id
+          WHERE d.depends_on_action_id = $1 AND a.user_id = $2 AND a.is_completed = false AND a.is_cancelled = false
+            AND NOT EXISTS (SELECT 1 FROM action_dependencies d2 JOIN actions p ON p.id = d2.depends_on_action_id
+                             WHERE d2.action_id = a.id AND p.is_completed = false)`, [id, req.userId]).catch(() => ({ rows: [] }));
+      unblocked = u.rows.map(r => ({ id: r.id, title: r.title }));
+    }
+    res.json(unblocked ? { ...result.rows[0], unblocked } : result.rows[0]);
   } catch (error) { res.status(500).json({ error: 'Failed to update action' }); }
 });
 
@@ -1506,6 +1521,34 @@ app.post('/api/ai/braindump/apply', authenticateToken, async (req, res) => {
 app.get('/api/forecast', authenticateToken, async (req, res) => {
   try { res.json(await computeForecasts(pool, req.userId)); }
   catch (error) { console.error('[forecast] error:', error.message); res.status(500).json({ error: 'Failed' }); }
+});
+
+// Roadmap — every active project on one timeline with progress, risk and milestones.
+app.get('/api/roadmap', authenticateToken, async (req, res) => {
+  try {
+    const today = todayInTz(await resolveTimezone(pool, req.userId, req.query.tz));
+    res.json({ today, projects: await getRoadmap(pool, req.userId, today) });
+  } catch (error) { console.error('[roadmap] error:', error.message); res.status(500).json({ error: 'Failed to load the roadmap' }); }
+});
+
+// Capacity — planned vs available minutes per day in a window (max 62 days).
+app.get('/api/capacity', authenticateToken, async (req, res) => {
+  try {
+    const data = await capacity.getCapacity(pool, req.userId, req.query.start, req.query.end);
+    if (!data) return res.status(400).json({ error: 'start and end must be real dates (YYYY-MM-DD), start ≤ end' });
+    res.json(data);
+  } catch (error) { console.error('[capacity] error:', error.message); res.status(500).json({ error: 'Failed to load capacity' }); }
+});
+app.get('/api/settings/capacity', authenticateToken, async (req, res) => {
+  try { res.json(await capacity.getSettings(pool, req.userId)); }
+  catch (error) { res.status(500).json({ error: 'Failed' }); }
+});
+app.put('/api/settings/capacity', authenticateToken, async (req, res) => {
+  try {
+    const r = await capacity.saveSettings(pool, req.userId, req.body || {});
+    if (!r.ok) return res.status(400).json(r);
+    res.json(r);
+  } catch (error) { res.status(500).json({ error: 'Failed to save' }); }
 });
 
 // Draft AI catch-up actions for a slipping key result (proposal — nothing applied).

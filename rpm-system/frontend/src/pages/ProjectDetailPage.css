@@ -611,3 +611,16 @@
   background: rgba(78, 205, 196, 0.1); border: 1px solid rgba(78, 205, 196, 0.3); transition: background 0.2s;
 }
 .pd-import-link:hover { background: rgba(78, 205, 196, 0.2); }
+
+/* Dependency chips on task rows: what a task waits on, or how many it frees. */
+.pd-dep-chip {
+  flex: 0 1 auto; min-width: 0; max-width: 38%; display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 999px; font: 500 0.72rem var(--font-body); white-space: nowrap;
+  border: 1px solid transparent; background: rgba(0, 0, 0, 0.22);
+}
+.pd-dep-chip span { overflow: hidden; text-overflow: ellipsis; }
+.pd-dep-chip b { font-weight: 700; }
+.pd-dep-chip.waiting { color: #ffc56e; border-color: rgba(255, 183, 77, 0.3); cursor: pointer; }
+.pd-dep-chip.waiting:hover { background: rgba(255, 183, 77, 0.12); }
+.pd-dep-chip.frees { color: #4ecdc4; border-color: rgba(78, 205, 196, 0.25); }
+@media (max-width: 560px) { .pd-dep-chip span { display: none; } }

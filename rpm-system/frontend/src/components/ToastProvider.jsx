@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 import './ToastProvider.css';
 
@@ -28,6 +28,18 @@ export function ToastProvider({ children }) {
     if (duration > 0) setTimeout(() => dismiss(id), duration);
     return id;
   }, [dismiss]);
+
+  // Finishing a prerequisite anywhere in the app announces the tasks it freed up.
+  useEffect(() => {
+    const onUnblocked = (e) => {
+      const list = e.detail || [];
+      if (!list.length) return;
+      const names = list.slice(0, 2).map(t => `“${t.title}”`).join(', ');
+      showToast(`🔓 Unblocked: ${names}${list.length > 2 ? ` +${list.length - 2} more` : ''} — ready to start`, 'success', 6000);
+    };
+    window.addEventListener('rpm:unblocked', onUnblocked);
+    return () => window.removeEventListener('rpm:unblocked', onUnblocked);
+  }, [showToast]);
 
   return (
     <ToastContext.Provider value={{ showToast }}>

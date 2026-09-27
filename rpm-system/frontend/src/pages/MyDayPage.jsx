@@ -9,6 +9,7 @@ import BrainDumpModal from '../components/BrainDumpModal';
 import Markdown from '../components/Markdown';
 import UsageBadge from '../components/UsageBadge';
 import { useToast } from '../components/ToastProvider';
+import CapacityStrip from '../components/CapacityStrip';
 import { sortActions, groupActions } from '../utils/actionSort';
 import './MyDayPage.css';
 
@@ -257,6 +258,8 @@ function MyDayPage() {
           onApplied={() => { setTriagePlan(null); loadOverdue(); loadActions(); }}
         />
       )}
+
+      <CapacityStrip start={today} today={today} refreshKey={actions} onChanged={() => { loadActions(); loadOverdue(); }} />
 
       <div className="actions-list md-actions-list">
         <div className="actions-header">

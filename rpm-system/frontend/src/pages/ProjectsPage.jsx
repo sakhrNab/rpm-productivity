@@ -1,13 +1,18 @@
 import { useContext, useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppContext } from '../App';
-import { Plus, MoreVertical, Trash2 } from 'lucide-react';
+import { Plus, MoreVertical, Trash2, LayoutGrid, GanttChart } from 'lucide-react';
+import Roadmap from '../components/plan/Roadmap';
+import ErrorBoundary from '../components/ErrorBoundary';
 import CreateProjectModal from '../components/modals/CreateProjectModal';
 import './ProjectsPage.css';
 
 function ProjectsPage() {
   const { projects, categories, refreshData, api } = useContext(AppContext);
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const view = params.get('view') === 'roadmap' ? 'roadmap' : 'grid';
+  const setView = (v) => setParams(v === 'roadmap' ? { view: 'roadmap' } : {}, { replace: true });
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
   const menuRef = useRef(null);
@@ -76,6 +81,10 @@ function ProjectsPage() {
     <div>
       <div className="page-header">
         <h1 className="page-title">Active Projects</h1>
+        <div className="ptv-seg pp-view" role="tablist" aria-label="View">
+          <button type="button" role="tab" aria-selected={view === 'grid'} className={view === 'grid' ? 'on' : ''} onClick={() => setView('grid')}><LayoutGrid size={14} /> Grid</button>
+          <button type="button" role="tab" aria-selected={view === 'roadmap'} className={view === 'roadmap' ? 'on' : ''} onClick={() => setView('roadmap')}><GanttChart size={14} /> Roadmap</button>
+        </div>
         <button
           type="button"
           className="btn btn-primary"
@@ -86,6 +95,9 @@ function ProjectsPage() {
         </button>
       </div>
 
+      {view === 'roadmap' ? (
+        <ErrorBoundary message="The roadmap hit an error."><Roadmap /></ErrorBoundary>
+      ) : (
       <div className="projects-grid">
         {projects.length === 0 ? (
           <div className="empty-state pp-empty-state">
@@ -169,6 +181,7 @@ function ProjectsPage() {
         })
         )}
       </div>
+      )}
 
       {/* Create Project Modal */}
       {showProjectModal && categories && (
