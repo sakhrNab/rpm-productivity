@@ -604,3 +604,10 @@
 
 /* Block deadline chip in the header */
 .rpm-block-deadline { color: var(--accent-cyan); font-weight: 600; }
+
+.pd-import-link {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 12px; border-radius: 999px;
+  font-size: 0.8rem; font-weight: 600; color: var(--accent-cyan); text-decoration: none;
+  background: rgba(78, 205, 196, 0.1); border: 1px solid rgba(78, 205, 196, 0.3); transition: background 0.2s;
+}
+.pd-import-link:hover { background: rgba(78, 205, 196, 0.2); }

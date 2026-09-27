@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Target, Calendar, CalendarDays, Sun, Users, FolderKanban, Grid3X3,
   Plus, Zap, Blocks, FolderPlus, Tag, UserPlus, ChevronDown,
-  LogOut, Menu, X, Sparkles, Settings, Bell, Bot, Compass
+  LogOut, Menu, X, Sparkles, Settings, Bell, Bot, Compass, FileUp
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from './modals/CreateActionModal';
@@ -71,10 +71,12 @@ function Navbar() {
     { id: 'project', icon: FolderPlus, label: 'Project' },
     { id: 'category', icon: Tag, label: 'Category' },
     { id: 'person', icon: UserPlus, label: 'Person' },
+    { id: 'file', icon: FileUp, label: 'Plan from a file' },
   ];
 
   const handleCreateClick = (type) => {
     setShowCreateMenu(false);
+    if (type === 'file') { setMobileOpen(false); navigate('/import'); return; }
     setActiveModal(type);
   };
 

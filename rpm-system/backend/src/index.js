@@ -13,6 +13,8 @@ const { applyProposal, isUuid } = require('./ai/tools');
 const { buildHistory, buildActionLog, sanitizeClientMessages, MAX_MESSAGE_CHARS } = require('./ai/history');
 const { resolveTimezone } = require('./ai/context');
 const aiMemory = require('./ai/memory');
+const { extractText, ExtractError } = require('./ai/extract');
+const { generateFilePlan, applyFilePlan } = require('./ai/fileplan');
 const { rateLimit } = require('./ratelimit');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
@@ -1253,6 +1255,60 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req, res) => {
     console.error('[ai] chat error:', error);
     if (!res.headersSent) res.status(500).json({ error: 'AI request failed' });
     else if (!res.writableEnded) { res.write(`data: ${JSON.stringify({ type: 'error', message: 'AI request failed' })}\n\n`); res.end(); }
+  }
+});
+
+// ============================================================
+// File → Plan: upload any document, get a scheduled, placed RPM plan (preview), then apply.
+// ============================================================
+const planUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } }).single('file');
+
+app.post('/api/ai/import', authenticateToken, aiLimiter, (req, res, next) => {
+  planUpload(req, res, (err) => {
+    if (err) return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'That file is over 10 MB.' : 'Upload failed.' });
+    next();
+  });
+}, async (req, res) => {
+  const { modelKey, timezone, note } = req.body || {};
+  if (!req.file) return res.status(400).json({ error: 'Choose a file to upload.' });
+  if (!modelKey || !aiRegistry.getModelEntry(modelKey)) return res.status(400).json({ error: 'Pick a default AI model in Settings first.' });
+  const fileName = String(req.file.originalname || 'file').slice(0, 200);
+
+  let extracted;
+  try { extracted = await extractText(req.file.buffer, fileName); }
+  catch (e) {
+    if (e instanceof ExtractError) return res.status(415).json({ error: e.message });
+    console.error('[import] extract:', e.message);
+    return res.status(500).json({ error: 'Could not read that file.' });
+  }
+
+  const tz = await resolveTimezone(pool, req.userId, timezone);
+  const sse = openSse(req, res);
+  sse.send({ type: 'file', name: fileName, kind: extracted.kind, chars: extracted.chars, truncated: extracted.truncated, meta: extracted.meta, preview: extracted.text.slice(0, 600) });
+  try {
+    for await (const ev of generateFilePlan({
+      pool, userId: req.userId, modelKey, text: extracted.text, fileName, kind: extracted.kind,
+      truncated: extracted.truncated, note, timezone: tz, abortSignal: sse.signal,
+    })) sse.send(ev);
+  } catch (e) {
+    if (!sse.signal.aborted) {
+      console.error('[import] plan:', e.message);
+      sse.send({ type: 'error', message: e instanceof AiError ? e.message : friendlyError(e) });
+    }
+  }
+  sse.send({ type: 'done' });
+  sse.end();
+});
+
+app.post('/api/ai/import/apply', authenticateToken, async (req, res) => {
+  try {
+    const { plan, placement, options, timezone } = req.body || {};
+    if (!plan || typeof plan !== 'object') return res.status(400).json({ error: 'plan is required' });
+    const tz = await resolveTimezone(pool, req.userId, timezone);
+    res.json(await applyFilePlan({ pool, userId: req.userId, plan, placement, options, timezone: tz }));
+  } catch (e) {
+    if (!(e instanceof AiError)) console.error('[import] apply:', e.message);
+    res.status(e instanceof AiError ? 400 : 500).json({ error: e instanceof AiError ? e.message : 'Failed to create the plan' });
   }
 });
 

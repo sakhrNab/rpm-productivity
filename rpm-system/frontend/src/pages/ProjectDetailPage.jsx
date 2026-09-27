@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, ChevronRight, Image, Plus, Star, MoreVertical, 
   Check, Clock, Hourglass, Calendar as CalendarIcon, Edit, Trash2, X,
-  Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen, ExternalLink, Target
+  Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen, ExternalLink, Target, FileUp
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks } from 'date-fns';
@@ -634,6 +634,9 @@ function ProjectDetailPage() {
               </span>
             )}
           </h1>
+          <Link to={`/import?project=${project.id}`} className="pd-import-link" title="Upload a brief, notes or a spreadsheet and turn it into scheduled tasks here">
+            <FileUp size={14} /> Plan from a file
+          </Link>
         </div>
       </div>
 

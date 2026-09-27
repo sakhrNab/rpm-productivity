@@ -13,6 +13,7 @@ import CompassPage from './pages/CompassPage';
 import RemindersPage from './pages/RemindersPage';
 import CoachesPage from './pages/CoachesPage';
 import AssistantPage from './pages/AssistantPage';
+import PlanImportPage from './pages/PlanImportPage';
 import VoiceOrb from './components/VoiceOrb';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
@@ -326,6 +327,25 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     }).then(r => r.json()),
     deleteLeverageRequest: (id) => authFetch(`${API_BASE}/leverage-requests/${id}`, { method: 'DELETE' }).then(r => r.json()),
 
+    // File → Plan: multipart upload answered with an SSE stream (returns the raw Response).
+    // Not authFetch (it forces a JSON content-type); handles token refresh itself.
+    importPlanStream: async (file, fields = {}, signal) => {
+      const send = (token) => {
+        const fd = new FormData();
+        fd.append('file', file);
+        for (const [k, v] of Object.entries(fields)) if (v != null && v !== '') fd.append(k, v);
+        return fetch(`${API_BASE}/ai/import`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd, signal });
+      };
+      let res = await send(getToken());
+      if (res.status === 401) {
+        const newToken = await refreshTokenFn();
+        if (!newToken) { logout(); throw new Error('Session expired'); }
+        res = await send(newToken);
+      }
+      return res;
+    },
+    applyImportPlan: (body) => authFetch(`${API_BASE}/ai/import/apply`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
+
     // Upload (multipart — do NOT use authFetch, which forces JSON content-type)
     uploadImage: async (file) => {
       const token = getToken();
@@ -570,6 +590,7 @@ function AppContent() {
           <Route path="/coaches" element={<CoachesPage />} />
           <Route path="/people" element={<PeoplePage />} />
           <Route path="/assistant" element={<AssistantPage />} />
+          <Route path="/import" element={<PlanImportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
