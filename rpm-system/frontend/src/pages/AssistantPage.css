@@ -204,6 +204,10 @@
 }
 .asst-input:focus { outline: none; border-color: var(--accent-cyan); }
 .asst-send { align-self: flex-end; height: 44px; padding: 0 16px; }
+/* The global voice orb is fixed in the bottom-right corner, exactly where the send and
+   mic buttons sit — reserve its corner so they never end up underneath it. */
+body:has(.vorb-root) .asst-composer { padding-right: 76px; }
+@media (max-width: 640px) { body:has(.vorb-root) .asst-composer { padding-right: 68px; } }
 
 @media (max-width: 860px) {
   .asst { grid-template-columns: 1fr; height: auto; }
