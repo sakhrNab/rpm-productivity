@@ -1,15 +1,16 @@
 import { useState, useRef, useContext, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Mic, X, Loader2, Zap, Check, CalendarDays, Square, SendHorizontal, AlertTriangle, Plus, Languages, ExternalLink } from 'lucide-react';
+import { Mic, X, Loader2, Zap, Check, CalendarDays, Square, SendHorizontal, AlertTriangle, Plus, Languages, ExternalLink, Speech } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { useToast } from './ToastProvider';
 import Markdown from './Markdown';
 import {
   sttSupported, ttsSupported, startListening, stopListening, abortListening, speak, speakChunk, cancelSpeak,
   startWakeWord, stopWakeWord, wakeListening, onVoicesReady, getVoiceName, setVoiceName as saveVoiceName,
-  getSpeechLangSetting, setSpeechLang, listenCue,
+  getSpeechLangSetting, setSpeechLang, listenCue, bargeSupported, startBargeIn, stopBargeIn, abortBargeIn,
 } from '../utils/speech';
+import { isBargeIn, isOnlyStop } from '../utils/bargeIn';
 import Picker from './Picker';
 import './VoiceOrb.css';
 
@@ -128,6 +129,9 @@ export default function VoiceOrb() {
   const [acts, setActs] = useState([]);              // activity pills this turn
   const [turns, setTurns] = useState([]);            // committed exchanges
   const [hs, setHs] = useState(() => localStorage.getItem('orb.hs') === '1'); // hands-free
+  // Talk over it: speaking while it answers stops it and becomes your next request.
+  // Off = the old way (tap the orb or Stop). Saved per device.
+  const [barge, setBarge] = useState(() => localStorage.getItem('orb.barge') !== '0');
   const [voices, setVoices] = useState([]);
   const [voice, setVoice] = useState(() => getVoiceName());
   const [lang, setLang] = useState(() => getSpeechLangSetting());
@@ -154,6 +158,9 @@ export default function VoiceOrb() {
   const readerRef = useRef(null);       // active response stream, so we can abort it
   const abortRef = useRef(null);        // aborts the HTTP request itself (server stops generating)
   const autoListenRef = useRef(false);  // this listen wasn't started by a tap (errors stay quiet)
+  const spokenRef = useRef('');         // what the orb has said aloud this reply (to tell its echo from you)
+  const replySpeakingRef = useRef(false); // speaking a REPLY (not a one-line confirmation)
+  const bargedRef = useRef(false);      // you interrupted; the barge recognizer now holds your request
 
   useEffect(() => onVoicesReady(setVoices), []);
   useEffect(() => { api.getCoaches().then(c => setCoaches(Array.isArray(c) ? c : [])).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -203,6 +210,7 @@ export default function VoiceOrb() {
 
   // Speak a short line, then listen or idle.
   const say = (line, { thenListen = false } = {}) => {
+    replySpeakingRef.current = false;
     if (ttsSupported()) { setState('speaking'); speak(line, { onEnd: () => (thenListen ? listen({ auto: true }) : setState('idle')) }); }
     else if (thenListen) listen({ auto: true }); else setState('idle');
   };
@@ -224,12 +232,27 @@ export default function VoiceOrb() {
   const interrupt = () => {
     interruptRef.current = true;
     endingRef.current = true;
+    bargedRef.current = false;
+    abortBargeIn();
     cancelSpeak();
     try { readerRef.current && readerRef.current.cancel(); } catch { /* noop */ }
     readerRef.current = null;
     try { abortRef.current && abortRef.current.abort(); } catch { /* noop */ }
     abortRef.current = null;
     setState('idle');
+  };
+
+  // You spoke over the reply: stop talking and stop generating, but keep the mic — what
+  // you're saying is the next request (the barge recognizer carries it to ask()).
+  const cutForBarge = () => {
+    bargedRef.current = true;
+    interruptRef.current = true;
+    cancelSpeak();
+    try { readerRef.current && readerRef.current.cancel(); } catch { /* noop */ }
+    readerRef.current = null;
+    try { abortRef.current && abortRef.current.abort(); } catch { /* noop */ }
+    abortRef.current = null;
+    setOpen(true); setState('listening'); setTranscript(''); setMicErr(null); setHeardNothing(false);
   };
 
   const listen = ({ auto = false } = {}) => {
@@ -323,6 +346,9 @@ export default function VoiceOrb() {
 
     const coach = activeCoachRef.current;
     interruptRef.current = false;
+    bargedRef.current = false;
+    spokenRef.current = '';
+    replySpeakingRef.current = false;
     setState('thinking'); setTranscript(text); setReply(''); setSuggested(null);
     actsRef.current = []; setActs([]); toolsRef.current = [];
     let full = '', msgId = null, navTo = null;
@@ -338,7 +364,8 @@ export default function VoiceOrb() {
     };
     const flush = (chunk) => {
       if (interruptRef.current || !canSpeak || !chunk.trim()) return;
-      if (!started) { started = true; setState('speaking'); }
+      spokenRef.current += ` ${chunk}`;
+      if (!started) { started = true; replySpeakingRef.current = true; setState('speaking'); }
       pending++; speakChunk(chunk, { onEnd: () => { pending--; finishIfDone(); } });
     };
     const drain = () => { let m; while ((m = sbuf.match(SENTENCE))) { const s = m[0]; sbuf = sbuf.slice(s.length); flush(s); } };
@@ -412,20 +439,36 @@ export default function VoiceOrb() {
       setTurns(t => [...t, turn]);
       setTranscript(''); setReply(''); actsRef.current = []; setActs([]);
       if (sug) setSuggested(sug);
-      if (stopped) { setState('idle'); return; }   // user cut it off — don't speak the rest or re-listen
+      if (stopped) { if (!bargedRef.current) setState('idle'); return; }   // cut off — don't speak the rest; a barge-in is already listening
       streamDone = true;
       if (sbuf.trim()) { flush(sbuf); sbuf = ''; }
       if (!started) { if (followUp()) listen({ auto: true }); else setState('idle'); }
       else finishIfDone();
     } catch (e) {
       readerRef.current = null;
-      if (interruptRef.current) { setState('idle'); return; }  // abort throws — that's expected
+      if (interruptRef.current) { if (!bargedRef.current) setState('idle'); return; }  // abort throws — that's expected
       setState('idle');
       setTurns(t => [...t, { you: text, reply: '⚠️ ' + (e.message || 'Something went wrong'), acts: [], coach, tools: [] }]);
       setTranscript(''); setReply('');
       if (canSpeak) speak('Sorry — that didn’t work. The details are on screen.');
     }
   };
+
+  // While a reply is being spoken, listen for you talking over it.
+  useEffect(() => {
+    if (state !== 'speaking' || !barge || !replySpeakingRef.current || !bargeSupported()) return undefined;
+    startBargeIn({
+      isGenuine: (heard) => isBargeIn(heard, spokenRef.current),
+      onBarge: cutForBarge,
+      onInterim: (t) => setTranscript(t),
+      onFinal: (t) => {
+        bargedRef.current = false;
+        if (!t || isOnlyStop(t)) { setTranscript(''); setState('idle'); return; }   // "stop" → just stop
+        ask(t, { spoken: true });
+      },
+    });
+    return () => stopBargeIn();   // reply finished without an interruption
+  }, [state, barge]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hands-free: arm "Hey RPM" whenever idle. One recognizer at a time, so it only
   // runs while idle (not while listening/speaking), and it auto-restarts itself.
@@ -449,6 +492,12 @@ export default function VoiceOrb() {
     else interrupt();                                       // speaking OR thinking → stop now
   };
   const close = () => { interrupt(); abortListening(); setOpen(false); setMicErr(null); setHeardNothing(false); };
+  const toggleBarge = () => setBarge(v => {
+    const nv = !v;
+    localStorage.setItem('orb.barge', nv ? '1' : '0');
+    if (!nv) stopBargeIn();
+    return nv;
+  });
   // A fresh conversation: the assistant forgets this thread's context too.
   const newChat = () => {
     setTurns([]); setSuggested(null); setMicErr(null); setHeardNothing(false);
@@ -472,7 +521,8 @@ export default function VoiceOrb() {
     ask(t, { spoken: false });
   };
 
-  const label = { listening: 'Listening…', thinking: 'Thinking…', speaking: 'Speaking…' }[state] || (hs ? 'Say “Hey RPM” or tap' : 'Tap to talk');
+  const canBarge = barge && bargeSupported();
+  const label = { listening: 'Listening…', thinking: 'Thinking…', speaking: canBarge ? 'Speaking — talk to interrupt' : 'Speaking…' }[state] || (hs ? 'Say “Hey RPM” or tap' : 'Tap to talk');
   const subtitle = activeCoach
     ? `Focused on ${activeCoach.category_name || activeCoach.name}`
     : 'Sees your day, week, goals & coaches';
@@ -596,6 +646,16 @@ export default function VoiceOrb() {
           </form>
 
           <div className="vorb-settings">
+            {bargeSupported() && ttsSupported() && (
+              <button
+                type="button" role="switch" aria-checked={barge} className={`vorb-switch ${barge ? 'on' : ''}`} onClick={toggleBarge}
+                title={barge
+                  ? 'On: just start talking while it answers — it stops and listens. (Headphones help in loud rooms.) Turn off to interrupt only by tapping.'
+                  : 'Off: tap the orb or Stop to interrupt. Turn on to interrupt just by talking.'}
+              >
+                <Speech size={13} /> Talk over it <span className="vorb-switch-track"><i /></span>
+              </button>
+            )}
             {sttSupported() && (
               <Picker
                 className="vorb-voice vorb-lang"

@@ -71,11 +71,92 @@ export function startListening({ onStart, onInterim, onFinal, onEnd, onError, si
   return rec;
 }
 
-// Stop and keep what was heard (→ onFinal with the text).
-export function stopListening() { try { recognition && recognition.stop(); } catch { /* noop */ } }
+// Stop and keep what was heard (→ onFinal with the text). Also ends a barge-in that has
+// turned into your next request.
+export function stopListening() {
+  try { recognition && recognition.stop(); } catch { /* noop */ }
+  try { if (bargeCommitted && bargeRec) bargeRec.stop(); } catch { /* noop */ }
+}
 // Stop and throw it away (onFinal still fires, but callers use this when they don't care).
 export function abortListening() { try { recognition && recognition.abort(); } catch { /* noop */ } recognition = null; }
 export function isListening() { return !!recognition; }
+
+// ---- Talking over the orb (barge-in) ----
+// While the orb speaks, a second recognizer listens. Each phrase goes through isGenuine()
+// (is it you, or the orb's own voice leaking into the mic?). The first genuine phrase fires
+// onBarge — the caller stops the speech — and from then on this same recognizer is simply
+// your next request: interim text streams to onInterim, and after `silenceMs` of quiet it
+// ends with onFinal(text). Browsers end recognition every so often, so until you interrupt
+// it re-arms itself. Android's continuous mode repeats results, so it isn't offered there.
+let bargeRec = null;
+let bargeCommitted = false;
+let bargeStop = null;
+export function bargeSupported() { return sttSupported() && !ANDROID; }
+
+export function startBargeIn({ isGenuine, onBarge, onInterim, onFinal, silenceMs = 1600, maxMs = 60000 } = {}) {
+  const SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  if (!SR || ANDROID) return false;
+  stopBargeIn();
+  let armed = true, committed = false, settled = false, from = 0, text = '', silence = null, maxTimer = null;
+  bargeCommitted = false;
+  const run = () => {
+    if (!armed) return;
+    let rec;
+    try { rec = new SR(); } catch { return; }
+    rec.lang = getSpeechLang();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (e) => {
+      if (!committed) {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (isGenuine && isGenuine(e.results[i][0].transcript)) {
+            committed = true; bargeCommitted = true; from = i;
+            maxTimer = setTimeout(() => { try { rec.stop(); } catch { /* noop */ } }, maxMs);
+            onBarge && onBarge();
+            break;
+          }
+        }
+        if (!committed) return;
+      }
+      let t = '';
+      for (let i = from; i < e.results.length; i++) t += `${e.results[i][0].transcript} `;
+      text = t.replace(/\s+/g, ' ').trim();
+      onInterim && onInterim(text);
+      clearTimeout(silence);
+      silence = setTimeout(() => { try { rec.stop(); } catch { /* noop */ } }, silenceMs);
+    };
+    rec.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') armed = false; };
+    rec.onend = () => {
+      clearTimeout(silence); clearTimeout(maxTimer);
+      if (bargeRec === rec) bargeRec = null;
+      if (committed) {
+        bargeCommitted = false;
+        if (!settled) { settled = true; onFinal && onFinal(text); }
+        return;
+      }
+      if (armed) setTimeout(run, 250);
+    };
+    bargeRec = rec;
+    try { rec.start(); } catch { bargeRec = null; if (armed) setTimeout(run, 800); }
+  };
+  // Stop listening for interruptions (the reply finished) — only while you haven't interrupted.
+  bargeStop = () => {
+    if (committed) return;
+    armed = false;
+    try { bargeRec && bargeRec.abort(); } catch { /* noop */ }
+    bargeRec = null;
+  };
+  run();
+  return true;
+}
+export function stopBargeIn() { if (bargeStop) { bargeStop(); bargeStop = null; } }
+// Throw away an interruption in progress (orb closed / stopped).
+export function abortBargeIn() {
+  if (bargeStop) bargeStop();
+  bargeStop = null;
+  try { bargeRec && bargeRec.abort(); } catch { /* noop */ }
+  bargeRec = null; bargeCommitted = false;
+}
 
 // ---- Wake word ("Hey RPM") ----
 // A separate always-on recognizer. Browsers only allow one active recognition at a

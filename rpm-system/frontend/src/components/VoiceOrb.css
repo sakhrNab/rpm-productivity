@@ -207,8 +207,19 @@
 .vorb-send { flex: 0 0 auto; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; border: 0; background: var(--accent-cyan); color: #06121f; cursor: pointer; }
 .vorb-send:disabled { opacity: 0.4; cursor: default; }
 
-/* ---- language + voice ---- */
-.vorb-settings { display: flex; gap: 8px; margin-top: 10px; flex: 0 0 auto; }
+/* ---- language + voice + talk-over switch ---- */
+.vorb-settings { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; flex: 0 0 auto; }
+.vorb-switch {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 8px 4px 10px; border-radius: 10px;
+  border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-muted); font: 600 0.74rem var(--font-body); cursor: pointer;
+}
+.vorb-switch:hover { color: var(--text-primary); }
+.vorb-switch:focus-visible { outline: none; border-color: var(--accent-cyan); }
+.vorb-switch-track { position: relative; width: 28px; height: 16px; border-radius: 8px; background: rgba(255,255,255,0.14); transition: background 0.15s ease; }
+.vorb-switch-track i { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #cfd8e6; transition: transform 0.15s ease; }
+.vorb-switch.on { color: var(--text-primary); border-color: rgba(78,205,196,0.45); }
+.vorb-switch.on .vorb-switch-track { background: var(--accent-cyan); }
+.vorb-switch.on .vorb-switch-track i { transform: translateX(12px); background: #06121f; }
 .vorb-voice { flex: 1 1 0; min-width: 0; font-size: 0.74rem; padding: 6px 26px 6px 8px; background-position: right 8px center; }
 
 /* the orb's badge: suggestions waiting for a "yes" */
