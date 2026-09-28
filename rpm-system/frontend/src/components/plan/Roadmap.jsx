@@ -123,6 +123,10 @@ export default function Roadmap() {
                   <div className="rm-group-head"><span className="rm-dot" />{g.name}<i>{g.projects.length}</i></div>
                   {g.projects.map(p => {
                     const left = x(p.start), w = Math.max(dw, x(p.end) - left + dw);
+                    // A bar too short for its label shows as a slim pill; the label (and any overdue
+                    // count) sits just after it, so nothing is squeezed or clipped inside.
+                    const short = w < 96, barW = Math.max(w, 12), pct = Math.round(p.progress * 100);
+                    const label = `${pct}%${p.next_date ? ` · next ${fmtDay(p.next_date)}` : ''}`;
                     const risk = RISK[p.risk];
                     const tip = `${p.name}\n${fmtDay(p.start)} → ${fmtDay(p.end)}${p.dates_from === 'tasks' ? ' (from its tasks)' : ''}\n${p.tasks_done}/${p.tasks_total} tasks done${p.overdue ? ` · ${p.overdue} overdue` : ''}${risk ? `\nGoals: ${risk.label}` : ''}`;
                     return (
@@ -133,13 +137,18 @@ export default function Roadmap() {
                           {risk && <span className={`rm-risk ${risk.tone}`}>{risk.label}</span>}
                         </button>
                         <div className="rm-track" style={{ width }}>
-                          <button type="button" className={`rm-bar-p ${risk ? `tone-${risk.tone}` : ''} ${p.dates_from === 'tasks' ? 'soft' : ''}`}
-                            style={{ left, width: w, '--pct': `${Math.round(p.progress * 100)}%` }} onClick={() => open(p)} title={tip} aria-label={tip}>
+                          <button type="button" className={`rm-bar-p ${risk ? `tone-${risk.tone}` : ''} ${p.dates_from === 'tasks' ? 'soft' : ''} ${short ? 'short' : ''}`}
+                            style={{ left, width: barW, '--pct': `${pct}%` }} onClick={() => open(p)} title={tip} aria-label={tip}>
                             <span className="rm-fill" />
-                            {w > 90 && <span className="rm-bar-text">{Math.round(p.progress * 100)}%{p.next_date ? ` · next ${fmtDay(p.next_date)}` : ''}</span>}
-                            {p.overdue > 0 && <span className="rm-overdue" title={`${p.overdue} overdue`}>{p.overdue}</span>}
+                            {!short && <span className="rm-bar-text">{label}</span>}
+                            {!short && p.overdue > 0 && <span className="rm-overdue" title={`${p.overdue} overdue`}>{p.overdue}</span>}
                           </button>
-                          {w <= 90 && <span className="rm-outside" style={{ left: left + w + 8 }}>{Math.round(p.progress * 100)}%</span>}
+                          {short && (
+                            <span className="rm-outside" style={{ left: left + barW + 8 }}>
+                              {label}
+                              {p.overdue > 0 && <span className="rm-overdue" title={`${p.overdue} overdue`}>{p.overdue}</span>}
+                            </span>
+                          )}
                           {p.milestones.map((m, i) => (
                             <span key={i} className={`rm-ms ${RISK[m.status]?.tone || ''}`} style={{ left: x(m.date) + dw / 2 }}
                               title={`${m.title}\nTarget ${fmtDay(m.date)} · ${m.current ?? 0}/${m.target ?? '?'} ${m.unit || ''}\n${RISK[m.status]?.label || ''}`} />
