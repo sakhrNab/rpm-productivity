@@ -106,7 +106,9 @@
   position: sticky; top: 0; z-index: 3;
   padding: 20px 24px 14px;
   border-bottom: 1px solid var(--ui-hair);
-  background: linear-gradient(180deg, rgba(19, 36, 74, 0.97), rgba(17, 32, 66, 0.92));
+  /* Opaque: the modal scrolls underneath these sticky bars, so any transparency shows
+     the form through them (it looked like the footer sat mid-form). */
+  background: linear-gradient(180deg, #13244a, #112042);
 }
 .modal-title {
   font-family: 'Outfit', var(--font-display); font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25;
@@ -116,7 +118,8 @@
   position: sticky; bottom: 0; z-index: 3;
   padding: 14px 24px 18px;
   border-top: 1px solid var(--ui-hair);
-  background: linear-gradient(180deg, rgba(12, 24, 52, 0.9), rgba(12, 24, 52, 0.98));
+  background: #0c1834;
+  box-shadow: 0 -12px 24px -12px rgba(0, 0, 0, 0.6);
 }
 .form-label {
   font: 600 0.7rem var(--ui-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
