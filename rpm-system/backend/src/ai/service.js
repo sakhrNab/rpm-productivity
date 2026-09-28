@@ -14,8 +14,9 @@ class AiError extends Error {
 }
 
 const RPM_SYSTEM = `You are the user's RPM assistant and coach (RPM = Result, Purpose, Massive Action Plan).
-You can SEE their live data (projects, key results, RPM blocks, actions — with ids) in the context below,
-and you can ACT using tools: create/schedule/complete actions, create RPM blocks, update key-result progress.
+You can SEE their live data (categories, projects, key results, RPM blocks, actions, coaches — with ids) in the
+context below, and you can ACT using tools: create/schedule/complete actions, create RPM blocks, update key-result
+progress, set reminders, capture ideas into a project, and pass notes to their coaches.
 
 Everything below the context marker is THIS user's real data — read it, never assume a generic structure.
 Every user is different: their categories, goal horizons, projects and naming are their own.
@@ -34,6 +35,12 @@ Be action-driven, not just conversational:
   goals, then give a concrete must-win plus 1-3 specific next actions (propose them).
 - You can create, schedule, complete, edit, and (when the user is reviewing suggestions) delete actions, plus
   create RPM blocks and update key results. Editing and deleting always require the user's explicit approval.
+- Pick the right home for what they say: something to DO → an action; a time-based nudge ("remind me at 5",
+  "every Monday") → create_reminder; an idea / someday-maybe / "note this down" → capture_idea in the best-fitting
+  project; news for a coach ("tell my fitness coach I ran 10k") → note_to_coach. One request can need several.
+- "Done with X", "finished X" → complete_action on the matching action; "push X to Friday" → schedule_action.
+- Their coaches (COACHES list) each own one area. If a question is really about a coached area, answer briefly
+  and mention that coach can go deeper; never invent coach ids.
 - Be concise. Never invent ids — only use ids from the context (or returned by find_actions). If a tool returns
   "ok": false, read the error, fix the call (e.g. use the right id) and retry once, or tell the user plainly.
 - Resolve relative dates ("tomorrow", "next Friday") from the Today line in the context, always as YYYY-MM-DD.
@@ -44,6 +51,19 @@ Be action-driven, not just conversational:
   If a tool result contains "proposed": true, DO NOT say you created/changed it — say you've *suggested* it and
   they can approve it below. Don't re-list every item in prose; the UI already shows each suggestion with a button.
 - Format answers in clean Markdown (headings, tables, bold, short lists) — it is rendered, not shown as raw text.`;
+
+// Appended when the reply will be SPOKEN (the voice orb). Markdown is stripped before
+// speech, so structure that only works on screen has to go.
+const VOICE_STYLE = `=== VOICE MODE — your reply is spoken aloud ===
+- Lead with the answer. 1–3 short sentences (about 60 words max) unless they ask for detail or a full plan.
+- No headings, tables, code or long lists. If you must list, say at most three items in one sentence.
+- Say dates and times the way people talk ("tomorrow at 9", "Friday") — never YYYY-MM-DD aloud.
+- Don't read out ids, links or project ids. Never spell out markdown.
+- After you act, confirm in one short sentence ("Done — added 'Call Stripe' for tomorrow at 9").
+- If something needs their approval, say what you suggest and that they can say "yes" to confirm.
+- Speech-to-text mishears names: match what they said to the closest real project/action/coach in the context.
+  If two things fit equally, ask one short question.
+- Ask at most one question per turn. It's a conversation — keep it moving.`;
 
 const GENERAL_SYSTEM = `You are the user's personal assistant inside their RPM productivity app. Answer helpfully and concisely.
 Format answers in clean Markdown — it is rendered, not shown as raw text.`;
@@ -99,7 +119,9 @@ async function searchTools(sdk) {
 // autoMode=true executes writes immediately; otherwise writes are proposed for approval.
 // memory=true injects the user's long-term memory and the remember/forget tools.
 // abortSignal stops generation (and billing) when the client disconnects.
-async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm, autoMode, systemOverride, contextText, memory, timezone, abortSignal, actionLog }) {
+// voice=true adds the spoken-reply style guide. toolOpts go to buildTools (proposeEdits,
+// canNavigate); the timezone is filled in here.
+async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm, autoMode, systemOverride, contextText, memory, timezone, abortSignal, actionLog, voice, toolOpts }) {
   const entry = getModelEntry(modelKey);
   if (!entry) throw new AiError('unknown_model', 'That model is no longer available — pick a new default model in Settings.');
 
@@ -114,7 +136,7 @@ async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm, auto
   // systemOverride (persona+memory) and contextText (its scoped slice) to reuse the
   // same tool-calling agent. Memory mode appends what the assistant knows about the user.
   let msgs = messages;
-  if (rpm || memory || actionLog) {
+  if (rpm || memory || actionLog || voice) {
     const parts = [];
     if (rpm) {
       const ctxText = contextText != null ? contextText : (await buildRpmContext(pool, userId, { timezone })).text;
@@ -127,6 +149,7 @@ async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm, auto
       try { rows = await listMemory(pool, userId); } catch (e) { console.error('[ai] memory load:', e.message); }
       parts.push(MEMORY_GUIDE, renderMemory(rows));
     }
+    if (voice) parts.push(VOICE_STYLE);
     if (actionLog) {
       parts.push(`=== WHAT YOU DID EARLIER IN THIS CONVERSATION (tool calls, ids, and whether the user approved) ===\n${actionLog}\n(Reference only — trust this over your memory of the prose, and never copy this log into a reply.)`);
     }
@@ -138,7 +161,7 @@ async function* runChat({ pool, userId, modelKey, messages, webSearch, rpm, auto
 
   const { ai } = await loadSdk();
   const tools = {};
-  if (rpm) Object.assign(tools, buildTools(ai, pool, userId, !!autoMode));
+  if (rpm) Object.assign(tools, buildTools(ai, pool, userId, !!autoMode, { ...(toolOpts || {}), timezone }));
   if (memory) Object.assign(tools, buildMemoryTools(ai, pool, userId));
 
   // z.ai goes through the direct client (GLM's built-in web_search can't pass through
@@ -262,4 +285,4 @@ function friendlyError(err) {
   return raw.slice(0, 300);
 }
 
-module.exports = { runChat, AiError, friendlyError, searchResultSources };
+module.exports = { runChat, AiError, friendlyError, searchResultSources, VOICE_STYLE };

@@ -325,12 +325,12 @@ Rules: keep ONLY things worth remembering long-term (stable preferences, constra
 }
 
 // ---- chat with a coach (persona + scoped context + retrieved memory + tools) ----
-async function* chatCoach({ pool, userId, coach, messages, autoMode = true, modelKey, timezone, abortSignal }) {
+async function* chatCoach({ pool, userId, coach, messages, autoMode = true, modelKey, timezone, abortSignal, voice = false, toolOpts }) {
   const [ctx, mems] = await Promise.all([scopedContext(pool, userId, coach, timezone), retrieveMemory(pool, coach.id)]);
   const memText = mems.length ? `\n\nWhat you know about them (long-term memory — use it, don't re-ask):\n${mems.map(m => `- ${m.content}`).join('\n')}` : '';
-  const persona = `${coach.persona}${memText}\n\nYou can create, schedule and complete actions in this area via tools. Ask a clarifying question if unsure. Format answers in clean Markdown.`;
+  const persona = `${coach.persona}${memText}\n\nYou can create, schedule and complete actions in this area, set reminders and capture ideas via tools. Ask a clarifying question if unsure.${voice ? '' : ' Format answers in clean Markdown.'}`;
   // Coach's own model if set, else the user's current default (passed by the client).
-  yield* runChat({ pool, userId, modelKey: coach.model || modelKey || null, messages, webSearch: false, rpm: true, autoMode, systemOverride: persona, contextText: ctx, abortSignal });
+  yield* runChat({ pool, userId, modelKey: coach.model || modelKey || null, messages, webSearch: false, rpm: true, autoMode, systemOverride: persona, contextText: ctx, abortSignal, voice, toolOpts, timezone });
 }
 
 module.exports = {

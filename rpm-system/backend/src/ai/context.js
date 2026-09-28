@@ -34,7 +34,7 @@ async function buildRpmContext(pool, userId, { timezone } = {}) {
   const tz = timezone || 'UTC';
   const today = todayInTz(tz);
 
-  const [cats, projects, krs, actions, blocks, overdue] = await Promise.all([
+  const [cats, projects, krs, actions, blocks, overdue, coachRows] = await Promise.all([
     pool.query(
       `SELECT c.id, c.name,
               d.ultimate_vision, d.roles, d.ultimate_purpose, d.one_year_goals, d.ninety_day_goals
@@ -62,6 +62,13 @@ async function buildRpmContext(pool, userId, { timezone } = {}) {
         WHERE user_id = $1 AND is_cancelled = false AND is_completed = false
           AND scheduled_date < $2::date
         ORDER BY scheduled_date DESC LIMIT 30`, [userId, today]),
+    pool.query(
+      `SELECT co.id, co.name, co.scope, COALESCE(p.name, c.name) AS area
+         FROM coaches co
+         LEFT JOIN projects p ON p.id = co.project_id
+         LEFT JOIN categories c ON c.id = co.category_id
+        WHERE co.user_id = $1 AND co.is_active = true
+        ORDER BY co.created_at`, [userId]).catch(() => ({ rows: [] })),
   ]);
 
   const catName = Object.fromEntries(cats.rows.map(c => [c.id, c.name]));
@@ -117,12 +124,17 @@ async function buildRpmContext(pool, userId, { timezone } = {}) {
   }
   L.push('(Older or completed actions are not listed — use find_actions to look them up.)');
 
+  if (coachRows.rows.length) {
+    L.push('\n=== COACHES (id · name · the area they coach) ===');
+    for (const c of coachRows.rows) L.push(`• ${c.id} · ${c.name} · ${c.scope === 'project' ? 'project' : 'area'}: ${c.area || '—'}`);
+  }
+
   return {
     today,
     text: L.join('\n'),
     counts: {
       categories: cats.rows.length, projects: projects.rows.length,
-      keyResults: krs.rows.length, actions: actions.rows.length, blocks: blocks.rows.length, overdue: overdue.rows.length,
+      keyResults: krs.rows.length, actions: actions.rows.length, blocks: blocks.rows.length, overdue: overdue.rows.length, coaches: coachRows.rows.length,
     },
   };
 }

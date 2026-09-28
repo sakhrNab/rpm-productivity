@@ -10,34 +10,72 @@ export function ttsSupported() {
 
 let recognition = null;
 
-// Listen for one utterance. onInterim(text) streams the live transcript;
-// onFinal(text) fires with the settled transcript when speech ends.
-export function startListening({ onInterim, onFinal, onEnd, onError } = {}) {
+// ---- Language ----
+// Recognition must run in the language you SPEAK — a German browser locale would
+// otherwise transcribe English as German gibberish. Saved per device; Auto = browser.
+const LANG_KEY = 'speech.lang';
+export function getSpeechLang() {
+  try { return localStorage.getItem(LANG_KEY) || navigator.language || 'en-US'; } catch { return 'en-US'; }
+}
+export function getSpeechLangSetting() { try { return localStorage.getItem(LANG_KEY) || ''; } catch { return ''; } }
+export function setSpeechLang(lang) { try { localStorage.setItem(LANG_KEY, lang || ''); } catch { /* noop */ } }
+
+// Android Chrome repeats results in continuous mode, so it gets one-shot recognition.
+const ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
+
+// Listen for one utterance. onInterim(text) streams the live transcript; onFinal(text)
+// fires ONCE with the settled transcript. Unlike the browser default (which cuts you off
+// at the first breath), it keeps listening until `silenceMs` of quiet after you spoke,
+// gives up after `startTimeoutMs` if you never start, and caps at `maxMs`.
+export function startListening({ onStart, onInterim, onFinal, onEnd, onError, silenceMs = 1600, startTimeoutMs = 8000, maxMs = 60000 } = {}) {
   const SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
-  if (!SR) { onError && onError('unsupported'); return null; }
-  try {
-    const rec = new SR();
-    rec.lang = navigator.language || 'en-US';
-    rec.interimResults = true;
-    rec.continuous = false;
-    let finalText = '';
-    rec.onresult = (e) => {
-      let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finalText += t; else interim += t;
-      }
-      if (onInterim) onInterim((finalText + ' ' + interim).trim());
-    };
-    rec.onerror = (e) => { onError && onError(e.error || 'error'); };
-    rec.onend = () => { onFinal && onFinal(finalText.trim()); onEnd && onEnd(); };
-    recognition = rec;
-    rec.start();
-    return rec;
-  } catch (e) { onError && onError(e.message || 'error'); return null; }
+  if (!SR) { onError && onError('unsupported'); onFinal && onFinal(''); return null; }
+  abortListening();
+  let rec;
+  try { rec = new SR(); } catch (e) { onError && onError(e.message || 'error'); onFinal && onFinal(''); return null; }
+  rec.lang = getSpeechLang();
+  rec.interimResults = true;
+  rec.continuous = !ANDROID;
+  let text = '', settled = false, silence = null;
+  const clear = () => { clearTimeout(silence); clearTimeout(startTimer); clearTimeout(maxTimer); };
+  const stopSoon = (ms) => { clearTimeout(silence); silence = setTimeout(() => { try { rec.stop(); } catch { /* noop */ } }, ms); };
+  const startTimer = setTimeout(() => { if (!text) { try { rec.stop(); } catch { /* noop */ } } }, startTimeoutMs);
+  const maxTimer = setTimeout(() => { try { rec.stop(); } catch { /* noop */ } }, maxMs);
+  rec.onaudiostart = () => { onStart && onStart(); };
+  rec.onresult = (e) => {
+    let fin = '', interim = '';
+    for (let i = 0; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) fin += t; else interim += t;
+    }
+    text = `${fin} ${interim}`.replace(/\s+/g, ' ').trim();
+    if (onInterim) onInterim(text);
+    // A settled phrase ends sooner than a half-heard one.
+    stopSoon(interim ? silenceMs + 900 : silenceMs);
+  };
+  rec.onerror = (e) => { if (e.error !== 'no-speech' && e.error !== 'aborted') onError && onError(e.error || 'error'); };
+  rec.onend = () => {
+    clear();
+    if (recognition === rec) recognition = null;
+    if (settled) return;
+    settled = true;
+    onFinal && onFinal(text);
+    onEnd && onEnd();
+  };
+  recognition = rec;
+  try { rec.start(); } catch (e) {
+    clear(); recognition = null; settled = true;
+    onError && onError(e.message || 'error'); onFinal && onFinal('');
+    return null;
+  }
+  return rec;
 }
 
+// Stop and keep what was heard (→ onFinal with the text).
 export function stopListening() { try { recognition && recognition.stop(); } catch { /* noop */ } }
+// Stop and throw it away (onFinal still fires, but callers use this when they don't care).
+export function abortListening() { try { recognition && recognition.abort(); } catch { /* noop */ } recognition = null; }
+export function isListening() { return !!recognition; }
 
 // ---- Wake word ("Hey RPM") ----
 // A separate always-on recognizer. Browsers only allow one active recognition at a
@@ -64,7 +102,7 @@ export function startWakeWord({ onWake, onError } = {}) {
     if (!wakeWanted) return;
     try {
       const rec = new SR();
-      rec.lang = navigator.language || 'en-US';
+      rec.lang = getSpeechLang();
       rec.continuous = true;
       rec.interimResults = true;
       rec.onresult = (e) => {
@@ -78,7 +116,7 @@ export function startWakeWord({ onWake, onError } = {}) {
         // Permission denied → give up entirely; transient errors just restart via onend.
         if (err === 'not-allowed' || err === 'service-not-allowed') { wakeWanted = false; onError && onError(err); }
       };
-      rec.onend = () => { wakeRec = null; if (wakeWanted) setTimeout(run, 400); };
+      rec.onend = () => { if (wakeRec === rec) wakeRec = null; const w = wakeWaiters.splice(0); w.forEach(f => f()); if (wakeWanted) setTimeout(run, 400); };
       wakeRec = rec;
       rec.start();
     } catch { if (wakeWanted) setTimeout(run, 1200); }
@@ -87,11 +125,21 @@ export function startWakeWord({ onWake, onError } = {}) {
   return true;
 }
 
+// Resolves once the wake recognizer has really let go of the mic (browsers allow one
+// recognizer at a time — starting the next one early makes it fail with "aborted").
+const wakeWaiters = [];
 export function stopWakeWord() {
   wakeWanted = false;
-  try { wakeRec && wakeRec.stop(); } catch { /* noop */ }
-  wakeRec = null;
+  const rec = wakeRec;
+  if (!rec) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => { clearTimeout(t); resolve(); };
+    const t = setTimeout(() => { const i = wakeWaiters.indexOf(done); if (i >= 0) wakeWaiters.splice(i, 1); if (wakeRec === rec) wakeRec = null; resolve(); }, 700);
+    wakeWaiters.push(done);
+    try { rec.abort(); } catch { done(); }
+  });
 }
+export function wakeListening() { return !!wakeRec; }
 
 // Strip markdown (and emoji) so the spoken version sounds natural — no reading
 // out "dash dash dash", "hash", pipes, or emoji names.
@@ -145,7 +193,7 @@ export function pickVoice() {
   if (!voices.length) return null;
   const saved = getVoiceName();
   if (saved) { const v = voices.find(x => x.name === saved); if (v) return v; }
-  const lang = (navigator.language || 'en-US').slice(0, 2).toLowerCase();
+  const lang = getSpeechLang().slice(0, 2).toLowerCase();
   const mine = voices.filter(v => (v.lang || '').toLowerCase().startsWith(lang));
   const pool = mine.length ? mine : voices;
   for (const p of PREFERRED) { const v = pool.find(x => p.test(x.name)); if (v) return v; }
@@ -155,11 +203,19 @@ export function pickVoice() {
 function makeUtterance(text) {
   const u = new SpeechSynthesisUtterance(text.slice(0, 4000));
   const v = pickVoice();
-  if (v) { u.voice = v; u.lang = v.lang || navigator.language || 'en-US'; }
-  else u.lang = navigator.language || 'en-US';
+  if (v) { u.voice = v; u.lang = v.lang || getSpeechLang(); }
+  else u.lang = getSpeechLang();
   u.rate = 1.05; u.pitch = 1.02;
   return u;
 }
+
+// Chrome drops utterances that nothing references (their onend never fires), sometimes
+// never fires onend at all, and can sit "paused" after the tab was in the background.
+// So: hold a reference until it ends, resume before speaking, and a watchdog calls onEnd
+// if the browser never does — otherwise the orb would wait forever and never listen.
+const live = new Set();
+let queuedMs = 0;   // rough length of what's already queued, so later watchdogs wait their turn
+const estimateMs = (t) => 1200 + t.length * 85;
 
 // Queue a chunk WITHOUT cancelling what's already speaking — lets us start talking
 // on the first sentence while the rest of the reply is still streaming in.
@@ -167,12 +223,26 @@ export function speakChunk(text, { onEnd } = {}) {
   if (!ttsSupported()) { onEnd && onEnd(); return; }
   const clean = stripForSpeech(text);
   if (!clean) { onEnd && onEnd(); return; }
+  let ended = false, dog = null;
+  const est = estimateMs(clean);
+  const finish = () => {
+    if (ended) return; ended = true;
+    clearTimeout(dog); live.delete(u);
+    queuedMs = Math.max(0, queuedMs - est);
+    onEnd && onEnd();
+  };
+  let u;
   try {
-    const u = makeUtterance(clean);
-    u.onend = () => onEnd && onEnd();
-    u.onerror = () => onEnd && onEnd();
-    window.speechSynthesis.speak(u);
-  } catch { onEnd && onEnd(); }
+    u = makeUtterance(clean);
+    u.onend = finish;
+    u.onerror = finish;
+    live.add(u);
+    dog = setTimeout(finish, queuedMs + est + 4000);
+    queuedMs += est;
+    const ss = window.speechSynthesis;
+    if (ss.paused) ss.resume();
+    ss.speak(u);
+  } catch { finish(); }
 }
 
 // One-shot: cancel anything queued, then speak.
@@ -184,4 +254,30 @@ export function speak(text, { onEnd } = {}) {
   speakChunk(clean, { onEnd });
 }
 
-export function cancelSpeak() { try { if (ttsSupported()) window.speechSynthesis.cancel(); } catch { /* noop */ } }
+export function cancelSpeak() {
+  try { if (ttsSupported()) window.speechSynthesis.cancel(); } catch { /* noop */ }
+  queuedMs = 0;
+}
+export function isSpeaking() { try { return ttsSupported() && window.speechSynthesis.speaking; } catch { return false; } }
+
+// A short two-note "I'm listening" cue (Web Audio — instant, unlike speech).
+let cueCtx = null;
+export function listenCue(up = true) {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    cueCtx = cueCtx || new Ctx();
+    if (cueCtx.state === 'suspended') cueCtx.resume();
+    const now = cueCtx.currentTime;
+    (up ? [587, 880] : [880, 587]).forEach((f, i) => {
+      const o = cueCtx.createOscillator(), g = cueCtx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      const t = now + i * 0.08;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.12, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+      o.connect(g).connect(cueCtx.destination);
+      o.start(t); o.stop(t + 0.16);
+    });
+  } catch { /* no-op */ }
+}

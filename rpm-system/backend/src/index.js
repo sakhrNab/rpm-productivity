@@ -1194,10 +1194,17 @@ function openSse(req, res) {
 
 // Streaming chat (SSE). Persists the user + assistant messages.
 app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req, res) => {
-  const { conversationId, modelKey, message, webSearch, rpmMode, autoMode, timezone } = req.body;
+  const { conversationId, message, webSearch, rpmMode, autoMode, timezone, voice } = req.body;
   const attachments = sanitizeAttachments(req.body.attachments);
-  if (!modelKey || !message || !String(message).trim()) {
-    return res.status(400).json({ error: 'modelKey and message are required' });
+  if (!message || !String(message).trim()) return res.status(400).json({ error: 'message is required' });
+  // No model from this browser (or one this account can't use): fall back to the saved
+  // default, then the cheapest model they have a key for — the same rule scheduled coach
+  // work uses. Voice never gets stuck on "pick a model first".
+  // resolveModel keeps the requested model when this account can use it.
+  let modelKey = req.body.modelKey;
+  if (!modelKey || voice) {
+    modelKey = await coachEngine.resolveModel(pool, req.userId, { model: modelKey || null });
+    if (!modelKey) return res.status(400).json({ error: 'Add an AI provider key in Settings to use the assistant.' });
   }
   const text = String(message).trim();
   if (text.length > MAX_MESSAGE_CHARS) return res.status(413).json({ error: `Message is too long (max ${MAX_MESSAGE_CHARS} characters).` });
@@ -1244,7 +1251,9 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req, res) => {
       for await (const ev of runChat({
         pool, userId: req.userId, modelKey, messages, webSearch: !!webSearch,
         rpm: rpmMode !== false, autoMode: !!autoMode, memory: true, timezone: tz, abortSignal: sse.signal,
-        actionLog: buildActionLog(history),
+        actionLog: buildActionLog(history), voice: !!voice,
+        // The orb can show approve cards and open pages; the chat page keeps its own behaviour.
+        toolOpts: voice ? { proposeEdits: true, canNavigate: true } : undefined,
       })) {
         if (ev.type === 'text') { full += ev.text; sse.send({ type: 'delta', text: ev.text }); }
         else if (ev.type === 'tool_call') { toolEvents.push({ name: ev.name, args: ev.args, done: false }); sse.send({ type: 'tool_call', name: ev.name, args: ev.args }); }
@@ -1693,13 +1702,13 @@ app.post('/api/coaches/:id/chat', authenticateToken, aiLimiter, async (req, res)
   try {
     const coach = await coaches.getCoach(pool, req.userId, req.params.id);
     if (!coach) return res.status(404).json({ error: 'Coach not found' });
-    const { autoMode, modelKey, timezone } = req.body;
+    const { autoMode, modelKey, timezone, voice } = req.body;
     // The new message is the last user turn the client sends; the history comes from the
     // coach's SAVED thread (chats + check-ins + follow-ups), so nothing is forgotten.
     const incoming = sanitizeClientMessages(req.body.messages);
     const text = incoming.length ? incoming[incoming.length - 1].content : String(req.body.message || '').trim();
     if (!text) return res.status(400).json({ error: 'message required' });
-    const useModel = coach.model || modelKey || await coachEngine.resolveModel(pool, req.userId, coach);
+    const useModel = await coachEngine.resolveModel(pool, req.userId, { model: coach.model || modelKey || null });
     if (!useModel) return res.status(400).json({ error: 'Add an AI key in Settings to talk to your coach.' });
     const tz = await resolveTimezone(pool, req.userId, timezone);
     await coachEngine.saveMessage(pool, coach, { role: 'user', kind: 'chat', content: text, read: true });
@@ -1709,7 +1718,7 @@ app.post('/api/coaches/:id/chat', authenticateToken, aiLimiter, async (req, res)
     const tools = [];
     try {
       // Ask-first by default: the coach proposes changes, you approve them.
-      for await (const ev of coaches.chatCoach({ pool, userId: req.userId, coach, messages, autoMode: autoMode === true, modelKey: useModel, timezone: tz, abortSignal: sse.signal })) {
+      for await (const ev of coaches.chatCoach({ pool, userId: req.userId, coach, messages, autoMode: autoMode === true, modelKey: useModel, timezone: tz, abortSignal: sse.signal, voice: !!voice, toolOpts: voice ? { proposeEdits: true, canNavigate: true } : undefined })) {
         if (ev.type === 'text') { full += ev.text; sse.send({ type: 'delta', text: ev.text }); }
         else if (ev.type === 'tool_call') { tools.push({ name: ev.name, args: ev.args, done: false }); sse.send({ type: 'tool_call', name: ev.name, args: ev.args }); }
         else if (ev.type === 'tool_result') {
