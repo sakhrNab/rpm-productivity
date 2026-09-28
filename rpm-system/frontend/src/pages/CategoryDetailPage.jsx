@@ -4,16 +4,20 @@ import {
   ChevronRight, Image, Star, MoreVertical, Plus, Clock,
   FolderOpen, Check, Edit, Copy, X, Trash2,
   Move, Download, ChevronUp, ChevronDown, Archive, ArchiveRestore,
-  Sparkles, Eye, Heart, Users, Flag, Rocket, ListChecks, Layers, CheckCircle2,
-  Target, CalendarDays, Pencil, List, Zap, Quote, FolderKanban
+  Sparkles, Eye, Heart, Users, Rocket, ListChecks, Layers, CheckCircle2,
+  Target, CalendarDays, Pencil, List, Zap, FolderKanban, Search, Crosshair, GripVertical,
+  Mountain, FolderPlus, ArrowUpRight
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import CreateBlockModal from '../components/modals/CreateBlockModal';
 import CreateProjectModal from '../components/modals/CreateProjectModal';
 import CreateCategoryModal from '../components/modals/CreateCategoryModal';
-import { BlockBand, PurposeQuote, dueInfo } from '../components/blocks/BlockFace';
+import { BlockBand, BlockRing, DueChip, PurposeQuote, dueInfo } from '../components/blocks/BlockFace';
 import PagedList from '../components/today/PagedList';
+import BlockLinks from '../components/area/BlockLinks';
+import { searchItems } from '../utils/paging';
+import { parseGoals, toggleGoal } from '../utils/goals';
 import '../components/today/Today.css';
 import { fileToCompressedDataURL } from '../utils/image';
 import { useToast } from '../components/ToastProvider';
@@ -24,7 +28,7 @@ import Picker from '../components/Picker';
 import './CategoryDetailPage.css';
 
 // ---- presentational helpers (no data access) ----
-const goalItems = (text) => (text || '').split('\n').map(s => s.replace(/^[\s•\-*]+/, '').trim()).filter(Boolean);
+const ROLE_TONES = ['var(--cat)', '#4ecdc4', '#9575cd', '#ffb74d', '#ff69b4'];
 const prioClass = (a) => `p${Math.max(0, Math.min(3, Number(a?.priority) || 0))}`;
 const fmtDur = (h, m) => {
   const total = (Number(h) || 0) * 60 + (Number(m) || 0);
@@ -62,6 +66,7 @@ function CategoryDetailPage() {
   const [showActionModal, setShowActionModal] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [projectSeed, setProjectSeed] = useState(null); // prefill for "make this goal a project"
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [dragProjectId, setDragProjectId] = useState(null);
   const [dropZone, setDropZone] = useState(null); // 'active' | 'archived' | null
@@ -69,6 +74,15 @@ function CategoryDetailPage() {
   const [openActionMenu, setOpenActionMenu] = useState(null);
   const [editingBlock, setEditingBlock] = useState(null);
   const [openBlockMenu, setOpenBlockMenu] = useState(null);
+  // Actions & Blocks: the block in focus (tabs / click), the one being hovered, block search,
+  // "only this block's tasks", and drag-a-task-onto-a-block.
+  const [focusBlockId, setFocusBlockId] = useState(null);
+  const [hoverBlockId, setHoverBlockId] = useState(null);
+  const [blockQuery, setBlockQuery] = useState('');
+  const [onlyFocused, setOnlyFocused] = useState(false);
+  const [dragActionId, setDragActionId] = useState(null);
+  const [dropBlockId, setDropBlockId] = useState(null);
+  const [workEl, setWorkEl] = useState(null);
   const [openBlockActionMenu, setOpenBlockActionMenu] = useState(null); // { actionId, top, right } or null
   const [expandedCompleted, setExpandedCompleted] = useState({});
   const [expandedCancelled, setExpandedCancelled] = useState({});
@@ -261,28 +275,90 @@ function CategoryDetailPage() {
     </div>
   );
 
-  // Render a multi-line text field as a scannable list (one goal per line).
-  // Same underlying text field — click to edit as plain multiline text.
-  const renderGoalList = (text, field, placeholder, variant = 'numbered') => {
-    const items = goalItems(text);
-    if (items.length === 0) {
-      return (
-        <button type="button" className="ui-empty cd-empty-cta" onClick={() => handleFieldEdit(field, text)}>
-          {variant === 'check' ? <Rocket size={20} /> : <Flag size={20} />}
-          <span>{placeholder}</span>
-          <span className="cd-empty-link">Add goals · one per line</span>
-        </button>
-      );
+  // Save one Big Picture field right away (optimistic; resync on failure).
+  const saveDetail = async (field, value) => {
+    const next = { ...(category.details || {}), [field]: value };
+    setCategory(c => ({ ...c, details: next }));
+    try {
+      await api.updateCategoryDetails(id, next);
+    } catch (error) {
+      console.error('Failed to update:', error);
+      showToast('Could not save that change. Please try again.', 'error');
+      loadCategory();
     }
+  };
+  const toggleGoalDone = (field, line) => saveDetail(field, toggleGoal(category.details?.[field] || '', line));
+  const goalToProject = (text) => { setProjectSeed({ name: text }); setShowProjectModal(true); };
+  const planGoal = (text, horizon) => openCoach({
+    send: `Help me turn my ${horizon} goal "${text}" into a concrete plan for this area: the project or RPM blocks it needs and the first actions to take this week.`,
+  });
+  // The horizon rail jumps to a section and flashes it.
+  const jumpTo = (key) => {
+    const el = document.getElementById(`cd-bp-${key}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.remove('cd-flash'); void el.offsetWidth; el.classList.add('cd-flash');
+  };
+
+  // A goals card — one goal per line of the same text field. Tick a goal off right on the
+  // card; turn an open one into a project or plan it with the coach; the pen edits the text.
+  const renderGoalCard = ({ field, anchor, tag, icon: Icon, title, sub, horizon, placeholder, variant }) => {
+    const goals = parseGoals(details[field]);
+    const hit = goals.filter(g => g.done).length;
+    const editing = editingField === field;
     return (
-      <ol className={`cd-goal-list cd-goal-list--${variant}`} {...editable(field, text, 'Click to edit (one goal per line)')}>
-        {items.map((it, i) => (
-          <li key={i}>
-            <span className="cd-goal-mark" aria-hidden="true">{variant === 'check' ? '' : String(i + 1).padStart(2, '0')}</span>
-            <span className="cd-goal-text">{it}</span>
-          </li>
-        ))}
-      </ol>
+      <section id={`cd-bp-${anchor}`} className={`ui-card cd-gl cd-gl--${variant}`}>
+        <div className="cd-gl-head">
+          <span className="cd-gl-tag" aria-hidden="true"><Icon size={15} /><b>{tag}</b></span>
+          <p className="cd-bp-kicker"><b>{title}</b><span>{sub}</span></p>
+          {goals.length > 0 && <span className={`cd-gl-score ${hit === goals.length ? 'is-all' : ''}`}><b>{hit}</b>/{goals.length} hit</span>}
+          {goals.length > 0 && !editing && (
+            <button type="button" className="cd-bp-edit" onClick={() => handleFieldEdit(field, details[field])} aria-label={`Edit ${title.toLowerCase()} goals`} title="Edit the list (one goal per line)">
+              <Pencil size={14} />
+            </button>
+          )}
+        </div>
+        {goals.length > 0 && !editing && (
+          <div className="cd-gl-bar" aria-hidden="true"><i style={{ width: `${Math.round((hit / goals.length) * 100)}%` }} /></div>
+        )}
+        {editing ? (
+          renderEditor(6, 'One goal per line')
+        ) : goals.length ? (
+          <ol className="cd-gl-list">
+            {goals.map((g, i) => (
+              <li key={g.line} className={`cd-gl-row${g.done ? ' is-done' : ''}`}>
+                <button
+                  type="button"
+                  className="cd-gl-tick"
+                  onClick={() => toggleGoalDone(field, g.line)}
+                  aria-pressed={g.done}
+                  aria-label={g.done ? `Mark "${g.text}" as not done` : `Mark "${g.text}" as done`}
+                  title={g.done ? 'Done — tap to reopen' : 'Tick it off'}
+                >
+                  {g.done ? <Check size={14} strokeWidth={3} /> : variant === 'year' ? String(i + 1).padStart(2, '0') : null}
+                </button>
+                <span className="cd-gl-text">{g.text}</span>
+                {!g.done && (
+                  <span className="cd-gl-tools">
+                    <button type="button" className="cd-gl-tool" onClick={() => goalToProject(g.text)} title="Make this goal a project">
+                      <FolderPlus size={14} /><span>Project</span>
+                    </button>
+                    <button type="button" className="cd-gl-tool" onClick={() => planGoal(g.text, horizon)} title="Plan it with this area's coach">
+                      <Sparkles size={14} /><span>Plan</span>
+                    </button>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <button type="button" className="ui-empty cd-empty-cta" onClick={() => handleFieldEdit(field, details[field])}>
+            <Icon size={20} />
+            <span>{placeholder}</span>
+            <span className="cd-empty-link">Add goals · one per line</span>
+          </button>
+        )}
+      </section>
     );
   };
 
@@ -574,12 +650,73 @@ function CategoryDetailPage() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // ---- Big Picture: the horizon rail (vision → purpose → roles → 1 year → 90 days → projects) ----
+  const yearGoals = parseGoals(details.one_year_goals);
+  const sprintGoals = parseGoals(details.ninety_day_goals);
+  const score = (g) => (g.length ? `${g.filter(x => x.done).length}/${g.length}` : '—');
+  const bpStations = [
+    { key: 'purpose', icon: Heart, label: 'Why', value: details.ultimate_purpose?.trim() ? '✓' : '—', on: !!details.ultimate_purpose?.trim() },
+    { key: 'roles', icon: Users, label: 'Roles', value: roles.length || '—', on: roles.length > 0 },
+    { key: 'year', icon: Mountain, label: '1 year', value: score(yearGoals), on: yearGoals.length > 0 },
+    { key: 'ninety', icon: Rocket, label: '90 days', value: score(sprintGoals), on: sprintGoals.length > 0 },
+    { key: 'projects', icon: FolderKanban, label: 'Projects', value: activeProjects.length || '—', on: activeProjects.length > 0 },
+  ];
+  const bpDefined = (vision.trim() ? 1 : 0) + bpStations.filter(st => st.on).length;
+
+  // ---- Blocks ⇄ tasks ----
+  const blockNo = Object.fromEntries(blocks.map((b, i) => [b.id, String(i + 1).padStart(2, '0')]));
+  const blockById = Object.fromEntries(blocks.map(b => [b.id, b]));
+  const linkedBlockId = hoverBlockId || focusBlockId;
+  const focusBlock = (bid, { scroll = true } = {}) => {
+    setFocusBlockId(bid);
+    if (!bid) { setOnlyFocused(false); return; }
+    if (scroll) setTimeout(() => {
+      const el = document.getElementById(`cd-blk-${bid}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.remove('cd-flash'); void el.offsetWidth; el.classList.add('cd-flash');
+      setTimeout(() => el.classList.remove('cd-flash'), 1500);
+    }, 40);
+  };
+  // Drag a task onto a block (card or tab) → it joins that block's plan.
+  const assignToBlock = async (actionId, bid) => {
+    setDragActionId(null); setDropBlockId(null);
+    const a = actions.find(x => x.id === actionId);
+    if (!a || a.block_id === bid) return;
+    try {
+      await api.updateAction(actionId, { block_id: bid });
+      showToast(`Moved “${a.title}” into block ${blockNo[bid]}.`, 'success');
+      await loadCategory();
+      focusBlock(bid, { scroll: false });
+    } catch (e) {
+      console.error('Failed to move action into block:', e);
+      showToast('Could not move that task into the block.', 'error');
+    }
+  };
+  const dropProps = (bid) => ({
+    onDragOver: (e) => { if (dragActionId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dropBlockId !== bid) setDropBlockId(bid); } },
+    onDragLeave: () => setDropBlockId(d => (d === bid ? null : d)),
+    onDrop: (e) => { e.preventDefault(); const aid = e.dataTransfer.getData('text/plain') || dragActionId; if (aid) assignToBlock(aid, bid); },
+  });
+
   // ---- Rows ----
   const renderActionRow = (action) => {
     const dur = fmtDur(action.duration_hours, action.duration_minutes);
     const menuOpen = openActionMenu === action.id;
     return (
-      <div key={action.id} className={`cd-row ${prioClass(action)}${action.is_completed ? ' is-done' : ''}`}>
+      <div
+        key={action.id}
+        className={`cd-row ${prioClass(action)}${action.is_completed ? ' is-done' : ''}${linkedBlockId && action.block_id === linkedBlockId ? ' is-linked' : ''}${dragActionId === action.id ? ' is-dragging' : ''}`}
+        data-link-row=""
+        data-action-id={action.id}
+        data-block-id={action.block_id || ''}
+        draggable
+        onDragStart={(e) => { e.dataTransfer.setData('text/plain', action.id); e.dataTransfer.effectAllowed = 'move'; setDragActionId(action.id); }}
+        onDragEnd={() => { setDragActionId(null); setDropBlockId(null); }}
+        onMouseEnter={() => { if (action.block_id && blockById[action.block_id]) setHoverBlockId(action.block_id); }}
+        onMouseLeave={() => setHoverBlockId(null)}
+      >
+        <span className="cd-drag" aria-hidden="true" title="Drag onto a block"><GripVertical size={13} /></span>
         <button
           type="button"
           className={`cd-check${action.is_completed ? ' on' : ''}`}
@@ -592,6 +729,16 @@ function CategoryDetailPage() {
         <div className="cd-row-main">
           <span className="cd-row-title">{action.title}</span>
           <div className="cd-row-meta">
+            {action.block_id && blockById[action.block_id] && (
+              <button
+                type="button"
+                className={`cd-meta cd-blk-badge${focusBlockId === action.block_id ? ' on' : ''}`}
+                onClick={(e) => { e.stopPropagation(); focusBlock(action.block_id); }}
+                title={`In block ${blockNo[action.block_id]}: ${blockById[action.block_id].result_title} — go to it`}
+              >
+                <Layers size={12} /><span>{blockNo[action.block_id]}</span>
+              </button>
+            )}
             {action.project_name && (
               <button
                 type="button"
@@ -793,8 +940,8 @@ function CategoryDetailPage() {
     );
   };
 
-  // ---- Project cards ----
-  const renderProjectCard = (project, archived) => {
+  // ---- Project cards — a cover band with the number and a progress ring on its edge ----
+  const renderProjectCard = (project, archived, index = 0) => {
     const total = Number(project.total_actions) || 0;
     const done = Number(project.completed_actions) || 0;
     const krs = Number(project.total_key_results) || 0;
@@ -802,6 +949,8 @@ function CategoryDetailPage() {
     const nBlocks = Number(project.total_blocks) || 0;
     const pct = total ? Math.round((done / total) * 100) : 0;
     const result = project.ultimate_result || project.description;
+    const no = String(index + 1).padStart(2, '0');
+    const due = !archived ? dueInfo(project.end_date, { done: project.is_completed }) : null;
     return (
       <div
         key={project.id}
@@ -820,7 +969,10 @@ function CategoryDetailPage() {
         <div
           className={`cd-proj-cover${project.cover_image ? ' has-img' : ''}`}
           style={project.cover_image ? { backgroundImage: `url(${project.cover_image})` } : undefined}
-        />
+        >
+          {!project.cover_image && <span className="cd-proj-no" aria-hidden="true">{archived ? '' : no}</span>}
+          <BlockRing pct={pct} done={done} total={total} />
+        </div>
         <div className="cd-proj-tools">
           {!archived && (
             <button
@@ -844,27 +996,23 @@ function CategoryDetailPage() {
           </button>
         </div>
         <div className="cd-proj-body">
-          {(project.is_completed || archived) && (
-            <div className="cd-proj-flags">
-              {project.is_completed
-                ? <span className="ui-chip ui-chip--good"><Check size={11} /> Done</span>
-                : <span className="ui-chip"><Archive size={11} /> Archived</span>}
-            </div>
-          )}
+          <div className="cd-proj-top">
+            <span className="cd-proj-kicker">
+              <i className="cd-dot" />
+              {archived ? 'Project' : <>Project <b>{no}</b></>}
+            </span>
+            {project.is_completed
+              ? <span className="ui-chip ui-chip--good"><Check size={11} /> Done</span>
+              : archived ? <span className="ui-chip"><Archive size={11} /> Archived</span> : <DueChip due={due} />}
+          </div>
           <h3 className="cd-proj-title">{project.name}</h3>
           {result && <p className="cd-proj-result">{result}</p>}
-          {total > 0 && (
-            <div className="cd-proj-progress">
-              <div className="ui-meter"><i style={{ '--pct': `${pct}%` }} /></div>
-              <span>{done}/{total}</span>
-            </div>
-          )}
-          {(krs > 0 || nBlocks > 0) && (
-            <div className="cd-proj-meta">
-              {krs > 0 && <span><Target size={12} /> {krsDone}/{krs} key results</span>}
-              {nBlocks > 0 && <span><Layers size={12} /> {nBlocks} {nBlocks === 1 ? 'block' : 'blocks'}</span>}
-            </div>
-          )}
+          <div className="cd-proj-foot">
+            <span className="cd-proj-stat"><ListChecks size={12} /><span><b>{done}</b>/{total} actions</span></span>
+            {krs > 0 && <span className="cd-proj-stat"><Target size={12} /><span><b>{krsDone}</b>/{krs} KRs</span></span>}
+            {nBlocks > 0 && <span className="cd-proj-stat"><Layers size={12} /><span><b>{nBlocks}</b> {nBlocks === 1 ? 'block' : 'blocks'}</span></span>}
+            <span className="cd-proj-open" aria-hidden="true">Open <ArrowUpRight size={13} /></span>
+          </div>
         </div>
       </div>
     );
@@ -972,14 +1120,23 @@ function CategoryDetailPage() {
 
       {activeTab === 'big-picture' ? (
         <div className="cd-bp">
-          {/* Ultimate vision — the emotional centre of the area */}
-          <section className="ui-card cd-vision">
-            <Quote className="cd-vision-glyph" size={96} aria-hidden="true" />
-            <p className="ui-kicker"><Eye size={14} /> My ultimate vision</p>
+          {/* North star — the vision, with the horizon rail: every level below it, one tap away */}
+          <section id="cd-bp-vision" className="cd-ns">
+            <span className="cd-ns-sky" aria-hidden="true" />
+            <span className="cd-ns-glow" aria-hidden="true" />
+            <div className="cd-ns-head">
+              <span className="cd-ns-star" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 0 13.9 10.1 24 12 13.9 13.9 12 24 10.1 13.9 0 12 10.1 10.1Z" /></svg>
+              </span>
+              <p className="cd-bp-kicker"><b>North star</b><span>Ultimate vision</span></p>
+              <span className="cd-ns-defined" title="How much of this area's big picture is written down">
+                <b>{bpDefined}</b>/{bpStations.length + 1} defined
+              </span>
+            </div>
             {editingField === 'ultimate_vision' ? (
               renderEditor(4, 'Living the life that I desire…', 'cd-editor-input--vision')
             ) : vision ? (
-              <blockquote className="cd-vision-text cd-editable" {...editable('ultimate_vision', vision, 'Click to edit your ultimate vision')}>
+              <blockquote className="cd-ns-text cd-editable" {...editable('ultimate_vision', vision, 'Click to edit your ultimate vision')}>
                 {vision}
                 <Pencil size={14} className="cd-edit-pen" aria-hidden="true" />
               </blockquote>
@@ -990,16 +1147,30 @@ function CategoryDetailPage() {
                 <span className="cd-empty-link">Write your vision</span>
               </button>
             )}
+            {vision && editingField !== 'ultimate_vision' && <p className="cd-ns-foot">Everything below exists to make this real.</p>}
+            <nav className="cd-horizon" aria-label="Jump to a part of the big picture">
+              {bpStations.map(st => (
+                <button key={st.key} type="button" className={`cd-hz${st.on ? ' on' : ''}`} onClick={() => jumpTo(st.key)}>
+                  <span className="cd-hz-node"><st.icon size={14} /></span>
+                  <span className="cd-hz-label">{st.label}</span>
+                  <b className="cd-hz-val">{st.value}</b>
+                </button>
+              ))}
+            </nav>
           </section>
 
           <div className="cd-bp-grid">
-            {/* Ultimate purpose */}
-            <section className="ui-card cd-purpose">
-              <p className="ui-kicker"><Heart size={14} /> My ultimate purpose</p>
+            {/* The why */}
+            <section id="cd-bp-purpose" className="ui-card cd-why">
+              <svg className="cd-why-pulse" viewBox="0 0 240 44" aria-hidden="true" preserveAspectRatio="none">
+                <path className="base" d="M0 22H86l7-15 10 30 8-24 6 9H240" />
+                <path className="beat" d="M0 22H86l7-15 10 30 8-24 6 9H240" />
+              </svg>
+              <p className="cd-bp-kicker"><Heart size={14} /><b>The why</b><span>Ultimate purpose</span></p>
               {editingField === 'ultimate_purpose' ? (
                 renderEditor(3, 'Why does this matter to you?')
               ) : details.ultimate_purpose ? (
-                <p className="cd-purpose-text cd-editable" {...editable('ultimate_purpose', details.ultimate_purpose, 'Click to edit your ultimate purpose')}>
+                <p className="cd-why-text cd-editable" {...editable('ultimate_purpose', details.ultimate_purpose, 'Click to edit your ultimate purpose')}>
                   {details.ultimate_purpose}
                   <Pencil size={13} className="cd-edit-pen" aria-hidden="true" />
                 </p>
@@ -1012,14 +1183,19 @@ function CategoryDetailPage() {
               )}
             </section>
 
-            {/* Roles */}
-            <section className="ui-card cd-roles">
-              <p className="ui-kicker"><Users size={14} /> My roles {roles.length > 0 && <span className="ui-count">{roles.length}</span>}</p>
+            {/* Identity */}
+            <section id="cd-bp-roles" className="ui-card cd-who">
+              <p className="cd-bp-kicker"><Users size={14} /><b>Identity</b><span>Who I'm becoming</span>{roles.length > 0 && <span className="ui-count">{roles.length}</span>}</p>
               {editingField === 'roles' ? (
                 renderEditor(3, 'e.g. Runner, Athlete')
               ) : roles.length ? (
-                <div className="cd-role-chips cd-editable" {...editable('roles', details.roles, 'Click to edit your roles')}>
-                  {roles.map((r, i) => <span key={i} className="cd-role">{r}</span>)}
+                <div className="cd-who-grid cd-editable" {...editable('roles', details.roles, 'Click to edit your roles')}>
+                  {roles.map((r, i) => (
+                    <span key={i} className="cd-who-badge" style={{ '--tone': ROLE_TONES[i % ROLE_TONES.length] }}>
+                      <i aria-hidden="true">{r.charAt(0).toUpperCase()}</i>
+                      <span>{r}</span>
+                    </span>
+                  ))}
                   <Pencil size={13} className="cd-edit-pen" aria-hidden="true" />
                 </div>
               ) : (
@@ -1033,41 +1209,18 @@ function CategoryDetailPage() {
           </div>
 
           <div className="cd-bp-grid">
-            {/* One year goals */}
-            <section className="ui-card cd-goals">
-              <p className="ui-kicker">
-                <Flag size={14} /> One-year goals
-                {goalItems(details.one_year_goals).length > 0 && <span className="ui-count">{goalItems(details.one_year_goals).length}</span>}
-              </p>
-              {editingField === 'one_year_goals' ? (
-                renderEditor(5, 'One goal per line')
-              ) : (
-                renderGoalList(details.one_year_goals, 'one_year_goals', 'Where will this area be a year from now?', 'numbered')
-              )}
-            </section>
-
-            {/* 90 day goals */}
-            <section className="ui-card cd-goals">
-              <p className="ui-kicker">
-                <Rocket size={14} /> 90-day goals
-                {goalItems(details.ninety_day_goals).length > 0 && <span className="ui-count">{goalItems(details.ninety_day_goals).length}</span>}
-              </p>
-              {editingField === 'ninety_day_goals' ? (
-                renderEditor(5, 'One goal per line')
-              ) : (
-                renderGoalList(details.ninety_day_goals, 'ninety_day_goals', 'What will you have done in the next 90 days?', 'check')
-              )}
-            </section>
+            {renderGoalCard({ field: 'one_year_goals', anchor: 'year', tag: '1Y', icon: Mountain, title: 'Summit', sub: '12-month goals', horizon: 'one-year', placeholder: 'Where will this area be a year from now?', variant: 'year' })}
+            {renderGoalCard({ field: 'ninety_day_goals', anchor: 'ninety', tag: '90D', icon: Rocket, title: 'Sprint', sub: '90-day goals', horizon: '90-day', placeholder: 'What will you have done in the next 90 days?', variant: 'ninety' })}
           </div>
 
           {/* Projects */}
-          <section className="cd-projects">
+          <section id="cd-bp-projects" className="cd-projects">
             <div className="cd-sec-head">
-              <p className="ui-kicker">
-                <FolderKanban size={14} /> My projects
+              <p className="cd-bp-kicker">
+                <FolderKanban size={14} /><b>Projects</b><span>where the goals get done</span>
                 {activeProjects.length > 0 && <span className="ui-count">{activeProjects.length}</span>}
               </p>
-              <button type="button" className="btn btn-secondary cd-sec-btn" onClick={() => setShowProjectModal(true)}>
+              <button type="button" className="btn btn-secondary cd-sec-btn" onClick={() => { setProjectSeed(null); setShowProjectModal(true); }}>
                 <Plus size={15} />
                 New project
               </button>
@@ -1079,7 +1232,7 @@ function CategoryDetailPage() {
               onDragLeave={() => setDropZone(z => (z === 'active' ? null : z))}
               onDrop={(e) => { e.preventDefault(); handleProjectDrop(false); }}
             >
-              {activeProjects.map(project => renderProjectCard(project, false))}
+              {activeProjects.map((project, i) => renderProjectCard(project, false, i))}
               {activeProjects.length === 0 && (
                 <div className="ui-empty cd-proj-empty">
                   <FolderOpen size={22} />
@@ -1111,7 +1264,7 @@ function CategoryDetailPage() {
                 </button>
                 {archivedOpen && (
                   <div className="cd-proj-grid cd-archived-grid">
-                    {archivedProjects.map(project => renderProjectCard(project, true))}
+                    {archivedProjects.map((project, i) => renderProjectCard(project, true, i))}
                   </div>
                 )}
               </div>
@@ -1120,7 +1273,7 @@ function CategoryDetailPage() {
         </div>
       ) : (
         /* ===== Actions and Blocks tab ===== */
-        <div className="cd-work">
+        <div className="cd-work" ref={setWorkEl}>
           {/* Actions */}
           <section className="ui-card cd-panel">
             <div className="cd-panel-head">
@@ -1129,6 +1282,12 @@ function CategoryDetailPage() {
                 {filteredActions.length > 0 && <span className="ui-count">{filteredActions.length}</span>}
               </p>
               <div className="cd-panel-tools">
+                {focusBlockId && blockById[focusBlockId] && (
+                  <button type="button" className={`cd-only${onlyFocused ? ' on' : ''}`} onClick={() => setOnlyFocused(v => !v)} aria-pressed={onlyFocused}
+                    title={onlyFocused ? 'Show every task in this area' : `Show only block ${blockNo[focusBlockId]}'s tasks`}>
+                    <Crosshair size={12} /> {onlyFocused ? `Block ${blockNo[focusBlockId]} only` : `Only ${blockNo[focusBlockId]}`}
+                  </button>
+                )}
                 <Picker
                   className="cd-filter"
                   value={actionFilter}
@@ -1167,7 +1326,8 @@ function CategoryDetailPage() {
               </div>
             ) : (
               <PagedList
-                items={filteredActions}
+                items={onlyFocused && focusBlockId ? filteredActions.filter(a => a.block_id === focusBlockId) : filteredActions}
+                reveal={focusBlockId ? { token: `${focusBlockId}-${onlyFocused}`, index: (onlyFocused ? 0 : filteredActions.findIndex(a => a.block_id === focusBlockId)) } : null}
                 pageSize={8}
                 fitRows=".cd-row"
                 textOf={(a) => `${a.title} ${a.project_name || ''}`}
@@ -1200,6 +1360,66 @@ function CategoryDetailPage() {
               </button>
             </div>
 
+            {blocks.length > 0 && (() => {
+              const shown = blockQuery.trim()
+                ? searchItems(blocks, blockQuery, b => `${b.result_title} ${b.purpose || ''} ${(b.actions || []).map(a => a.title).join(' ')}`)
+                : blocks;
+              const cycle = (dir) => {
+                if (!shown.length) return;
+                const i = shown.findIndex(b => b.id === focusBlockId);
+                const next = shown[(i + dir + shown.length) % shown.length];
+                focusBlock(next.id);
+                requestAnimationFrame(() => document.querySelector(`[data-nav-block="${next.id}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center' }));
+              };
+              return (
+                <div className="cd-bnav" onKeyDown={(e) => {
+                  if (e.target.tagName === 'INPUT') return;
+                  if (e.key === 'ArrowRight') { e.preventDefault(); cycle(1); }
+                  if (e.key === 'ArrowLeft') { e.preventDefault(); cycle(-1); }
+                }}>
+                  <label className="cd-bnav-search">
+                    <Search size={14} aria-hidden="true" />
+                    <input value={blockQuery} onChange={(e) => setBlockQuery(e.target.value)} placeholder="Search blocks and their tasks…" aria-label="Search blocks" />
+                    {blockQuery && <button type="button" className="cd-bnav-clear" onClick={() => setBlockQuery('')} aria-label="Clear search"><X size={13} /></button>}
+                  </label>
+                  <div className="cd-bnav-tabs" role="tablist" aria-label="Jump to a block">
+                    <button type="button" role="tab" aria-selected={!focusBlockId} className={`cd-bnav-tab${!focusBlockId ? ' on' : ''}`} onClick={() => focusBlock(null)}>
+                      All <b>{shown.length}</b>
+                    </button>
+                    {shown.map(b => {
+                      const acts = b.actions || [];
+                      const live = acts.filter(a => !a.is_cancelled);
+                      const done = live.filter(a => a.is_completed).length;
+                      const pct = live.length ? Math.round((done / live.length) * 100) : 0;
+                      const late = b.target_date && !b.is_completed && String(b.target_date).slice(0, 10) < new Date().toISOString().slice(0, 10);
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={focusBlockId === b.id}
+                          data-nav-block={b.id}
+                          className={`cd-bnav-tab${focusBlockId === b.id ? ' on' : ''}${late ? ' is-late' : ''}${dropBlockId === b.id ? ' is-drop' : ''}${hoverBlockId === b.id ? ' is-hover' : ''}`}
+                          onClick={() => focusBlock(focusBlockId === b.id ? null : b.id)}
+                          onMouseEnter={() => setHoverBlockId(b.id)}
+                          onMouseLeave={() => setHoverBlockId(null)}
+                          title={`${b.result_title} — ${done}/${live.length} done`}
+                          {...dropProps(b.id)}
+                        >
+                          <span className="cd-bnav-ring" style={{ '--pct': `${pct * 3.6}deg` }} aria-hidden="true" />
+                          <b>{blockNo[b.id]}</b>
+                          <span className="cd-bnav-name">{b.result_title}</span>
+                          {live.length - done > 0 && <i>{live.length - done}</i>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {blockQuery.trim() && !shown.length && <p className="cd-bnav-none">No block or task matches “{blockQuery.trim()}”.</p>}
+                  {dragActionId && <p className="cd-bnav-hint"><Layers size={12} /> Drop on a block — or its tab — to move the task into it</p>}
+                </div>
+              );
+            })()}
+
             {blocks.length === 0 ? (
               <div className="ui-empty">
                 <Layers size={22} />
@@ -1210,6 +1430,7 @@ function CategoryDetailPage() {
               </div>
             ) : (
               blocks.map((block, blockIdx) => {
+                if (blockQuery.trim() && !searchItems([block], blockQuery, b => `${b.result_title} ${b.purpose || ''} ${(b.actions || []).map(a => a.title).join(' ')}`).length) return null;
                 const stats = calculateBlockStats(block);
                 const blockActions = block.actions || [];
                 const completedActions = blockActions.filter(a => a.is_completed && !a.is_cancelled);
@@ -1220,10 +1441,19 @@ function CategoryDetailPage() {
                 const starredDur = fmtDur(stats.starredDuration.hours, stats.starredDuration.minutes);
                 const totalDur = fmtDur(stats.totalDuration.hours, stats.totalDuration.minutes);
                 return (
-                  <article key={block.id} className={`ui-card cd-block${block.is_completed ? ' is-done' : ''}`}>
+                  <article
+                    key={block.id}
+                    id={`cd-blk-${block.id}`}
+                    data-block-card={block.id}
+                    className={`ui-card cd-block${block.is_completed ? ' is-done' : ''}${linkedBlockId === block.id ? ' is-linked' : ''}${focusBlockId === block.id ? ' is-focus' : ''}${dropBlockId === block.id ? ' is-drop' : ''}`}
+                    onMouseEnter={() => setHoverBlockId(block.id)}
+                    onMouseLeave={() => setHoverBlockId(null)}
+                    {...dropProps(block.id)}
+                  >
                     <BlockBand
                       number={blockIdx + 1}
                       result={block.result_title}
+                      onResultClick={() => focusBlock(focusBlockId === block.id ? null : block.id, { scroll: false })}
                       due={dueInfo(block.target_date, { done: !!block.is_completed || (liveCount > 0 && blockPct >= 100) })}
                       progress={{ pct: blockPct, done: completedActions.length, total: liveCount }}
                       tools={(
@@ -1359,6 +1589,7 @@ function CategoryDetailPage() {
               })
             )}
           </section>
+          <BlockLinks blockId={linkedBlockId} root={workEl} color={category.color || '#4ecdc4'} version={`${actions.length}-${blocks.length}-${actionFilter}-${onlyFocused}-${blockQuery}`} />
         </div>
       )}
 
@@ -1393,10 +1624,10 @@ function CategoryDetailPage() {
       )}
       {showProjectModal && categories && (
         <CreateProjectModal
-          onClose={() => setShowProjectModal(false)}
-          onSuccess={handleProjectSuccess}
+          onClose={() => { setShowProjectModal(false); setProjectSeed(null); }}
+          onSuccess={() => { setProjectSeed(null); handleProjectSuccess(); }}
           categories={categories}
-          initialData={{ category_id: id }}
+          initialData={{ category_id: id, ...(projectSeed || {}) }}
           onCategoriesRefresh={refreshData}
         />
       )}

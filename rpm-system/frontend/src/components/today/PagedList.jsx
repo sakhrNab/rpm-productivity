@@ -8,7 +8,8 @@ import { paginate, searchItems } from '../../utils/paging';
 // first — and renders each page. The pager sits at the bottom so side-by-side cards align.
 // fitRows: a row selector — when the list sits in a fixed-height card (fitMedia matches),
 // the page size becomes however many rows fit, so a page never scrolls inside itself.
-export default function PagedList({ items, pageSize: basePageSize = 6, textOf, renderPage, label = 'items', searchPlaceholder = 'Search…', fitRows, fitMedia = '(min-width: 1100px)' }) {
+// reveal: { index, token } — when the token changes, flip to the page holding items[index].
+export default function PagedList({ items, pageSize: basePageSize = 6, textOf, renderPage, label = 'items', searchPlaceholder = 'Search…', fitRows, fitMedia = '(min-width: 1100px)', reveal }) {
   const [query, setQuery] = useState('');
   const [fitSize, setFitSize] = useState(null);
   const pageSize = fitSize || basePageSize;
@@ -23,6 +24,10 @@ export default function PagedList({ items, pageSize: basePageSize = 6, textOf, r
   // Keep the current page valid as the list changes (done, dropped, filtered).
   useEffect(() => { if (page > last) go(last, false); }, [last]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { go(0, false); }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!reveal || reveal.index == null || reveal.index < 0 || searching) return;
+    go(Math.floor(reveal.index / pageSize));
+  }, [reveal?.token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
     const track = trackRef.current;
