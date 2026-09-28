@@ -3,7 +3,7 @@
 .modal.cbm-modal {
   --cat: #4ecdc4; --edge: var(--cat);
   --p3: #ff69b4; --p2: #4ecdc4; --p1: #9575cd; --p0: #7d8aa3;
-  max-width: 720px;
+  max-width: 1080px;
   background:
     radial-gradient(640px 260px at 0% 0%, color-mix(in srgb, var(--cat) 14%, transparent), transparent 64%),
     radial-gradient(520px 220px at 100% 0%, rgba(255, 105, 180, 0.07), transparent 62%),
@@ -20,42 +20,94 @@
   border-color: color-mix(in srgb, var(--cat) 40%, transparent);
 }
 
-/* ---------- the mission frame: kicker + countdown, RESULT, PURPOSE ---------- */
-.cbm-mission {
-  position: relative; display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 14px 16px 18px;
-  border-radius: 20px; border: 1px solid var(--ui-hair);
-  background:
-    radial-gradient(90% 70% at 0% 0%, color-mix(in srgb, var(--cat) 10%, transparent), transparent 70%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(0, 0, 0, 0.18));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 40px -26px rgba(0, 0, 0, 0.8);
+/* ---------- two panes: live card preview (left, pinned) + numbered steps (right) ---------- */
+.modal-body.cbm-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+@media (min-width: 900px) {
+  .modal-body.cbm-body { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 26px; align-items: start; }
+  .cbm-preview { position: sticky; top: 96px; }
 }
-.cbm-mission::before {
-  content: ''; position: absolute; left: 20px; right: 20px; top: -1px; height: 2px; border-radius: 2px; pointer-events: none;
-  background: linear-gradient(90deg, var(--edge), color-mix(in srgb, var(--edge) 30%, transparent) 60%, transparent);
+.cbm-preview { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cbm-preview-label { display: flex; align-items: center; gap: 8px; margin: 0; font: 600 0.66rem var(--ui-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); }
+.cbm-live { width: 8px; height: 8px; border-radius: 50%; background: #ff6b81; box-shadow: 0 0 0 3px rgba(255, 107, 129, 0.2); animation: cbm-live 1.6s ease-in-out infinite; }
+@keyframes cbm-live { 50% { opacity: 0.35; } }
+.cbm-card {
+  border-radius: 20px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(0, 0, 0, 0.2)), #0f1d3b;
+  box-shadow: 0 24px 50px -24px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
-.cbm-mission-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; min-width: 0; }
-.cbm-no {
-  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
-  font: 600 0.68rem var(--ui-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap;
+.cbm-card .bk-no i { font-style: normal; opacity: 0.5; letter-spacing: 0; margin: 0 2px; }
+.cbm-card .bk-no b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cbm-card-body { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; }
+.cbm-card-body > :first-child { margin-right: 60px; }
+.cbm-card-path { position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cbm-card-path::before { content: ''; position: absolute; left: 10px; top: 10px; bottom: 10px; width: 2px; border-radius: 2px; background: linear-gradient(180deg, color-mix(in srgb, var(--cat) 60%, transparent), rgba(255, 255, 255, 0.06)); }
+.cbm-card-path li { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 0.84rem; color: var(--text-secondary); }
+.cbm-card-path li b {
+  position: relative; z-index: 1; flex: 0 0 auto; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  font: 700 0.66rem var(--ui-mono); color: var(--text-primary); background: #0f1d3b; border: 2px solid var(--c, rgba(255, 255, 255, 0.25));
 }
-.cbm-no i { font-style: normal; opacity: 0.5; letter-spacing: 0; }
-.cbm-no b { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); font-weight: 700; }
-.cbm-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--cat); box-shadow: 0 0 10px var(--cat); }
-.ui-chip.cbm-due { height: 28px; gap: 6px; padding: 0 10px; font-weight: 600; font-size: 0.74rem; }
-.cbm-due b { font: 700 0.7rem var(--ui-mono); letter-spacing: 0.03em; opacity: 0.75; }
-.cbm-due.ui-chip--bad { box-shadow: 0 0 14px -4px rgba(255, 107, 129, 0.55); }
+.cbm-card-path li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cbm-card-path li.is-done span { text-decoration: line-through; color: var(--text-muted); }
+.cbm-card-path li.cbm-card-more { padding-left: 32px; font-size: 0.76rem; color: var(--text-muted); }
+.cbm-card-empty { margin: 0; font-size: 0.82rem; color: var(--text-muted); }
+.cbm-card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.cbm-card-meta span {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; height: 24px; padding: 0 9px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font: 600 0.68rem var(--ui-mono); color: var(--text-secondary); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--ui-hair);
+}
+.cbm-card-meta svg { flex: 0 0 auto; color: var(--accent-cyan); }
+
+/* ---------- the steps: a numbered rail down the left ---------- */
+.cbm-steps { position: relative; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.cbm-steps::before { content: ''; position: absolute; left: 15px; top: 16px; bottom: 16px; width: 2px; border-radius: 2px; background: linear-gradient(180deg, color-mix(in srgb, var(--cat) 55%, transparent), rgba(255, 255, 255, 0.05)); }
+.cbm-step { position: relative; display: flex; gap: 14px; min-width: 0; padding: 0; border: 0; }
+.cbm-steps > .mk-section + .mk-section { padding-top: 0; border-top: 0; }
+.cbm-step > .mk-field, .cbm-step-main { flex: 1; min-width: 0; }
+.cbm-step-main { display: flex; flex-direction: column; gap: 14px; }
+.cbm-step-no {
+  position: relative; z-index: 1; flex: 0 0 auto; display: grid; place-items: center; width: 32px; height: 32px; margin-top: 2px; border-radius: 50%;
+  font: 700 0.84rem var(--ui-mono); color: #fff; background: linear-gradient(135deg, color-mix(in srgb, var(--cat) 70%, #13244a), #13244a);
+  border: 1px solid color-mix(in srgb, var(--cat) 60%, transparent); box-shadow: 0 0 14px -2px color-mix(in srgb, var(--cat) 60%, transparent);
+}
+.cbm-step.cbm-step-map { flex-direction: column; gap: 12px; padding-left: 46px; }
+.cbm-step.cbm-step-map > .cbm-step-no { position: absolute; left: 0; top: -4px; margin: 0; }
 
 .mk-body .cbm-label-result svg { color: var(--ui-ai); }
 .mk-body .cbm-label-purpose svg { color: #b9a4e8; }
-
-/* The Result input *is* the card headline: big Outfit, quiet well. (4-part selector beats index.css `.modal input`) */
-.modal .mk-body .cbm-mission input.cbm-result-in {
-  font: 700 clamp(1.2rem, 1.05rem + 0.6vw, 1.45rem)/1.25 'Outfit', var(--font-display); letter-spacing: -0.01em;
-  padding: 12px 14px; border-radius: 14px; background: rgba(2, 8, 20, 0.45);
+/* The Result input *is* the card headline: big Outfit. (4-part selector beats index.css `.modal input`) */
+.modal .mk-body .cbm-steps input.cbm-result-in {
+  font: 700 clamp(1.2rem, 1.05rem + 0.6vw, 1.5rem)/1.25 'Outfit', var(--font-display); letter-spacing: -0.01em;
+  padding: 14px 16px; border-radius: 14px; background: rgba(2, 8, 20, 0.5);
 }
-.cbm-why { padding-left: 14px; border-left: 2px solid rgba(149, 117, 205, 0.5); }
-.modal .mk-body .cbm-mission input.cbm-why-in { font-size: 0.92rem; color: var(--text-secondary); }
-.modal .mk-body .cbm-mission input.cbm-why-in:focus { color: var(--text-primary); }
+.modal .mk-body .cbm-steps textarea.cbm-why-in {
+  min-height: 64px; resize: vertical; padding: 12px 14px 12px 16px; border-radius: 14px;
+  font: italic 500 0.95rem/1.5 var(--font-body); border-left: 3px solid rgba(149, 117, 205, 0.7);
+}
+.cbm-deadline .form-label svg { color: var(--ui-warn); }
+.cbm-due-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.modal .mk-body .cbm-due-row input.cbm-due-in { flex: 0 1 190px; min-width: 150px; color-scheme: dark; }
+.cbm-due-picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.cbm-pick {
+  min-height: 36px; padding: 0 12px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--border-primary); background: rgba(255, 255, 255, 0.03); color: var(--text-secondary); font: 600 0.78rem var(--font-body);
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+.cbm-pick:hover { color: var(--text-primary); border-color: rgba(255, 183, 77, 0.5); }
+.cbm-pick.on { color: #06121f; background: #ffb74d; border-color: #ffb74d; }
+
+@media (max-width: 899px) {
+  /* on narrower screens the preview is a compact band above the steps */
+  .cbm-card-body { display: none; }
+  .cbm-card .bk-band { padding-bottom: 22px; }
+}
+@media (max-width: 640px) {
+  .cbm-steps::before { left: 13px; }
+  .cbm-step { gap: 10px; }
+  .cbm-step-no { width: 28px; height: 28px; font-size: 0.76rem; }
+  .cbm-step.cbm-step-map { padding-left: 38px; }
+  .modal .mk-body .cbm-due-row input.cbm-due-in { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .cbm-live { animation: none; } }
 
 /* ---------- plan head + summary ---------- */
 .ui-kicker.cbm-map-kicker svg { color: var(--accent-cyan); }
@@ -158,9 +210,6 @@
 .cbm-add-row.is-first .cbm-add-ico { color: var(--ui-ink); background: var(--accent-cyan); border-color: transparent; }
 
 @media (max-width: 640px) {
-  .cbm-mission { padding: 12px 12px 16px; }
-  .cbm-due b { display: none; }
-  .modal .mk-body .cbm-mission input.cbm-result-in { font-size: 1.15rem; }
   /* tools sit on one line under the title: priority · date (shrinks) · icons */
   .cbm-row-tools { flex: 1 1 100%; flex-wrap: nowrap; gap: 4px; }
   .cbm-row-icons { margin-left: auto; gap: 0; }
@@ -173,7 +222,3 @@
   .cbm-check, .cbm-add-ico, .cbm-action-row { transition: none; }
   .cbm-add-row:hover .cbm-add-ico { transform: none; }
 }
-.cbm-deadline { max-width: 260px; }
-.cbm-deadline .form-label { display: inline-flex; align-items: center; gap: 6px; }
-.cbm-deadline .form-label svg { color: var(--ui-warn); }
-@media (max-width: 640px) { .cbm-deadline { max-width: none; } }

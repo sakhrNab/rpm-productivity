@@ -24,6 +24,7 @@ import CoachDrawer from '../components/CoachDrawer';
 import CoachStrip, { useAreaCoach } from '../components/CoachStrip';
 import { BRIEF_ME, fixPrompt } from '../utils/coach';
 import ProjectTimeline from '../components/plan/ProjectTimeline';
+import { BlockBand, PurposeQuote, dueInfo } from '../components/blocks/BlockFace';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ProjectRiskBanner from '../components/ProjectRiskBanner';
 import Picker from '../components/Picker';
@@ -1214,6 +1215,7 @@ function ProjectDetailPage() {
               : dueIn === -1 ? '1 day late'
               : `${-dueIn} days late`;
             const hasTime = stats.totalDuration.hours > 0 || stats.totalDuration.minutes > 0;
+            const blockDue = dueInfo(block.target_date, { done: blockDone, late: blockLate });
 
             return (
               <article
@@ -1227,15 +1229,15 @@ function ProjectDetailPage() {
                 onDrop={(e) => handleDrop(e, block)}
                 onDragEnd={handleDragEnd}
               >
-                <span className="pd-block-watermark" aria-hidden="true">{String(blockIdx + 1).padStart(2, '0')}</span>
-                <div className="rpm-block-header pd-block-head" title="Drag to reorder">
-                  <span className="pd-block-no">
-                    <GripVertical size={14} className="pd-block-grip" aria-hidden="true" />
-                    <span className="pd-cat-dot" />
-                    Block <b>{String(blockIdx + 1).padStart(2, '0')}</b>
-                  </span>
-                  <div className="pd-block-meta">
-                    {dueKey && <span className={`ui-chip ui-chip--${dueTone} pd-due pd-due--head`}>{blockDone ? <Trophy size={12} /> : <Flag size={12} />}<span>{dueLabel}</span></span>}
+                <BlockBand
+                  number={blockIdx + 1}
+                  result={block.result_title}
+                  onResultClick={() => setPreviewBlock({ ...block, actions: blockActions })}
+                  due={blockDue}
+                  progress={{ pct: blockPct, done: completedActions.length, total: denom }}
+                  lead={<GripVertical size={14} className="pd-block-grip" aria-hidden="true" />}
+                  tools={(
+                    <>
                     {/* Block Menu */}
                     <div className="pd-relative-z1000">
                       <button
@@ -1321,65 +1323,35 @@ function ProjectDetailPage() {
                         </div>
                       )}
                     </div>
-                  </div>
-                </div>
+                    </>
+                  )}
+                />
 
                 <div className="pd-block-body">
-                  {/* Mission brief (left) + status column (right): ring, countdown, hours. */}
-                  <div className="pd-block-mission">
-                    <div className="pd-block-brief">
-                      <div className="pd-block-section pd-block-result">
-                        <div className="pd-block-label"><Target size={12} /> Result</div>
-                        <div
-                          className="pd-block-title pd-clickable"
-                          onClick={() => setPreviewBlock({ ...block, actions: blockActions })}
-                          title="Preview this block"
-                        >{block.result_title}</div>
-                        {block.key_result_id && (() => {
-                          const kr = (project.key_results || []).find(k => k.id === block.key_result_id);
-                          return kr ? (
-                            <div className="rpm-block-kr" title="This block drives toward a key result">
-                              <Target size={11} /> <span>Key result: <strong>{kr.title}</strong></span>
-                            </div>
-                          ) : null;
-                        })()}
-                      </div>
-                      {block.purpose && (
-                        <div className="pd-block-section pd-block-why">
-                          <div className="pd-block-label"><Compass size={12} /> Purpose</div>
-                          <blockquote className="pd-block-purpose">{block.purpose}</blockquote>
-                        </div>
-                      )}
-                    </div>
-
-                    <aside className={`pd-block-stats ${blockDone ? 'is-done' : ''}`} aria-label="Block status">
-                      <div className="pd-block-ring" role="img" aria-label={total ? `${completedActions.length} of ${denom} actions done` : 'No actions yet'}>
-                        <svg viewBox="0 0 88 88" aria-hidden="true">
-                          <circle className="pd-ring-bg" cx="44" cy="44" r="38" />
-                          <circle className="pd-ring-fg" cx="44" cy="44" r="38" pathLength="100" strokeDasharray="100" strokeDashoffset={100 - blockPct} />
-                        </svg>
-                        <span className="pd-ring-val"><b>{total ? `${blockPct}%` : '—'}</b><i>{total ? `${completedActions.length}/${denom} done` : 'no actions'}</i></span>
-                      </div>
-                      <div className="pd-block-tiles">
-                        {dueKey ? (
-                          <div className={`pd-block-tile tone-${dueTone}`} title={`Block deadline · ${fmtDate(block.target_date)}`}>
-                            {blockDone ? <Trophy size={14} /> : <Flag size={14} />}
-                            <b>{blockDone ? 'Hit' : dueIn === 0 ? 'Today' : Math.abs(dueIn)}</b>
-                            <span>{blockDone ? fmtShort(dueKey) : dueIn === 0 ? 'is the deadline' : dueIn > 0 ? `${dueIn === 1 ? 'day' : 'days'} left · ${fmtShort(dueKey)}` : `${dueIn === -1 ? 'day' : 'days'} late · ${fmtShort(dueKey)}`}</span>
-                          </div>
-                        ) : (
-                          <button type="button" className="pd-block-tile tone-none" onClick={() => handleEditBlock(block)} title="Give this block a deadline">
-                            <Flag size={14} /><b>+</b><span>Set a deadline</span>
+                  <PurposeQuote>{block.purpose}</PurposeQuote>
+                  {(() => {
+                    const kr = block.key_result_id && (project.key_results || []).find(k => k.id === block.key_result_id);
+                    if (!kr && !hasTime && (dueKey || blockDone)) return null;
+                    return (
+                      <div className="pd-block-chips">
+                        {kr && (
+                          <span className="rpm-block-kr" title="This block drives toward a key result">
+                            <Target size={11} /> <span>Key result: <strong>{kr.title}</strong></span>
+                          </span>
+                        )}
+                        {hasTime && (
+                          <span className="pd-block-chip" title="Time remaining / planned">
+                            <Clock size={12} /><b>{fmtDuration(stats.remainingDuration)}</b> left · {fmtDuration(stats.totalDuration)} planned
+                          </span>
+                        )}
+                        {!dueKey && !blockDone && (
+                          <button type="button" className="pd-block-chip is-add" onClick={() => handleEditBlock(block)} title="Give this block a deadline">
+                            <Flag size={12} /> Set a deadline
                           </button>
                         )}
-                        <div className="pd-block-tile tone-time" title="Time remaining / planned">
-                          <Clock size={14} />
-                          <b>{hasTime ? fmtDuration(stats.remainingDuration) : '—'}</b>
-                          <span>{hasTime ? `left of ${fmtDuration(stats.totalDuration)}` : 'no time planned'}</span>
-                        </div>
                       </div>
-                    </aside>
-                  </div>
+                    );
+                  })()}
 
                   {/* Massive Action Plan */}
                   <div className="pd-block-map">

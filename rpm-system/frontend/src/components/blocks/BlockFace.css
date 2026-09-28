@@ -1,0 +1,95 @@
+/* RPM block face — the header band shared by the block card and the block editor's live
+   preview. Needs --cat (category colour) from an ancestor. */
+
+.bk-band {
+  --cat-c: var(--cat, #4ecdc4);
+  position: relative; isolation: isolate;          /* not clipped: the ring hangs off the bottom edge */
+  display: flex; flex-direction: column; gap: 14px; min-width: 0;
+  padding: 12px 16px 26px;
+  background:
+    radial-gradient(120% 150% at 0% 0%, color-mix(in srgb, var(--cat-c) 38%, transparent), transparent 62%),
+    radial-gradient(80% 140% at 100% 0%, color-mix(in srgb, var(--cat-c) 16%, transparent), transparent 70%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 11px),
+    linear-gradient(180deg, color-mix(in srgb, var(--cat-c) 14%, #13244a), #102040);
+  border-bottom: 1px solid color-mix(in srgb, var(--cat-c) 34%, transparent);
+}
+/* a lit top edge in the category colour (red when late, cyan when hit) */
+.bk-band::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; z-index: 2; pointer-events: none;
+  background: linear-gradient(90deg, var(--cat-c), color-mix(in srgb, var(--cat-c) 40%, transparent) 70%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--cat-c) 70%, transparent);
+}
+.bk-band.tone-bad::before { background: linear-gradient(90deg, #ff6b81, rgba(255, 107, 129, 0.3) 70%, transparent); box-shadow: 0 0 16px rgba(255, 107, 129, 0.6); }
+.bk-band.tone-good::before { background: linear-gradient(90deg, #4ecdc4, rgba(78, 205, 196, 0.3) 70%, transparent); }
+
+/* the block number as a big outline watermark on the right of the band (clipped to the band) */
+.bk-band-art { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; border-radius: inherit; }
+.bk-watermark {
+  position: absolute; right: 64px; bottom: -18px; pointer-events: none; user-select: none;
+  font: 800 6.2rem/1 'Outfit', var(--font-display); letter-spacing: -0.05em;
+  color: transparent; -webkit-text-stroke: 1.5px color-mix(in srgb, var(--cat-c) 45%, rgba(255, 255, 255, 0.12));
+  opacity: 0.5;
+}
+
+.bk-band-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; min-height: 30px; }
+.bk-no {
+  display: inline-flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap;
+  font: 600 0.68rem var(--ui-mono, 'Space Grotesk'); letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255, 255, 255, 0.62);
+}
+.bk-no b { color: #fff; font-weight: 700; }
+.bk-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--cat-c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cat-c) 25%, transparent), 0 0 12px var(--cat-c); }
+.bk-band-tools { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+
+.bk-due {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; min-width: 0; white-space: nowrap;
+  font: 600 0.72rem var(--font-body); color: var(--tone); background: color-mix(in srgb, var(--tone) 16%, rgba(6, 18, 31, 0.55));
+  border: 1px solid color-mix(in srgb, var(--tone) 50%, transparent);
+}
+.bk-due span { overflow: hidden; text-overflow: ellipsis; }
+.bk-due b { font: 700 0.68rem var(--ui-mono, 'Space Grotesk'); opacity: 0.75; }
+.bk-due.tone-warn { --tone: #ffc56e; }
+.bk-due.tone-bad { --tone: #ff8a9b; box-shadow: 0 0 14px -3px rgba(255, 107, 129, 0.6); }
+.bk-due.tone-good { --tone: #4ecdc4; }
+.bk-due.tone-info { --tone: #b9a4e8; }
+
+.bk-result { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-right: 64px; }
+.bk-label { display: inline-flex; align-items: center; gap: 6px; font: 600 0.64rem var(--ui-mono, 'Space Grotesk'); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
+.bk-label svg { color: #ff9bd0; }
+.bk-band .bk-title {
+  display: block; margin: 0; padding: 0; border: 0; background: none; text-align: left; cursor: default; min-width: 0;
+  font: 800 clamp(1.25rem, 1.1rem + 0.5vw, 1.55rem)/1.18 'Outfit', var(--font-display); letter-spacing: -0.015em; text-transform: none;
+  color: #fff; text-shadow: 0 2px 18px rgba(0, 0, 0, 0.35); overflow-wrap: anywhere; text-wrap: balance;
+}
+.bk-band button.bk-title { cursor: pointer; transition: color 150ms ease; }
+.bk-band button.bk-title:hover { color: color-mix(in srgb, var(--cat-c) 45%, #fff); }
+.bk-band button.bk-title:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; border-radius: 6px; }
+.bk-band .bk-title.is-empty { color: rgba(255, 255, 255, 0.35); font-weight: 600; }
+
+/* progress ring, sitting on the band's lower edge */
+.bk-ring {
+  position: absolute; right: 14px; bottom: -1px; z-index: 3; width: 58px; height: 58px; transform: translateY(50%);
+  display: grid; place-items: center; border-radius: 50%;
+  background: #0f1d3b; box-shadow: 0 0 0 4px #0f1d3b, 0 8px 22px rgba(0, 0, 0, 0.45);
+}
+.bk-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.bk-ring-bg { fill: none; stroke: rgba(255, 255, 255, 0.09); stroke-width: 5; }
+.bk-ring-fg { fill: none; stroke: var(--cat-c, #4ecdc4); stroke-width: 5; stroke-linecap: round; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--cat-c, #4ecdc4) 80%, transparent)); transition: stroke-dashoffset 0.6s ease; }
+.bk-ring.is-done .bk-ring-fg { stroke: #4ecdc4; }
+.bk-ring-val { position: relative; font: 700 0.95rem/1 var(--ui-mono, 'Space Grotesk'); color: #fff; }
+.bk-ring-val i { font-style: normal; font-size: 0.62rem; opacity: 0.7; margin-left: 1px; }
+
+/* the purpose as a quote, under the band */
+.bk-quote {
+  position: relative; margin: 0; padding: 8px 12px 8px 30px; border-radius: 12px; min-width: 0;
+  font: italic 500 0.9rem/1.5 var(--font-body); color: var(--text-secondary); overflow-wrap: anywhere;
+  background: linear-gradient(90deg, rgba(149, 117, 205, 0.12), transparent 90%); border-left: 3px solid rgba(149, 117, 205, 0.65);
+}
+.bk-quote::before { content: '“'; position: absolute; left: 9px; top: 3px; font: 700 1.6rem/1 'Outfit', serif; color: rgba(185, 164, 232, 0.8); }
+.bk-quote.is-empty { color: var(--text-muted); font-style: normal; opacity: 0.8; }
+
+@media (max-width: 640px) {
+  .bk-band { padding: 12px 14px 24px; }
+  .bk-watermark { font-size: 5rem; right: 58px; }
+  .bk-due b { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .bk-ring-fg, .bk-band button.bk-title { transition: none; } }

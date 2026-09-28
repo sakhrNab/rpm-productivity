@@ -365,8 +365,7 @@
   font: 700 0.76rem var(--ui-mono); letter-spacing: 0; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
 }
 
-/* One mission per row: each block gets the full width for its brief + status column. */
-.pd-page .pd-blocks-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
+.pd-page .pd-blocks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(400px, 100%), 1fr)); gap: 18px; align-items: start; }
 .pd-page .pd-blocks-grid:empty { display: none; }
 .pd-page .pd-blocks-grid > * { min-width: 0; }
 
@@ -617,78 +616,30 @@
 
 
 /* =====================================================================
-   RPM block — mission layout: brief (Result / Purpose) beside a status
-   column (progress ring, deadline countdown, time), then the action plan
-   as a step path. Big block number as a watermark.
+   RPM block card: the shared face (components/blocks/BlockFace) as a header
+   band, then Purpose, chips, and the action plan as a step path.
    ===================================================================== */
-.pd-page .pd-blocks-panel .pd-block { position: relative; overflow: hidden; padding: 20px 22px 18px; border-radius: 22px; }
-.pd-page .pd-blocks-panel .pd-block-watermark {
-  position: absolute; right: 18px; top: -6px; z-index: 0; pointer-events: none;
-  font: 800 clamp(5rem, 11vw, 8.5rem)/1 'Outfit', var(--font-display); letter-spacing: -0.04em;
-  color: transparent; -webkit-text-stroke: 1px color-mix(in srgb, var(--cat) 28%, transparent);
-  opacity: 0.55;
-}
-/* Beside the status column on wide cards (clear of the ⋮ menu); top-right on phones, under the header. */
-@media (min-width: 760px) { .pd-page .pd-blocks-panel .pd-block-watermark { right: 350px; top: 26px; } }
-@media (max-width: 759px) { .pd-page .pd-blocks-panel .pd-block-watermark { top: 70px; right: 14px; font-size: 4.5rem; } }
-.pd-page .pd-blocks-panel .pd-block-head, .pd-page .pd-blocks-panel .pd-block-body { position: relative; z-index: 1; }
-.pd-page .pd-blocks-panel .pd-due--head { display: none; }        /* the status tile shows the deadline */
+.pd-page .pd-blocks-panel .pd-block { overflow: hidden; padding: 0; border-radius: 20px; }
+.pd-page .pd-blocks-panel .pd-block::before { display: none; }            /* the band carries the lit edge now */
+.pd-page .pd-blocks-panel .pd-block .bk-band { cursor: grab; }
+.pd-page .pd-blocks-panel .pd-block .bk-band-tools .pd-icon-btn { color: rgba(255, 255, 255, 0.7); }
+.pd-page .pd-blocks-panel .pd-block .bk-band-tools .pd-icon-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.pd-page .pd-blocks-panel .pd-block-grip { color: rgba(255, 255, 255, 0.55); }
+.pd-page .pd-blocks-panel .pd-block-body { padding: 14px 16px 16px; gap: 14px; }
+/* the ring hangs off the band's right edge — keep the first row clear of it */
+.pd-page .pd-blocks-panel .pd-block-body > :first-child { margin-right: 64px; }
 
-.pd-page .pd-blocks-panel .pd-block-mission { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin: 6px 0 16px; }
-@media (min-width: 760px) {
-  .pd-page .pd-blocks-panel .pd-block-mission { grid-template-columns: minmax(0, 1fr) minmax(250px, 300px); align-items: stretch; }
+.pd-page .pd-blocks-panel .pd-block-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.pd-page .pd-blocks-panel .pd-block-chips .rpm-block-kr { margin-top: 0; }
+.pd-page .pd-blocks-panel .pd-block-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px; border-radius: 999px; white-space: nowrap;
+  font: 500 0.74rem var(--font-body); color: var(--text-muted); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--ui-hair);
 }
-.pd-page .pd-blocks-panel .pd-block-brief { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.pd-page .pd-blocks-panel .pd-block-title {
-  font: 800 clamp(1.45rem, 3.2vw, 2rem)/1.15 'Outfit', var(--font-display); letter-spacing: -0.02em; text-transform: none;
-  background: linear-gradient(90deg, #fff 20%, color-mix(in srgb, var(--cat) 55%, #9fe8e2) 75%, #ffb3d9);
-  -webkit-background-clip: text; background-clip: text; color: transparent; overflow-wrap: anywhere;
-}
-.pd-page .pd-blocks-panel .pd-block-title:hover { filter: brightness(1.15); color: transparent; }
-.pd-page .pd-blocks-panel .pd-block.is-complete .pd-block-title { background: none; color: var(--text-secondary); }
-.pd-page .pd-blocks-panel .pd-block-why { padding: 0; border: 0; }
-.pd-page .pd-blocks-panel blockquote.pd-block-purpose {
-  position: relative; margin: 4px 0 0; padding: 10px 14px 10px 38px; border-radius: 14px;
-  font: italic 500 0.98rem/1.55 var(--font-body); color: var(--text-secondary);
-  background: linear-gradient(90deg, rgba(149, 117, 205, 0.12), transparent 85%); border-left: 3px solid rgba(149, 117, 205, 0.7);
-}
-.pd-page .pd-blocks-panel blockquote.pd-block-purpose::before {
-  content: '“'; position: absolute; left: 12px; top: 2px; font: 700 2rem/1 'Outfit', serif; color: rgba(185, 164, 232, 0.8);
-}
-
-/* status column */
-.pd-page .pd-blocks-panel .pd-block-stats {
-  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px; padding: 14px; border-radius: 18px;
-  background: rgba(0, 0, 0, 0.22); border: 1px solid var(--ui-hair);
-}
-@media (min-width: 760px) { .pd-page .pd-blocks-panel .pd-block-stats { grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: center; } }
-.pd-page .pd-blocks-panel .pd-block-ring { position: relative; width: 104px; height: 104px; flex: 0 0 auto; }
-.pd-page .pd-blocks-panel .pd-block-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.pd-page .pd-blocks-panel .pd-ring-bg { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 8; }
-.pd-page .pd-blocks-panel .pd-ring-fg {
-  fill: none; stroke: var(--cat); stroke-width: 8; stroke-linecap: round;
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--cat) 70%, transparent)); transition: stroke-dashoffset 0.6s ease;
-}
-.pd-page .pd-blocks-panel .pd-block-stats.is-done .pd-ring-fg { stroke: var(--ui-good); }
-.pd-page .pd-blocks-panel .pd-ring-val { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.pd-page .pd-blocks-panel .pd-ring-val b { font: 700 1.35rem/1 var(--ui-mono); color: var(--text-primary); }
-.pd-page .pd-blocks-panel .pd-ring-val i { margin-top: 3px; font: 600 0.62rem var(--ui-mono); font-style: normal; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
-.pd-page .pd-blocks-panel .pd-block-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
-.pd-page .pd-blocks-panel .pd-block-tile {
-  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 6px; align-items: center;
-  min-width: 0; padding: 10px; border-radius: 14px; text-align: left; font: inherit;
-  border: 1px solid color-mix(in srgb, var(--tone, #fff) 30%, transparent); background: color-mix(in srgb, var(--tone, #fff) 8%, transparent); color: var(--tone, var(--text-secondary));
-}
-.pd-page .pd-blocks-panel .pd-block-tile > svg { grid-row: 1; }
-.pd-page .pd-blocks-panel .pd-block-tile b { grid-row: 1; font: 700 1.25rem/1.1 var(--ui-mono); color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pd-page .pd-blocks-panel .pd-block-tile span { grid-column: 1 / -1; margin-top: 2px; font-size: 0.72rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pd-page .pd-blocks-panel .pd-block-tile.tone-warn { --tone: var(--ui-warn); }
-.pd-page .pd-blocks-panel .pd-block-tile.tone-bad { --tone: var(--ui-bad); box-shadow: 0 0 18px rgba(255, 107, 129, 0.2); }
-.pd-page .pd-blocks-panel .pd-block-tile.tone-good { --tone: var(--ui-good); }
-.pd-page .pd-blocks-panel .pd-block-tile.tone-info { --tone: var(--ui-info); }
-.pd-page .pd-blocks-panel .pd-block-tile.tone-time { --tone: var(--accent-cyan); }
-.pd-page .pd-blocks-panel .pd-block-tile.tone-none { --tone: #7d8aa3; border-style: dashed; cursor: pointer; }
-.pd-page .pd-blocks-panel .pd-block-tile.tone-none:hover, .pd-page .pd-blocks-panel .pd-block-tile.tone-none:focus-visible { --tone: var(--ui-warn); outline: none; }
+.pd-page .pd-blocks-panel .pd-block-chip svg { color: var(--accent-cyan); }
+.pd-page .pd-blocks-panel .pd-block-chip b { font: 700 0.76rem var(--ui-mono); color: var(--text-primary); }
+.pd-page .pd-blocks-panel button.pd-block-chip.is-add { cursor: pointer; border-style: dashed; border-color: rgba(255, 183, 77, 0.4); color: #ffc56e; background: transparent; }
+.pd-page .pd-blocks-panel button.pd-block-chip.is-add svg { color: #ffc56e; }
+.pd-page .pd-blocks-panel button.pd-block-chip.is-add:hover { background: rgba(255, 183, 77, 0.08); border-style: solid; }
 
 /* action plan as a step path: numbered nodes on a line */
 .pd-page .pd-blocks-panel .pd-map-list { position: relative; gap: 4px; }
@@ -709,8 +660,6 @@
 .pd-page .pd-blocks-panel .pd-map-ghost li::before { content: ''; position: absolute; left: -26px; top: -1px; width: 16px; height: 16px; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, 0.18); }
 
 @media (max-width: 640px) {
-  .pd-page .pd-blocks-panel .pd-block { padding: 16px 14px 14px; }
-  .pd-page .pd-blocks-panel .pd-block-ring { width: 84px; height: 84px; }
+  .pd-page .pd-blocks-panel .pd-block-body { padding: 12px 12px 14px; }
   .pd-page .pd-blocks-panel .pd-map-list::before { left: 13px; }
 }
-@media (prefers-reduced-motion: reduce) { .pd-page .pd-blocks-panel .pd-ring-fg { transition: none; } }

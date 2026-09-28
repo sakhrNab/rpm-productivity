@@ -5,6 +5,7 @@ import { useToast } from '../ToastProvider';
 import CreateActionModal from './CreateActionModal';
 import ModalHead from './ModalHead';
 import Picker from '../Picker';
+import { BlockBand, PurposeQuote, dueInfo } from '../blocks/BlockFace';
 import './CreateBlockModal.css';
 
 const PRIO_OPTIONS = [0, 1, 2, 3].map(v => ({
@@ -13,20 +14,15 @@ const PRIO_OPTIONS = [0, 1, 2, 3].map(v => ({
   icon: <span className={`mk-dot mk-p${v}`} />,
 }));
 
-// ---- presentational helpers: the same countdown the block card shows ----
-const daysUntil = (key) => {
-  if (!key) return null;
-  const [y, m, d] = key.split('-').map(Number);
-  const now = new Date();
-  return Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
-};
-const fmtShort = (key) => {
-  const dt = new Date(`${key}T00:00:00`);
-  if (isNaN(dt)) return key;
-  const opts = { month: 'short', day: 'numeric' };
-  if (dt.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
-  return dt.toLocaleDateString('en-US', opts);
-};
+// Quick deadline picks (they only set the date field).
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const plusDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return isoDay(d); };
+const DUE_PICKS = [
+  { label: '1 week', value: () => plusDays(7) },
+  { label: '2 weeks', value: () => plusDays(14) },
+  { label: '30 days', value: () => plusDays(30) },
+  { label: 'End of month', value: () => { const d = new Date(); return isoDay(new Date(d.getFullYear(), d.getMonth() + 1, 0)); } },
+];
 const fmtMins = (mins) => {
   const h = Math.floor(mins / 60), m = mins % 60;
   return `${h ? `${h}h` : ''}${h && m ? ' ' : ''}${m ? `${m}m` : ''}`;
@@ -197,11 +193,14 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
   ];
   // Mission cues (presentational): category colour, deadline countdown, plan time.
   const cat = catById[formData.category_id];
-  const dueKey = formData.target_date ? String(formData.target_date).slice(0, 10) : '';
-  const dueIn = dueKey ? daysUntil(dueKey) : null;
-  const dueTone = !dueKey ? '' : dueIn < 0 ? 'bad' : dueIn <= 7 ? 'warn' : 'info';
-  const dueLabel = !dueKey ? '' : dueIn === 0 ? 'Due today' : dueIn === 1 ? 'Due tomorrow'
-    : dueIn > 1 ? `${dueIn} days left` : dueIn === -1 ? '1 day late' : `${-dueIn} days late`;
+  const due = dueInfo(formData.target_date);
+  const dueTone = due?.tone || '';
+  // Live preview: the actions in the plan (open ones from the list + any already-done ones on the block).
+  const knownActions = [...actions, ...(initialData.actions || []).filter(a => !actions.some(x => x.id === a.id))];
+  const planActions = knownActions.filter(a => selectedActions.includes(a.id) && !a.is_cancelled);
+  const planDone = planActions.filter(a => a.is_completed).length;
+  const planPct = planActions.length ? Math.round((planDone / planActions.length) * 100) : 0;
+  const proj = projects.find(p => p.id === formData.project_id);
   const planMins = actions
     .filter(a => selectedActions.includes(a.id))
     .reduce((s, a) => s + (a.duration_hours || 0) * 60 + (a.duration_minutes || 0), 0);
@@ -226,108 +225,149 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
         <ModalHead
           icon={Target}
           title={isEdit ? 'Edit RPM block' : 'New RPM block'}
-          subtitle="Result → Purpose → Massive Action Plan."
+          subtitle="Result → Purpose → Massive Action Plan. The card on the left is what you'll get."
           onClose={onClose}
           badgeStyle={cat?.color ? { color: cat.color } : undefined}
         />
 
         <form onSubmit={handleSubmit}>
-          <div className="modal-body mk-body">
-            {/* The mission itself: Result + Purpose, framed like the block card */}
-            <div className="cbm-mission">
-              <div className="cbm-mission-head">
-                <span className="cbm-no">
-                  <span className="cbm-dot" />
-                  {isEdit ? 'Block' : 'New block'}
-                  {cat && <><i aria-hidden="true">·</i><b>{cat.name}</b></>}
-                </span>
-                {dueKey && (
-                  <span className={`ui-chip ui-chip--${dueTone} cbm-due`} title={`Block deadline · ${fmtShort(dueKey)}`}>
-                    <Flag size={12} />
-                    <span>{dueLabel}</span>
-                    <b>{fmtShort(dueKey)}</b>
-                  </span>
-                )}
-              </div>
-              <label className="mk-field cbm-result">
-                <span className="form-label cbm-label-result"><Target size={13} /> Result</span>
-                <input
-                  type="text"
-                  className="form-input mk-hero cbm-result-in"
-                  placeholder="A specific, measurable outcome you're committed to"
-                  value={formData.result_title}
-                  onChange={e => setFormData({ ...formData, result_title: e.target.value })}
+          <div className="modal-body mk-body cbm-body">
+            {/* Live preview — the real block card face, updating as you type */}
+            <aside className="cbm-preview" aria-label="Live preview of the block card">
+              <p className="cbm-preview-label"><span className="cbm-live" /> Live preview</p>
+              <div className="cbm-card">
+                <BlockBand
+                  number=""
+                  kicker={<>{isEdit ? 'Block' : 'New block'}{cat && <><i aria-hidden="true">·</i><b>{cat.name}</b></>}</>}
+                  result={formData.result_title}
+                  placeholder="Your result appears here"
+                  due={due}
+                  progress={{ pct: planPct, done: planDone, total: planActions.length }}
                 />
-              </label>
-              <label className="mk-field cbm-why">
-                <span className="form-label cbm-label-purpose"><Compass size={13} /> Purpose</span>
-                <input
-                  type="text"
-                  className="form-input cbm-why-in"
-                  placeholder="The deeper, emotional reason you want this result"
-                  value={formData.purpose}
-                  onChange={e => setFormData({ ...formData, purpose: e.target.value })}
-                />
-              </label>
-              {/* The deadline drives the card's countdown chip (amber ≤ 7 days, red when late). */}
-              <label className="mk-field cbm-deadline">
-                <span className="form-label"><CalendarClock size={13} /> Deadline <span className="mk-optional">optional</span></span>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={formData.target_date}
-                  onChange={e => setFormData({ ...formData, target_date: e.target.value })}
-                />
-              </label>
-            </div>
-
-            {/* Where it lives */}
-            <div className="mk-section">
-              <p className="ui-kicker"><FolderOpen size={14} /> Where it lives</p>
-              <div className="mk-grid mk-grid-2">
-                <div className="mk-field">
-                  <span className="form-label">Category</span>
-                  <Picker
-                    value={formData.category_id}
-                    options={categoryOptions}
-                    onChange={v => setFormData({ ...formData, category_id: v })}
-                    placeholder="3 to Thrive"
-                    header="Category"
-                  />
-                </div>
-                <div className="mk-field">
-                  <span className="form-label">Project</span>
-                  <Picker
-                    value={formData.project_id}
-                    options={projectOptions}
-                    // A project belongs to a category — apply it automatically.
-                    onChange={v => {
-                      const proj = projects.find(p => p.id === v);
-                      setFormData({ ...formData, project_id: v, category_id: proj ? (proj.category_id || formData.category_id) : formData.category_id });
-                    }}
-                    placeholder="Choose project"
-                    header="Project"
-                  />
+                <div className="cbm-card-body">
+                  <PurposeQuote placeholder="…and why it matters to you.">{formData.purpose}</PurposeQuote>
+                  {planActions.length > 0 ? (
+                    <ol className="cbm-card-path">
+                      {planActions.slice(0, 5).map((a, i) => (
+                        <li key={a.id} className={`mk-p${a.priority || 0} ${a.is_completed ? 'is-done' : ''}`}><b>{i + 1}</b><span>{a.title}</span></li>
+                      ))}
+                      {planActions.length > 5 && <li className="cbm-card-more">+{planActions.length - 5} more</li>}
+                    </ol>
+                  ) : (
+                    <p className="cbm-card-empty">No actions in the plan yet.</p>
+                  )}
+                  <p className="cbm-card-meta">
+                    <span><ListChecks size={12} />{planActions.length - planDone} to do{planDone > 0 ? ` · ${planDone} done` : ''}</span>
+                    {planMins > 0 && <span><Hourglass size={12} />{fmtMins(planMins)}</span>}
+                    {proj && <span><FolderOpen size={12} />{proj.name}</span>}
+                  </p>
                 </div>
               </div>
+            </aside>
 
-              {/* Link to a Key Result (optional) — the block's actions drive toward it */}
-              {formData.project_id && keyResults.length > 0 && (
-                <div className="mk-field">
-                  <span className="form-label">Key result it drives <span className="mk-optional">optional</span></span>
-                  <Picker
-                    value={formData.key_result_id}
-                    options={krOptions}
-                    onChange={v => setFormData({ ...formData, key_result_id: v })}
-                    placeholder="Not linked to a key result"
-                    header="Key results in this project"
+            <div className="cbm-steps">
+              {/* 1 — Result */}
+              <section className="cbm-step">
+                <span className="cbm-step-no" aria-hidden="true">1</span>
+                <label className="mk-field cbm-result">
+                  <span className="form-label cbm-label-result"><Target size={13} /> Result <span className="mk-optional">what, specifically</span></span>
+                  <input
+                    type="text"
+                    className="form-input mk-hero cbm-result-in"
+                    placeholder="A specific, measurable outcome you're committed to"
+                    value={formData.result_title}
+                    onChange={e => setFormData({ ...formData, result_title: e.target.value })}
+                    autoFocus={!isEdit}
                   />
-                </div>
-              )}
-            </div>
+                </label>
+              </section>
 
-            {/* Massive Action Plan */}
-            <div className="mk-section">
+              {/* 2 — Purpose */}
+              <section className="cbm-step">
+                <span className="cbm-step-no" aria-hidden="true">2</span>
+                <label className="mk-field cbm-why">
+                  <span className="form-label cbm-label-purpose"><Compass size={13} /> Purpose <span className="mk-optional">why it matters</span></span>
+                  <textarea
+                    className="form-input cbm-why-in"
+                    rows={2}
+                    placeholder="The deeper, emotional reason you want this result"
+                    value={formData.purpose}
+                    onChange={e => setFormData({ ...formData, purpose: e.target.value })}
+                  />
+                </label>
+              </section>
+
+              {/* 3 — Deadline + where it lives */}
+              <section className="cbm-step">
+                <span className="cbm-step-no" aria-hidden="true">3</span>
+                <div className="cbm-step-main">
+                  <div className="mk-field cbm-deadline">
+                    <span className="form-label"><CalendarClock size={13} /> Deadline <span className="mk-optional">drives the countdown</span></span>
+                    <div className="cbm-due-row">
+                      <input
+                        type="date"
+                        className="form-input cbm-due-in"
+                        value={formData.target_date}
+                        onChange={e => setFormData({ ...formData, target_date: e.target.value })}
+                        aria-label="Deadline"
+                      />
+                      <div className="cbm-due-picks" role="group" aria-label="Quick deadline">
+                        {DUE_PICKS.map(p => {
+                          const v = p.value();
+                          return (
+                            <button key={p.label} type="button" className={`cbm-pick ${formData.target_date === v ? 'on' : ''}`} onClick={() => setFormData({ ...formData, target_date: v })}>{p.label}</button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mk-grid mk-grid-2">
+                    <div className="mk-field">
+                      <span className="form-label"><FolderOpen size={13} /> Category</span>
+                      <Picker
+                        value={formData.category_id}
+                        options={categoryOptions}
+                        onChange={v => setFormData({ ...formData, category_id: v })}
+                        placeholder="3 to Thrive"
+                        header="Category"
+                      />
+                    </div>
+                    <div className="mk-field">
+                      <span className="form-label">Project</span>
+                      <Picker
+                        value={formData.project_id}
+                        options={projectOptions}
+                        // A project belongs to a category — apply it automatically.
+                        onChange={v => {
+                          const proj = projects.find(p => p.id === v);
+                          setFormData({ ...formData, project_id: v, category_id: proj ? (proj.category_id || formData.category_id) : formData.category_id });
+                        }}
+                        placeholder="Choose project"
+                        header="Project"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Link to a Key Result (optional) — the block's actions drive toward it */}
+                  {formData.project_id && keyResults.length > 0 && (
+                    <div className="mk-field">
+                      <span className="form-label">Key result it drives <span className="mk-optional">optional</span></span>
+                      <Picker
+                        value={formData.key_result_id}
+                        options={krOptions}
+                        onChange={v => setFormData({ ...formData, key_result_id: v })}
+                        placeholder="Not linked to a key result"
+                        header="Key results in this project"
+                      />
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* 4 — Massive Action Plan */}
+            <div className="mk-section cbm-step cbm-step-map">
+              <span className="cbm-step-no" aria-hidden="true">4</span>
               <div className="mk-section-head">
                 <p className="ui-kicker cbm-map-kicker">
                   <ListChecks size={14} /> Massive Action Plan
@@ -460,6 +500,7 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
                   {actions.length === 0 ? 'Add the first action' : 'Add action'}
                 </button>
               </div>
+            </div>
             </div>
           </div>
 
