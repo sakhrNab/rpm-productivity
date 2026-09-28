@@ -4,7 +4,8 @@ import {
   ChevronLeft, ChevronRight, Image, Plus, Star, MoreVertical, 
   Check, Clock, Hourglass, Calendar as CalendarIcon, Edit, Trash2, X,
   Copy, Move, Download, ChevronUp, ChevronDown, FolderOpen, ExternalLink, Target, FileUp, GanttChartSquare, Lock, Unlock,
-  ListChecks, AlertTriangle, CalendarClock, Flag, Sparkles, Inbox, Layers, Lightbulb, CalendarDays, CalendarPlus
+  ListChecks, AlertTriangle, CalendarClock, Flag, Sparkles, Inbox, Layers, Lightbulb, CalendarDays, CalendarPlus,
+  Compass, GripVertical, Trophy
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks } from 'date-fns';
@@ -1171,17 +1172,23 @@ function ProjectDetailPage() {
             </header>
 
             {blockCount === 0 && (
-              <div className="ui-empty">
-                <Layers size={22} />
-                <span>No blocks yet — group related actions under one result and purpose.</span>
-                <button type="button" className="btn btn-secondary pd-btn-sm" onClick={() => { setEditingBlock(null); setShowBlockModal(true); }}>
-                  <Plus size={14} /> Add a block
+              <div className="ui-empty pd-blocks-empty">
+                <span className="ui-icon-badge pd-blocks-empty-badge"><Layers size={20} /></span>
+                <strong className="pd-blocks-empty-title">Turn this project into missions</strong>
+                <span className="pd-blocks-empty-copy">A block is one outcome you want, why it matters, and the handful of actions that get you there.</span>
+                <ol className="pd-rpm-steps" aria-label="What a block holds">
+                  <li><b>R</b><span>Result</span></li>
+                  <li><b>P</b><span>Purpose</span></li>
+                  <li><b>M</b><span>Action plan</span></li>
+                </ol>
+                <button type="button" className="btn btn-primary pd-btn-sm" onClick={() => { setEditingBlock(null); setShowBlockModal(true); }}>
+                  <Plus size={14} /> Create the first block
                 </button>
               </div>
             )}
 
             <div className="pd-blocks-grid">
-          {project.rpm_blocks?.map(block => {
+          {project.rpm_blocks?.map((block, blockIdx) => {
             // Fallback: if block.actions is not populated, filter from project.actions
             const blockActions = block.actions && block.actions.length > 0
               ? block.actions
@@ -1195,11 +1202,23 @@ function ProjectDetailPage() {
             const denom = total - cancelledActions.length;
             const blockPct = denom > 0 ? Math.round((completedActions.length / denom) * 100) : 0;
             const blockLate = block.target_date && dayKey(block.target_date) < todayStr && activeActions.length > 0;
+            // Presentational: countdown chip for the block deadline (colour = meaning).
+            const blockDone = total > 0 && blockPct >= 100;
+            const dueKey = dayKey(block.target_date);
+            const dueIn = dueKey ? daysUntil(dueKey) : null;
+            const dueTone = !dueKey ? '' : blockDone ? 'good' : (blockLate || dueIn < 0) ? 'bad' : dueIn <= 7 ? 'warn' : 'info';
+            const dueLabel = !dueKey ? '' : blockDone ? 'Hit'
+              : dueIn === 0 ? 'Due today'
+              : dueIn === 1 ? 'Due tomorrow'
+              : dueIn > 1 ? `${dueIn} days left`
+              : dueIn === -1 ? '1 day late'
+              : `${-dueIn} days late`;
+            const hasTime = stats.totalDuration.hours > 0 || stats.totalDuration.minutes > 0;
 
             return (
               <article
                 key={block.id}
-                className={`rpm-block pd-block ${draggedBlock?.id === block.id ? 'is-dragging' : ''} ${dragOverBlock === block.id ? 'is-drop-target' : ''} ${total > 0 && blockPct >= 100 ? 'is-complete' : ''}`}
+                className={`rpm-block pd-block ${draggedBlock?.id === block.id ? 'is-dragging' : ''} ${dragOverBlock === block.id ? 'is-drop-target' : ''} ${blockDone ? 'is-complete' : ''} ${dueTone ? `is-due-${dueTone}` : ''}`}
                 style={catStyle}
                 draggable
                 onDragStart={(e) => handleDragStart(e, block)}
@@ -1209,23 +1228,21 @@ function ProjectDetailPage() {
                 onDragEnd={handleDragEnd}
               >
                 <div className="rpm-block-header pd-block-head" title="Drag to reorder">
-                  <span className="pd-cat-chip pd-cat-chip--sm"><span className="pd-cat-dot" />{category?.name || 'Category'}</span>
+                  <span className="pd-block-no">
+                    <GripVertical size={14} className="pd-block-grip" aria-hidden="true" />
+                    <span className="pd-cat-dot" />
+                    Block <b>{String(blockIdx + 1).padStart(2, '0')}</b>
+                  </span>
                   <div className="pd-block-meta">
-                    {(stats.totalDuration.hours > 0 || stats.totalDuration.minutes > 0) && (
-                      <>
-                        <span className="pd-meta" title="Time remaining">
-                          <Clock size={13} />{fmtDuration(stats.remainingDuration)}
-                        </span>
-                        <span className="pd-meta pd-meta--muted" title="Total planned time">
-                          <Hourglass size={13} />{fmtDuration(stats.totalDuration)}
-                        </span>
-                      </>
-                    )}
-                    {block.target_date && (
-                      <span className={`pd-meta pd-meta--date ${blockLate ? 'is-late' : ''}`} title="Block deadline">
-                        <CalendarIcon size={13} />{fmtShort(block.target_date)}
+                    {dueKey ? (
+                      <span className={`ui-chip ui-chip--${dueTone} pd-due`} title={`Block deadline · ${fmtDate(block.target_date)}`}>
+                        {blockDone ? <Trophy size={12} /> : <Flag size={12} />}
+                        <span>{dueLabel}</span>
+                        <b>{fmtShort(dueKey)}</b>
                       </span>
-                    )}
+                    ) : blockDone ? (
+                      <span className="ui-chip ui-chip--good pd-due"><Trophy size={12} /><span>Complete</span></span>
+                    ) : null}
                     {/* Block Menu */}
                     <div className="pd-relative-z1000">
                       <button
@@ -1314,19 +1331,9 @@ function ProjectDetailPage() {
                   </div>
                 </div>
 
-                {total > 0 && (
-                  <div className={`pd-block-progress ${blockPct >= 100 ? 'is-done' : ''}`}>
-                    <div className="ui-meter"><i style={{ '--pct': `${blockPct}%` }} /></div>
-                    <div className="pd-block-progress-meta">
-                      <span>{completedActions.length}/{denom} done{cancelledActions.length ? ` · ${cancelledActions.length} cancelled` : ''}</span>
-                      <b>{blockPct}%</b>
-                    </div>
-                  </div>
-                )}
-
                 <div className="pd-block-body">
-                  <div className="pd-block-section">
-                    <div className="pd-block-label">Result</div>
+                  <div className="pd-block-section pd-block-result">
+                    <div className="pd-block-label"><Target size={12} /> Result</div>
                     <div
                       className="pd-block-title pd-clickable"
                       onClick={() => setPreviewBlock({ ...block, actions: blockActions })}
@@ -1342,9 +1349,34 @@ function ProjectDetailPage() {
                     })()}
                   </div>
                   {block.purpose && (
-                    <div className="pd-block-section">
-                      <div className="pd-block-label">Purpose</div>
+                    <div className="pd-block-section pd-block-why">
+                      <div className="pd-block-label"><Compass size={12} /> Purpose</div>
                       <div className="pd-block-purpose">{block.purpose}</div>
+                    </div>
+                  )}
+
+                  {(total > 0 || hasTime) && (
+                    <div className={`pd-block-progress ${blockDone ? 'is-done' : ''}`}>
+                      {total > 0 && (
+                        <>
+                          <div className="pd-block-score">
+                            <b>{completedActions.length}</b><span>/{denom}</span>
+                            <em>{denom === 1 ? 'action' : 'actions'} done</em>
+                            <strong className="pd-block-pct">{blockPct}%</strong>
+                          </div>
+                          <div className="ui-meter pd-block-meter"><i style={{ '--pct': `${blockPct}%` }} /></div>
+                        </>
+                      )}
+                      {hasTime && (
+                        <div className="pd-block-time">
+                          <span className="pd-meta" title="Time remaining">
+                            <Clock size={12} />{fmtDuration(stats.remainingDuration)} left
+                          </span>
+                          <span className="pd-meta pd-meta--muted" title="Total planned time">
+                            <Hourglass size={12} />{fmtDuration(stats.totalDuration)} planned
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1356,9 +1388,12 @@ function ProjectDetailPage() {
                       onClick={() => setPreviewBlock({ ...block, actions: blockActions })}
                       title="Preview this block"
                     >
-                      Massive action plan
+                      <ListChecks size={12} /> Massive action plan
                       {activeActions.length > 0 && <span className="ui-count">{activeActions.length}</span>}
                     </button>
+                    {total === 0 && (
+                      <p className="pd-map-empty">No actions yet. What is the first move that gets this result rolling?</p>
+                    )}
                     {activeActions.length > 0 && (
                       <ol className="pd-map-list">
                         {activeActions.map((action, idx) => (
@@ -1396,7 +1431,7 @@ function ProjectDetailPage() {
                               {/* Duration */}
                               <button
                                 type="button"
-                                className="pd-map-dur"
+                                className={`pd-map-dur ${(action.duration_hours || action.duration_minutes) ? '' : 'is-empty'}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleEditAction(action);
@@ -1505,7 +1540,7 @@ function ProjectDetailPage() {
                     {/* Add Action Button */}
                     <button
                       type="button"
-                      className="pd-add-map"
+                      className={`pd-add-map ${total === 0 ? 'is-first' : ''}`}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1517,8 +1552,8 @@ function ProjectDetailPage() {
                         setShowActionModal(true);
                       }}
                     >
-                      <Plus size={14} />
-                      Add Massive Action Plan
+                      <span className="pd-add-map-ico"><Plus size={14} /></span>
+                      <span>{total === 0 ? 'Add the first action' : 'Add an action'}</span>
                     </button>
                   </div>
 
