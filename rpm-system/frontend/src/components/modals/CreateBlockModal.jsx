@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from 'react';
-import { Check, Pencil, Trash2, Calendar as CalendarIcon, SlidersHorizontal, Target, Compass, FolderOpen, ListChecks, Plus } from 'lucide-react';
+import { Check, Pencil, Trash2, Calendar as CalendarIcon, SlidersHorizontal, Target, Compass, FolderOpen, ListChecks, Plus, Flag, Hourglass, CalendarClock } from 'lucide-react';
 import { AppContext, AuthContext } from '../../App';
 import { useToast } from '../ToastProvider';
 import CreateActionModal from './CreateActionModal';
@@ -12,6 +12,25 @@ const PRIO_OPTIONS = [0, 1, 2, 3].map(v => ({
   label: ['No prio', 'Low', 'Med', 'High'][v],
   icon: <span className={`mk-dot mk-p${v}`} />,
 }));
+
+// ---- presentational helpers: the same countdown the block card shows ----
+const daysUntil = (key) => {
+  if (!key) return null;
+  const [y, m, d] = key.split('-').map(Number);
+  const now = new Date();
+  return Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+};
+const fmtShort = (key) => {
+  const dt = new Date(`${key}T00:00:00`);
+  if (isNaN(dt)) return key;
+  const opts = { month: 'short', day: 'numeric' };
+  if (dt.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return dt.toLocaleDateString('en-US', opts);
+};
+const fmtMins = (mins) => {
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return `${h ? `${h}h` : ''}${h && m ? ' ' : ''}${m ? `${m}m` : ''}`;
+};
 
 function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) {
   const { projects } = useContext(AppContext);
@@ -176,6 +195,22 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
         icon: <span className="mk-dot" style={{ '--c': catById[p.category_id]?.color }} />,
       })),
   ];
+  // Mission cues (presentational): category colour, deadline countdown, plan time.
+  const cat = catById[formData.category_id];
+  const dueKey = formData.target_date ? String(formData.target_date).slice(0, 10) : '';
+  const dueIn = dueKey ? daysUntil(dueKey) : null;
+  const dueTone = !dueKey ? '' : dueIn < 0 ? 'bad' : dueIn <= 7 ? 'warn' : 'info';
+  const dueLabel = !dueKey ? '' : dueIn === 0 ? 'Due today' : dueIn === 1 ? 'Due tomorrow'
+    : dueIn > 1 ? `${dueIn} days left` : dueIn === -1 ? '1 day late' : `${-dueIn} days late`;
+  const planMins = actions
+    .filter(a => selectedActions.includes(a.id))
+    .reduce((s, a) => s + (a.duration_hours || 0) * 60 + (a.duration_minutes || 0), 0);
+  const openNewAction = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowActionModal(true);
+  };
+
   const krOptions = [
     { value: '', label: 'Not linked to a key result' },
     ...keyResults.map(kr => ({ value: kr.id, label: kr.title })),
@@ -183,36 +218,65 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal cbm-modal" onClick={e => e.stopPropagation()}>
+      <div
+        className={`modal cbm-modal ${dueTone ? `is-due-${dueTone}` : ''}`}
+        style={cat?.color ? { '--cat': cat.color } : undefined}
+        onClick={e => e.stopPropagation()}
+      >
         <ModalHead
           icon={Target}
           title={isEdit ? 'Edit RPM block' : 'New RPM block'}
           subtitle="Result → Purpose → Massive Action Plan."
           onClose={onClose}
+          badgeStyle={cat?.color ? { color: cat.color } : undefined}
         />
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body mk-body">
-            {/* Result + Purpose */}
-            <div className="mk-section">
-              <label className="mk-field">
+            {/* The mission itself: Result + Purpose, framed like the block card */}
+            <div className="cbm-mission">
+              <div className="cbm-mission-head">
+                <span className="cbm-no">
+                  <span className="cbm-dot" />
+                  {isEdit ? 'Block' : 'New block'}
+                  {cat && <><i aria-hidden="true">·</i><b>{cat.name}</b></>}
+                </span>
+                {dueKey && (
+                  <span className={`ui-chip ui-chip--${dueTone} cbm-due`} title={`Block deadline · ${fmtShort(dueKey)}`}>
+                    <Flag size={12} />
+                    <span>{dueLabel}</span>
+                    <b>{fmtShort(dueKey)}</b>
+                  </span>
+                )}
+              </div>
+              <label className="mk-field cbm-result">
                 <span className="form-label cbm-label-result"><Target size={13} /> Result</span>
                 <input
                   type="text"
-                  className="form-input mk-hero"
+                  className="form-input mk-hero cbm-result-in"
                   placeholder="A specific, measurable outcome you're committed to"
                   value={formData.result_title}
                   onChange={e => setFormData({ ...formData, result_title: e.target.value })}
                 />
               </label>
-              <label className="mk-field">
+              <label className="mk-field cbm-why">
                 <span className="form-label cbm-label-purpose"><Compass size={13} /> Purpose</span>
                 <input
                   type="text"
-                  className="form-input"
+                  className="form-input cbm-why-in"
                   placeholder="The deeper, emotional reason you want this result"
                   value={formData.purpose}
                   onChange={e => setFormData({ ...formData, purpose: e.target.value })}
+                />
+              </label>
+              {/* The deadline drives the card's countdown chip (amber ≤ 7 days, red when late). */}
+              <label className="mk-field cbm-deadline">
+                <span className="form-label"><CalendarClock size={13} /> Deadline <span className="mk-optional">optional</span></span>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={formData.target_date}
+                  onChange={e => setFormData({ ...formData, target_date: e.target.value })}
                 />
               </label>
             </div>
@@ -265,7 +329,7 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
             {/* Massive Action Plan */}
             <div className="mk-section">
               <div className="mk-section-head">
-                <p className="ui-kicker">
+                <p className="ui-kicker cbm-map-kicker">
                   <ListChecks size={14} /> Massive Action Plan
                   {actions.length > 0 && <span className="ui-count">{attachedCount}/{actions.length}</span>}
                 </p>
@@ -275,39 +339,32 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
                       {allSelected ? 'Clear all' : 'Select all'}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className="cbm-tool cbm-tool-add"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setShowActionModal(true);
-                    }}
-                  >
-                    <Plus size={14} /> New action
-                  </button>
                 </div>
               </div>
 
+              {attachedCount > 0 && (
+                <div className="cbm-plan-strip">
+                  <span className="cbm-meta"><ListChecks size={12} />{attachedCount} action{attachedCount === 1 ? '' : 's'} in plan</span>
+                  {planMins > 0 && <span className="cbm-meta cbm-meta--muted"><Hourglass size={12} />{fmtMins(planMins)} planned</span>}
+                </div>
+              )}
               <p className="mk-help">
                 Checked actions <strong>are</strong> this block’s plan (they show on the block card). Check to add, uncheck to drop.
               </p>
               <div className="cbm-list">
                 {actions.length === 0 ? (
-                  <div className="ui-empty cbm-empty">
-                    <ListChecks size={22} />
-                    No actions yet — create the first step of this block’s plan.
-                  </div>
+                  <p className="cbm-map-empty">No actions yet. What is the first move that gets this result rolling?</p>
                 ) : (
                   [...actions]
                     .sort((a, b) => (selectedActions.includes(b.id) ? 1 : 0) - (selectedActions.includes(a.id) ? 1 : 0))
-                    .map(action => {
+                    .map((action, idx) => {
                     const isSel = selectedActions.includes(action.id);
                     const dateVal = action.scheduled_date ? String(action.scheduled_date).slice(0, 10) : '';
                     const prio = action.priority || 0;
                     return (
                       <div key={action.id} className={`cbm-action-row mk-p${prio} ${isSel ? 'is-selected' : ''}`}>
                         <div className="cbm-row-main">
+                          <span className="cbm-index">{idx + 1}</span>
                           <button
                             type="button"
                             className={`cbm-check ${isSel ? 'checked' : ''}`}
@@ -394,12 +451,20 @@ function CreateBlockModal({ onClose, onSuccess, categories, initialData = {} }) 
                     );
                   })
                 )}
+                <button
+                  type="button"
+                  className={`cbm-add-row ${actions.length === 0 ? 'is-first' : ''}`}
+                  onClick={openNewAction}
+                >
+                  <span className="cbm-add-ico"><Plus size={15} /></span>
+                  {actions.length === 0 ? 'Add the first action' : 'Add action'}
+                </button>
               </div>
             </div>
           </div>
 
           <div className="modal-footer mk-foot">
-            {actions.length > 0 && <span className="mk-foot-note">{attachedCount} action{attachedCount === 1 ? '' : 's'} in plan</span>}
+            {attachedCount > 0 && <span className="mk-foot-note">{attachedCount} action{attachedCount === 1 ? '' : 's'} in plan</span>}
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancel
             </button>

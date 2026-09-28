@@ -1,10 +1,64 @@
-/* RPM block modal contents — shell in styles/ui.css, shared kit in modalKit.css */
-.modal.cbm-modal { max-width: 720px; }
+/* RPM block create / edit — reads as building the block "mission card".
+   Shell in styles/ui.css, shared field kit in modalKit.css. */
+.modal.cbm-modal {
+  --cat: #4ecdc4; --edge: var(--cat);
+  --p3: #ff69b4; --p2: #4ecdc4; --p1: #9575cd; --p0: #7d8aa3;
+  max-width: 720px;
+  background:
+    radial-gradient(640px 260px at 0% 0%, color-mix(in srgb, var(--cat) 14%, transparent), transparent 64%),
+    radial-gradient(520px 220px at 100% 0%, rgba(255, 105, 180, 0.07), transparent 62%),
+    linear-gradient(180deg, #13244a 0%, #0c1834 100%);
+}
+.modal.cbm-modal.is-due-bad { --edge: var(--ui-bad); }
+.modal.cbm-modal::before {                                 /* category-lit top edge (replaces the shell hairline) */
+  z-index: 4; left: 26px; right: 26px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--edge), color-mix(in srgb, var(--edge) 30%, transparent) 60%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--edge) 55%, transparent);
+}
+.cbm-modal .mk-badge {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cat) 26%, transparent), rgba(255, 105, 180, 0.14));
+  border-color: color-mix(in srgb, var(--cat) 40%, transparent);
+}
 
-.mk-body .cbm-label-result { color: #ff9bd0; }
-.mk-body .cbm-label-purpose { color: var(--accent-cyan); }
+/* ---------- the mission frame: kicker + countdown, RESULT, PURPOSE ---------- */
+.cbm-mission {
+  position: relative; display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 14px 16px 18px;
+  border-radius: 20px; border: 1px solid var(--ui-hair);
+  background:
+    radial-gradient(90% 70% at 0% 0%, color-mix(in srgb, var(--cat) 10%, transparent), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(0, 0, 0, 0.18));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 40px -26px rgba(0, 0, 0, 0.8);
+}
+.cbm-mission::before {
+  content: ''; position: absolute; left: 20px; right: 20px; top: -1px; height: 2px; border-radius: 2px; pointer-events: none;
+  background: linear-gradient(90deg, var(--edge), color-mix(in srgb, var(--edge) 30%, transparent) 60%, transparent);
+}
+.cbm-mission-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.cbm-no {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+  font: 600 0.68rem var(--ui-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap;
+}
+.cbm-no i { font-style: normal; opacity: 0.5; letter-spacing: 0; }
+.cbm-no b { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); font-weight: 700; }
+.cbm-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--cat); box-shadow: 0 0 10px var(--cat); }
+.ui-chip.cbm-due { height: 28px; gap: 6px; padding: 0 10px; font-weight: 600; font-size: 0.74rem; }
+.cbm-due b { font: 700 0.7rem var(--ui-mono); letter-spacing: 0.03em; opacity: 0.75; }
+.cbm-due.ui-chip--bad { box-shadow: 0 0 14px -4px rgba(255, 107, 129, 0.55); }
 
-/* Plan tools: "Select all" + "New action" */
+.mk-body .cbm-label-result svg { color: var(--ui-ai); }
+.mk-body .cbm-label-purpose svg { color: #b9a4e8; }
+
+/* The Result input *is* the card headline: big Outfit, quiet well. (4-part selector beats index.css `.modal input`) */
+.modal .mk-body .cbm-mission input.cbm-result-in {
+  font: 700 clamp(1.2rem, 1.05rem + 0.6vw, 1.45rem)/1.25 'Outfit', var(--font-display); letter-spacing: -0.01em;
+  padding: 12px 14px; border-radius: 14px; background: rgba(2, 8, 20, 0.45);
+}
+.cbm-why { padding-left: 14px; border-left: 2px solid rgba(149, 117, 205, 0.5); }
+.modal .mk-body .cbm-mission input.cbm-why-in { font-size: 0.92rem; color: var(--text-secondary); }
+.modal .mk-body .cbm-mission input.cbm-why-in:focus { color: var(--text-primary); }
+
+/* ---------- plan head + summary ---------- */
+.ui-kicker.cbm-map-kicker svg { color: var(--accent-cyan); }
 .cbm-map-tools { display: flex; align-items: center; gap: 6px; }
 .cbm-tool {
   display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 10px;
@@ -12,40 +66,56 @@
   font: 500 0.82rem var(--font-body); cursor: pointer; transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 .cbm-tool:hover { border-color: rgba(78, 205, 196, 0.5); color: var(--text-primary); }
-.cbm-tool-add { color: var(--accent-cyan); border-color: rgba(78, 205, 196, 0.35); background: rgba(78, 205, 196, 0.08); }
-.cbm-tool-add:hover { background: rgba(78, 205, 196, 0.14); }
+.cbm-plan-strip { display: flex; flex-wrap: wrap; gap: 6px; }
+.cbm-meta {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 999px; white-space: nowrap;
+  font: 600 0.7rem var(--ui-mono); color: var(--text-secondary); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--ui-hair);
+}
+.cbm-meta svg { color: var(--accent-cyan); }
+.cbm-meta--muted, .cbm-meta--muted svg { color: var(--text-muted); }
+.cbm-map-empty { margin: 0; font-size: 0.86rem; line-height: 1.45; color: var(--text-muted); }
 
-/* Action rows: priority rail on the left, title first, tools on the right (wrap under on phones) */
-.cbm-list { display: flex; flex-direction: column; gap: 8px; }
-.ui-empty.cbm-empty { padding: 22px 16px; }
+/* ---------- action rows: priority rail, index, check, title · tools ---------- */
+.cbm-list { display: flex; flex-direction: column; gap: 6px; }
 .cbm-action-row {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-height: 52px; padding: 7px 8px 7px 10px;
-  border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); border-left: 3px solid var(--c, #7d8aa3);
-  background: rgba(255, 255, 255, 0.025); transition: border-color 0.15s, background 0.15s;
+  --rail: var(--p0);
+  position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-height: 52px; padding: 6px 8px 6px 16px;
+  border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.06); background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.15s, background-color 0.15s;
 }
-.cbm-action-row:hover { background: rgba(255, 255, 255, 0.05); }
+.cbm-action-row::before { content: ''; position: absolute; left: 5px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: var(--rail); opacity: 0.55; }
+.cbm-action-row.mk-p3 { --rail: var(--p3); }
+.cbm-action-row.mk-p2 { --rail: var(--p2); }
+.cbm-action-row.mk-p1 { --rail: var(--p1); }
+.cbm-action-row:hover { background: rgba(255, 255, 255, 0.045); }
 .cbm-action-row.is-selected {
-  border-color: rgba(78, 205, 196, 0.38); border-left-color: var(--c, #7d8aa3);
-  background: linear-gradient(90deg, rgba(78, 205, 196, 0.1), rgba(78, 205, 196, 0.02));
+  border-color: rgba(78, 205, 196, 0.3);
+  background: linear-gradient(90deg, rgba(78, 205, 196, 0.09), rgba(78, 205, 196, 0.015));
 }
+.cbm-action-row.is-selected::before { opacity: 1; }
+.cbm-action-row.is-selected.mk-p3::before { box-shadow: 0 0 8px var(--p3); }
 .cbm-row-main { flex: 1 1 220px; min-width: 0; display: flex; align-items: center; gap: 10px; }
 .cbm-row-tools { flex: 0 1 auto; display: flex; align-items: center; gap: 6px; min-width: 0; }
 .cbm-row-icons { display: inline-flex; align-items: center; gap: 2px; }
+.cbm-index { flex: 0 0 auto; min-width: 16px; font: 600 0.68rem var(--ui-mono); color: var(--text-muted); text-align: right; opacity: 0.8; }
 
 .cbm-check {
-  flex: 0 0 auto; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px;
+  position: relative; flex: 0 0 auto; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 7px;
   border: 1.5px solid rgba(255, 255, 255, 0.24); background: transparent; color: var(--ui-ink); cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.15s;
 }
-.cbm-check:hover { border-color: var(--accent-cyan); }
-.cbm-check.checked { background: var(--ui-grad); border-color: transparent; box-shadow: 0 0 10px rgba(78, 205, 196, 0.35); }
+.cbm-check::after { content: ''; position: absolute; width: 40px; height: 40px; }   /* 40px touch target */
+.cbm-check:hover { border-color: var(--accent-cyan); background: rgba(78, 205, 196, 0.1); }
+.cbm-check:active { transform: scale(0.9); }
+.cbm-check.checked { background: var(--accent-cyan); border-color: transparent; box-shadow: 0 0 10px rgba(78, 205, 196, 0.35); }
 
-.cbm-action-title { flex: 1; min-width: 0; font-size: 0.9rem; line-height: 1.35; overflow-wrap: anywhere; cursor: text; }
+.cbm-action-title { flex: 1; min-width: 0; font-size: 0.92rem; line-height: 1.35; overflow-wrap: anywhere; cursor: text; }
+.cbm-action-row:not(.is-selected) .cbm-action-title { color: var(--text-secondary); }
 .modal .cbm-row-main input.cbm-title-input.cbm-title-input { flex: 1; min-width: 0; width: auto; padding: 7px 10px; font-size: 0.9rem; border-radius: 9px; }
 
 /* Compact priority Picker in a row (menu is portalled, so the row can't clip it) */
 .mk-body .picker-trigger.cbm-prio-pick {
-  width: auto; min-height: 34px; padding: 4px 8px 4px 10px; gap: 6px; border-radius: 9px;
+  width: auto; min-height: 36px; padding: 4px 8px 4px 10px; gap: 6px; border-radius: 9px;
   font: 600 0.74rem var(--font-body); color: var(--c); background: color-mix(in srgb, var(--c) 10%, transparent);
   border-color: color-mix(in srgb, var(--c) 40%, transparent); box-shadow: none;
 }
@@ -53,28 +123,57 @@
 .cbm-prio-pick .mk-dot { width: 7px; height: 7px; box-shadow: none; }
 
 .cbm-date {
-  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px;
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 8px;
   border-radius: 9px; border: 1px solid var(--border-primary); background: rgba(0, 0, 0, 0.22); color: var(--text-muted); cursor: pointer;
 }
 .cbm-date:focus-within { border-color: var(--accent-cyan); }
-.modal .cbm-date input[type="date"].cbm-date-in, .modal .cbm-row-tools .cbm-date input[type="date"] {
+.modal .cbm-row-tools .cbm-date input[type="date"] {
   width: auto; padding: 0; border: 0; background: transparent; box-shadow: none;
   font: 500 0.76rem var(--ui-mono); color: var(--text-secondary); color-scheme: dark;
 }
 
 .cbm-icon-btn {
-  flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px;
+  flex: 0 0 auto; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px;
   border: 1px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: color 0.15s, border-color 0.15s, background-color 0.15s;
 }
 .cbm-icon-btn:hover { color: var(--text-primary); border-color: rgba(78, 205, 196, 0.4); }
 .cbm-icon-btn.cbm-del:hover { color: #ff8a9b; border-color: rgba(255, 107, 129, 0.45); background: rgba(255, 107, 129, 0.08); }
 
+/* Dashed "+ Add action" row — same as the card */
+.cbm-add-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 46px; margin-top: 2px; padding: 6px 12px 6px 8px;
+  border-radius: 12px; border: 1px dashed rgba(255, 255, 255, 0.16); background: transparent; text-align: left;
+  color: var(--text-secondary); font: 600 0.86rem var(--font-body); cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+}
+.cbm-add-ico {
+  flex: 0 0 auto; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px;
+  color: var(--accent-cyan); background: rgba(78, 205, 196, 0.1); border: 1px solid rgba(78, 205, 196, 0.3);
+  transition: transform 0.15s;
+}
+.cbm-add-row:hover, .cbm-add-row:focus-visible { color: var(--text-primary); border-color: rgba(78, 205, 196, 0.55); background: rgba(78, 205, 196, 0.06); outline: none; }
+.cbm-add-row:hover .cbm-add-ico { transform: rotate(90deg); }
+.cbm-add-row.is-first { border-style: solid; border-color: rgba(78, 205, 196, 0.4); background: rgba(78, 205, 196, 0.07); color: var(--accent-cyan); }
+.cbm-add-row.is-first .cbm-add-ico { color: var(--ui-ink); background: var(--accent-cyan); border-color: transparent; }
+
 @media (max-width: 640px) {
-  .cbm-row-tools { flex: 1 1 100%; flex-wrap: wrap; row-gap: 6px; }
-  .cbm-row-icons { margin-left: auto; }
+  .cbm-mission { padding: 12px 12px 16px; }
+  .cbm-due b { display: none; }
+  .modal .mk-body .cbm-mission input.cbm-result-in { font-size: 1.15rem; }
+  /* tools sit on one line under the title: priority · date (shrinks) · icons */
+  .cbm-row-tools { flex: 1 1 100%; flex-wrap: nowrap; gap: 4px; }
+  .cbm-row-icons { margin-left: auto; gap: 0; }
   /* date shrinks to its text; the leading calendar glyph already says what it is (tap opens the native picker) */
-  .cbm-date { flex: 1 1 0; min-width: 96px; max-width: 150px; }
+  .cbm-date { flex: 1 1 auto; min-width: 0; max-width: 150px; }
   .modal .cbm-row-tools .cbm-date input[type="date"] { flex: 1; min-width: 0; width: 100%; }
   .cbm-date input[type="date"]::-webkit-calendar-picker-indicator { display: none; }
 }
+@media (prefers-reduced-motion: reduce) {
+  .cbm-check, .cbm-add-ico, .cbm-action-row { transition: none; }
+  .cbm-add-row:hover .cbm-add-ico { transform: none; }
+}
+.cbm-deadline { max-width: 260px; }
+.cbm-deadline .form-label { display: inline-flex; align-items: center; gap: 6px; }
+.cbm-deadline .form-label svg { color: var(--ui-warn); }
+@media (max-width: 640px) { .cbm-deadline { max-width: none; } }
