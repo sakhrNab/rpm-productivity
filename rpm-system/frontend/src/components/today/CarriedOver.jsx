@@ -1,8 +1,15 @@
+import { useMemo } from 'react';
 import { AlertTriangle, Wand2, Loader2, ArrowDownToLine, Check } from 'lucide-react';
+import PagedList from './PagedList';
+import { rankCarried, isTop } from '../../utils/paging';
+
+const textOf = (a) => `${a.title} ${a.project_name || ''}`;
 
 // Tasks still sitting on a past date. Nothing moves on its own — the real dates keep the
 // forecasting honest — so each one is decided here: done, today, drop, or AI triage.
-export default function CarriedOver({ overdue, triaging, onTriage, onMoveAll, onComplete, onOpen, onToday, onDrop }) {
+// Most important first (starred / high priority, then longest overdue), a page at a time.
+export default function CarriedOver({ overdue, triaging, onTriage, onMoveAll, onComplete, onOpen, onToday, onDrop, pageSize = 6 }) {
+  const ranked = useMemo(() => rankCarried(overdue), [overdue]);
   if (!overdue.length) return null;
   return (
     <section className="ui-card md-carried" aria-label="Carried over">
@@ -16,9 +23,10 @@ export default function CarriedOver({ overdue, triaging, onTriage, onMoveAll, on
         </span>
       </div>
       <p className="md-carried-note">These slipped past their planned date. Nothing moves on its own — decide each one.</p>
+      <PagedList items={ranked} pageSize={pageSize} textOf={textOf} label="carried-over tasks" searchPlaceholder="Search carried over…" renderPage={(pageItems) => (
       <ul className="md-carried-list">
-        {overdue.map(a => (
-          <li key={a.id} className="md-carried-row">
+        {pageItems.map(a => (
+          <li key={a.id} className={`md-carried-row ${isTop(a) ? 'top' : ''}`}>
             <button type="button" className="md-carried-check" onClick={() => onComplete(a)} title="Mark done" aria-label={`Mark “${a.title}” done`}>
               <Check size={13} strokeWidth={3} />
             </button>
@@ -36,6 +44,7 @@ export default function CarriedOver({ overdue, triaging, onTriage, onMoveAll, on
           </li>
         ))}
       </ul>
+      )} />
     </section>
   );
 }

@@ -12,6 +12,9 @@ import ForecastPanel from '../components/ForecastPanel';
 import TodayHero from '../components/today/TodayHero';
 import CarriedOver from '../components/today/CarriedOver';
 import AiSuggestions from '../components/today/AiSuggestions';
+import CatchUp from '../components/today/CatchUp';
+import PagedList from '../components/today/PagedList';
+import { mergePageOrder } from '../utils/paging';
 import { patchCompassAction } from '../utils/compassStore';
 import { sortActions, groupActions } from '../utils/actionSort';
 import '../components/coachhub/aiShared.css';
@@ -143,6 +146,14 @@ function TodayPage() {
     } catch (e) { showToast(e.message || 'Failed to set reminder', 'error'); }
   };
 
+  // A reorder within one page of the list, merged back into the full order. While a search
+  // filters the list the pages aren't contiguous, so reordering waits until it's cleared.
+  const reorderPage = (offset, searching) => (pageIds) => {
+    if (searching) { showToast('Clear the search to reorder.', 'info'); return; }
+    handleReorder(mergePageOrder(actions.map(a => a.id), offset, pageIds));
+  };
+  const actionText = (a) => `${a.title} ${a.project_name || ''} ${a.category_name || ''}`;
+
   const handleEdit = (action) => { setEditingAction(action); setShowActionModal(true); };
   const handleDelete = async (action) => {
     if (!window.confirm(`Delete action "${action.title}"?`)) return;
@@ -191,7 +202,6 @@ function TodayPage() {
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>;
 
-  const groups = groupActions(actions);
   const doneCount = actions.filter(a => a.is_completed).length;
   const pct = actions.length ? Math.round((doneCount / actions.length) * 100) : 0;
   const hasAside = !!suggest || overdue.length > 0;
@@ -219,6 +229,8 @@ function TodayPage() {
           {actions.length > 0 && <div className="ui-meter td-list-meter" aria-hidden="true"><i style={{ '--pct': `${pct}%` }} /></div>}
         </div>
 
+        <CatchUp forecast={forecast} onPlanned={() => { loadActions(); loadOverdue(); if (refreshData) refreshData(); }} />
+
         {actions.length === 0 ? (
           <div className="ui-empty">
             <Sun size={26} />
@@ -226,9 +238,10 @@ function TodayPage() {
             <button type="button" className="btn btn-primary" onClick={() => setShowActionModal(true)}><Plus size={16} /> Add Action</button>
           </div>
         ) : (
+          <PagedList items={actions} pageSize={6} textOf={actionText} label="today's actions" searchPlaceholder="Search today’s actions…" renderPage={(pageItems, { offset, searching }) => (
           <SortableActionGroups
-            groups={groups}
-            onReorder={handleReorder}
+            groups={groupActions(pageItems)}
+            onReorder={reorderPage(offset, searching)}
             renderRow={(action) => (
               <ActionRow
                 action={action}
@@ -245,6 +258,7 @@ function TodayPage() {
               />
             )}
           />
+          )} />
         )}
       </section>
 
