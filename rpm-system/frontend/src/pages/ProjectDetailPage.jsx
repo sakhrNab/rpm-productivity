@@ -1227,6 +1227,7 @@ function ProjectDetailPage() {
                 onDrop={(e) => handleDrop(e, block)}
                 onDragEnd={handleDragEnd}
               >
+                <span className="pd-block-watermark" aria-hidden="true">{String(blockIdx + 1).padStart(2, '0')}</span>
                 <div className="rpm-block-header pd-block-head" title="Drag to reorder">
                   <span className="pd-block-no">
                     <GripVertical size={14} className="pd-block-grip" aria-hidden="true" />
@@ -1234,15 +1235,7 @@ function ProjectDetailPage() {
                     Block <b>{String(blockIdx + 1).padStart(2, '0')}</b>
                   </span>
                   <div className="pd-block-meta">
-                    {dueKey ? (
-                      <span className={`ui-chip ui-chip--${dueTone} pd-due`} title={`Block deadline · ${fmtDate(block.target_date)}`}>
-                        {blockDone ? <Trophy size={12} /> : <Flag size={12} />}
-                        <span>{dueLabel}</span>
-                        <b>{fmtShort(dueKey)}</b>
-                      </span>
-                    ) : blockDone ? (
-                      <span className="ui-chip ui-chip--good pd-due"><Trophy size={12} /><span>Complete</span></span>
-                    ) : null}
+                    {dueKey && <span className={`ui-chip ui-chip--${dueTone} pd-due pd-due--head`}>{blockDone ? <Trophy size={12} /> : <Flag size={12} />}<span>{dueLabel}</span></span>}
                     {/* Block Menu */}
                     <div className="pd-relative-z1000">
                       <button
@@ -1332,53 +1325,61 @@ function ProjectDetailPage() {
                 </div>
 
                 <div className="pd-block-body">
-                  <div className="pd-block-section pd-block-result">
-                    <div className="pd-block-label"><Target size={12} /> Result</div>
-                    <div
-                      className="pd-block-title pd-clickable"
-                      onClick={() => setPreviewBlock({ ...block, actions: blockActions })}
-                      title="Preview this block"
-                    >{block.result_title}</div>
-                    {block.key_result_id && (() => {
-                      const kr = (project.key_results || []).find(k => k.id === block.key_result_id);
-                      return kr ? (
-                        <div className="rpm-block-kr" title="This block drives toward a key result">
-                          <Target size={11} /> <span>Key result: <strong>{kr.title}</strong></span>
+                  {/* Mission brief (left) + status column (right): ring, countdown, hours. */}
+                  <div className="pd-block-mission">
+                    <div className="pd-block-brief">
+                      <div className="pd-block-section pd-block-result">
+                        <div className="pd-block-label"><Target size={12} /> Result</div>
+                        <div
+                          className="pd-block-title pd-clickable"
+                          onClick={() => setPreviewBlock({ ...block, actions: blockActions })}
+                          title="Preview this block"
+                        >{block.result_title}</div>
+                        {block.key_result_id && (() => {
+                          const kr = (project.key_results || []).find(k => k.id === block.key_result_id);
+                          return kr ? (
+                            <div className="rpm-block-kr" title="This block drives toward a key result">
+                              <Target size={11} /> <span>Key result: <strong>{kr.title}</strong></span>
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                      {block.purpose && (
+                        <div className="pd-block-section pd-block-why">
+                          <div className="pd-block-label"><Compass size={12} /> Purpose</div>
+                          <blockquote className="pd-block-purpose">{block.purpose}</blockquote>
                         </div>
-                      ) : null;
-                    })()}
-                  </div>
-                  {block.purpose && (
-                    <div className="pd-block-section pd-block-why">
-                      <div className="pd-block-label"><Compass size={12} /> Purpose</div>
-                      <div className="pd-block-purpose">{block.purpose}</div>
+                      )}
                     </div>
-                  )}
 
-                  {(total > 0 || hasTime) && (
-                    <div className={`pd-block-progress ${blockDone ? 'is-done' : ''}`}>
-                      {total > 0 && (
-                        <>
-                          <div className="pd-block-score">
-                            <b>{completedActions.length}</b><span>/{denom}</span>
-                            <em>{denom === 1 ? 'action' : 'actions'} done</em>
-                            <strong className="pd-block-pct">{blockPct}%</strong>
+                    <aside className={`pd-block-stats ${blockDone ? 'is-done' : ''}`} aria-label="Block status">
+                      <div className="pd-block-ring" role="img" aria-label={total ? `${completedActions.length} of ${denom} actions done` : 'No actions yet'}>
+                        <svg viewBox="0 0 88 88" aria-hidden="true">
+                          <circle className="pd-ring-bg" cx="44" cy="44" r="38" />
+                          <circle className="pd-ring-fg" cx="44" cy="44" r="38" pathLength="100" strokeDasharray="100" strokeDashoffset={100 - blockPct} />
+                        </svg>
+                        <span className="pd-ring-val"><b>{total ? `${blockPct}%` : '—'}</b><i>{total ? `${completedActions.length}/${denom} done` : 'no actions'}</i></span>
+                      </div>
+                      <div className="pd-block-tiles">
+                        {dueKey ? (
+                          <div className={`pd-block-tile tone-${dueTone}`} title={`Block deadline · ${fmtDate(block.target_date)}`}>
+                            {blockDone ? <Trophy size={14} /> : <Flag size={14} />}
+                            <b>{blockDone ? 'Hit' : dueIn === 0 ? 'Today' : Math.abs(dueIn)}</b>
+                            <span>{blockDone ? fmtShort(dueKey) : dueIn === 0 ? 'is the deadline' : dueIn > 0 ? `${dueIn === 1 ? 'day' : 'days'} left · ${fmtShort(dueKey)}` : `${dueIn === -1 ? 'day' : 'days'} late · ${fmtShort(dueKey)}`}</span>
                           </div>
-                          <div className="ui-meter pd-block-meter"><i style={{ '--pct': `${blockPct}%` }} /></div>
-                        </>
-                      )}
-                      {hasTime && (
-                        <div className="pd-block-time">
-                          <span className="pd-meta" title="Time remaining">
-                            <Clock size={12} />{fmtDuration(stats.remainingDuration)} left
-                          </span>
-                          <span className="pd-meta pd-meta--muted" title="Total planned time">
-                            <Hourglass size={12} />{fmtDuration(stats.totalDuration)} planned
-                          </span>
+                        ) : (
+                          <button type="button" className="pd-block-tile tone-none" onClick={() => handleEditBlock(block)} title="Give this block a deadline">
+                            <Flag size={14} /><b>+</b><span>Set a deadline</span>
+                          </button>
+                        )}
+                        <div className="pd-block-tile tone-time" title="Time remaining / planned">
+                          <Clock size={14} />
+                          <b>{hasTime ? fmtDuration(stats.remainingDuration) : '—'}</b>
+                          <span>{hasTime ? `left of ${fmtDuration(stats.totalDuration)}` : 'no time planned'}</span>
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    </aside>
+                  </div>
 
                   {/* Massive Action Plan */}
                   <div className="pd-block-map">
@@ -1393,6 +1394,9 @@ function ProjectDetailPage() {
                     </button>
                     {total === 0 && (
                       <p className="pd-map-empty">No actions yet. What is the first move that gets this result rolling?</p>
+                    )}
+                    {total === 0 && (
+                      <ol className="pd-map-ghost" aria-hidden="true"><li /><li /></ol>
                     )}
                     {activeActions.length > 0 && (
                       <ol className="pd-map-list">
