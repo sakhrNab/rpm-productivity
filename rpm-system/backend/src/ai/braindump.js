@@ -132,7 +132,8 @@ async function generatePlan({ pool, userId, modelKey, text }) {
 
 // Draft catch-up actions for a slipping key result (returns a braindump-shaped plan
 // so the same preview → approve → applyPlan engine handles it).
-async function draftFix({ pool, userId, modelKey, keyResultId }) {
+// `today` is the user's local date (YYYY-MM-DD) — UTC would be yesterday late at night in Europe.
+async function draftFix({ pool, userId, modelKey, keyResultId, today: localToday }) {
   const { rows } = await pool.query(
     `SELECT kr.id, kr.title, kr.current_value, kr.target_value, kr.unit,
             to_char(kr.target_date, 'YYYY-MM-DD') AS target_date, kr.project_id, p.name AS project_name
@@ -143,7 +144,7 @@ async function draftFix({ pool, userId, modelKey, keyResultId }) {
 
   let fc = null;
   try { const all = await computeForecasts(pool, userId); fc = (all.keyResults || []).find(k => k.id === keyResultId); } catch { /* ignore */ }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = /^\d{4}-\d{2}-\d{2}$/.test(localToday || '') ? localToday : new Date().toISOString().slice(0, 10);
   const [existing, ctx] = await Promise.all([loadExisting(pool, userId), buildRpmContext(pool, userId)]);
 
   const status = fc ? `It's ${fc.status.replace('_', ' ')}: at ${fc.rate_per_week}/wk you'd reach ${fc.projected_final}/${fc.target} by ${fc.target_date} (${fc.days_remaining} days left) — you need ~${fc.required_per_week}/wk.`

@@ -2,12 +2,11 @@ import { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { TrendingUp, RefreshCw, Wand2, Loader2, Target, Flag, Gauge, CalendarClock } from 'lucide-react';
 import { AuthContext } from '../App';
-import { useToast } from './ToastProvider';
-import BrainDumpModal from './BrainDumpModal';
+import useGoalFix from './GoalFix';
 import './ForecastPanel.css';
 
 // cls drives behaviour (warn/bad → "Draft a fix"); tone drives colour only.
-const FORECAST_STATUS = {
+export const FORECAST_STATUS = {
   on_track:   { label: 'On track',   cls: 'ok',    tone: 'good' },
   at_risk:    { label: 'At risk',    cls: 'warn',  tone: 'warn' },
   off_track:  { label: 'Off track',  cls: 'bad',   tone: 'bad' },
@@ -19,21 +18,23 @@ const FORECAST_STATUS = {
   unknown:    { label: '—',          cls: 'muted', tone: 'info' },
 };
 // Most urgent first (presentational ordering only).
-const SEVERITY = { overdue: 0, off_track: 1, at_risk: 2, stalled: 3, on_track: 4, no_deadline: 5, no_target: 6, unknown: 7, done: 8 };
+export const SEVERITY = { overdue: 0, off_track: 1, at_risk: 2, stalled: 3, on_track: 4, no_deadline: 5, no_target: 6, unknown: 7, done: 8 };
 const FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'attention', label: 'Needs attention' },
   { key: 'ok', label: 'On track' },
 ];
 const DAY = 86400000;
+// Goals that need you: behind pace, stalled or past their deadline.
+export const SLIPPING = new Set(['at_risk', 'off_track', 'stalled', 'overdue']);
 
-function fmtDate(s) {
+export function fmtDate(s) {
   if (!s) return '';
   try { return new Date(s + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' }); } catch { return s; }
 }
-const fmtNum = (n) => (n == null ? '—' : Math.abs(n) >= 100 ? String(Math.round(n)) : String(Math.round(n * 100) / 100));
+export const fmtNum = (n) => (n == null ? '—' : Math.abs(n) >= 100 ? String(Math.round(n)) : String(Math.round(n * 100) / 100));
 
-function line(f) {
+export function line(f) {
   const rate = `${f.rate_per_week}/wk`;
   const need = f.required_per_week != null ? `${f.required_per_week}/wk` : null;
   if (f.status === 'done') return 'Target reached.';
@@ -53,7 +54,7 @@ function line(f) {
 
 // Trajectory sparkline, from the forecast alone: today → deadline. Dashed = the pace you
 // need, solid = where your current pace takes you (it stops rising once it hits the target).
-function Trajectory({ f }) {
+export function Trajectory({ f }) {
   const days = f.days_remaining;
   if (!(f.target > 0) || !f.target_date || !(days > 0)) return null;
   const y = (v) => 36 - Math.max(0, Math.min(1, v / f.target)) * 30;       // 6 = target, 36 = zero
@@ -82,11 +83,8 @@ function Trajectory({ f }) {
 
 export default function ForecastPanel({ onData }) {
   const { api } = useContext(AuthContext);
-  const { showToast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [fixingId, setFixingId] = useState(null);
-  const [fixPlan, setFixPlan] = useState(null);
   const [filter, setFilter] = useState('all');
 
   const load = () => { setLoading(true); api.getForecast().then(d => setData(d && !d.error ? d : null)).catch(() => {}).finally(() => setLoading(false)); };
@@ -95,21 +93,7 @@ export default function ForecastPanel({ onData }) {
   useEffect(() => { if (onData) onData(loading && !data ? undefined : data); }, [data, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ask the AI to draft catch-up actions for a slipping goal → preview → approve.
-  const draftFix = async (k) => {
-    const modelKey = localStorage.getItem('ai.modelKey');
-    if (!modelKey) { showToast('Pick a default AI model in Settings first.', 'info'); return; }
-    setFixingId(k.id);
-    try {
-      const res = await api.forecastFix({ keyResultId: k.id, modelKey });
-      if (res.error) throw new Error(res.error);
-      if (!res.operations || !res.operations.length) { showToast('No catch-up actions came back — try again.', 'info'); return; }
-      setFixPlan(res);
-    } catch (e) {
-      const msg = e.message || 'Failed to draft a fix';
-      if (/no longer available|unknown model/i.test(msg)) localStorage.removeItem('ai.modelKey');
-      showToast(msg, 'error');
-    } finally { setFixingId(null); }
-  };
+  const { draft: draftFix, fixingId, modal: fixModal } = useGoalFix({ onApplied: () => load() });
 
   const krs = data?.keyResults || [];
   const attention = krs.filter(f => ['warn', 'bad'].includes((FORECAST_STATUS[f.status] || FORECAST_STATUS.unknown).cls)).length;
@@ -260,14 +244,7 @@ export default function ForecastPanel({ onData }) {
         </ul>
       )}
 
-      {fixPlan && (
-        <BrainDumpModal
-          initialPlan={fixPlan}
-          title="Catch-up plan"
-          onClose={() => setFixPlan(null)}
-          onApplied={() => { setFixPlan(null); load(); }}
-        />
-      )}
+      {fixModal}
     </section>
   );
 }

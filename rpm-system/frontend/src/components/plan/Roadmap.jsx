@@ -1,8 +1,12 @@
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, CalendarClock, CalendarPlus, Diamond, Flame, Loader2, Star } from 'lucide-react';
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { AlertTriangle, ArrowRight, CalendarClock, CalendarPlus, Diamond, Flag, Flame, Gauge, Loader2, Star, Wand2, X } from 'lucide-react';
 import { AuthContext } from '../../App';
 import { fmtDay, MONTHS } from '../../utils/planFormat';
+import { FORECAST_STATUS, SLIPPING, Trajectory, fmtDate, fmtNum, line } from '../ForecastPanel';
+import useGoalFix from '../GoalFix';
+import '../ForecastPanel.css';
 import './ProjectTimeline.css';
 import './Roadmap.css';
 
@@ -19,6 +23,72 @@ const RISK = {
   done: { label: 'Done', tone: 'good' },
 };
 
+// One key result's forecast, opened from its diamond: where it stands, the pace you're on vs
+// the pace you need, when it lands — and "Draft a fix" when it's slipping.
+function GoalCard({ goal, anchor, onClose, onFix, fixing }) {
+  const ref = useRef(null);
+  const [pos, setPos] = useState(null);
+  useLayoutEffect(() => {
+    const r = anchor.getBoundingClientRect(), el = ref.current;
+    const w = Math.min(340, window.innerWidth - 24), h = el ? el.offsetHeight : 320;
+    const left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 12));
+    const below = r.bottom + 8 + h <= window.innerHeight - 12;
+    setPos({ left, width: w, top: below ? r.bottom + 8 : Math.max(12, r.top - h - 8) });
+  }, [anchor, goal]);
+  useEffect(() => {
+    const key = (e) => { if (e.key === 'Escape') onClose(); };
+    const down = (e) => { if (ref.current && !ref.current.contains(e.target) && !anchor.contains(e.target)) onClose(); };
+    const scroll = (e) => { if (!ref.current?.contains(e.target)) onClose(); };
+    document.addEventListener('keydown', key); document.addEventListener('mousedown', down); document.addEventListener('scroll', scroll, true);
+    window.addEventListener('resize', onClose);
+    return () => { document.removeEventListener('keydown', key); document.removeEventListener('mousedown', down); document.removeEventListener('scroll', scroll, true); window.removeEventListener('resize', onClose); };
+  }, [anchor, onClose]);
+
+  const f = goal;
+  const st = FORECAST_STATUS[f.status] || FORECAST_STATUS.unknown;
+  const pctNow = f.target > 0 ? Math.min(100, Math.round((f.current / f.target) * 100)) : 0;
+  const forecastable = ['on_track', 'at_risk', 'off_track', 'stalled'].includes(f.status);
+  const need = f.required_per_week;
+  const paceRatio = need > 0 ? f.rate_per_week / need : null;
+  return createPortal(
+    <div ref={ref} className={`rm-goal fc-t-${st.tone}`} role="dialog" aria-label={`Goal: ${f.title}`}
+      style={pos ? { left: pos.left, top: pos.top, width: pos.width } : { visibility: 'hidden', left: 0, top: 0 }}>
+      <div className="rm-goal-top">
+        <span className={`ui-chip ui-chip--${st.tone}`}><span className="fc-dot" />{st.label}</span>
+        {f.days_remaining != null && f.status !== 'done' && <span className={`fc-left ${f.days_remaining < 0 ? 'late' : ''}`}>{f.days_remaining < 0 ? `${-f.days_remaining}d over` : `${f.days_remaining}d left`}</span>}
+        <button type="button" className="rm-goal-x" onClick={onClose} aria-label="Close"><X size={15} /></button>
+      </div>
+      <h3 className="rm-goal-title">{f.title}</h3>
+      <p className="rm-goal-proj">{f.project} · due {fmtDate(f.target_date)}</p>
+      <div className="fc-figures">
+        <span className="fc-now"><b>{fmtNum(f.current)}</b><span>/ {fmtNum(f.target)} {f.unit}</span></span>
+        {f.target > 0 && <span className="fc-pct">{pctNow}%</span>}
+      </div>
+      <div className="fc-bar"><span className="fc-bar-now" style={{ width: `${pctNow}%` }} /></div>
+      {forecastable && (
+        <>
+          <Trajectory f={f} />
+          <dl className="fc-metrics">
+            <div><dt><Gauge size={12} /> Your pace</dt><dd>{fmtNum(f.rate_per_week)}<i>/wk</i></dd></div>
+            <div><dt><Flag size={12} /> Needed</dt><dd>{fmtNum(need)}<i>/wk</i>{paceRatio != null && f.rate_per_week > 0 && <em className={paceRatio >= 1 ? 'up' : 'down'}>{paceRatio >= 1 ? `${fmtNum(paceRatio)}× ahead` : `${fmtNum(1 / paceRatio)}× short`}</em>}</dd></div>
+            <div><dt><CalendarClock size={12} /> Finish</dt><dd>{f.projected_date && (f.projected_final ?? 0) >= f.target ? fmtDate(f.projected_date) : <span className="fc-never">not at this pace</span>}</dd></div>
+          </dl>
+        </>
+      )}
+      <p className="fc-line">{line(f)}</p>
+      <div className="rm-goal-actions">
+        {SLIPPING.has(f.status) && (
+          <button type="button" className="fc-fix" onClick={() => onFix(f)} disabled={fixing}>
+            {fixing ? <><Loader2 size={14} className="rm-spin" /> Drafting…</> : <><Wand2 size={14} /> Draft a fix</>}
+          </button>
+        )}
+        <Link className="rm-goal-open" to={`/projects/${f.project_id}`}>Open project <ArrowRight size={13} /></Link>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // Every active project on one timeline: span, progress, health and key-result milestones.
 export default function Roadmap() {
   const { api } = useContext(AuthContext);
@@ -26,13 +96,21 @@ export default function Roadmap() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [zoom, setZoom] = useState(null);
+  const [goal, setGoal] = useState(null);     // { goal, anchor } — the open diamond
+  const [params, setParams] = useSearchParams();
+  const slippingOnly = params.get('slipping') === '1';
   const scrollRef = useRef(null);
 
-  useEffect(() => {
-    api.getRoadmap()
-      .then(d => (d && !d.error ? setData(d) : setError(d?.error || 'Could not load the roadmap')))
-      .catch(() => setError('Could not load the roadmap'));
-  }, [api]);
+  const load = () => api.getRoadmap()
+    .then(d => (d && !d.error ? setData(d) : setError(d?.error || 'Could not load the roadmap')))
+    .catch(() => setError('Could not load the roadmap'));
+  useEffect(() => { load(); }, [api]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { draft, fixingId, modal: fixModal } = useGoalFix({ onApplied: () => { setGoal(null); load(); } });
+  const setSlipping = (on) => {
+    const next = new URLSearchParams(params);
+    if (on) next.set('slipping', '1'); else next.delete('slipping');
+    setParams(next, { replace: true });
+  };
 
   const model = useMemo(() => {
     if (!data) return null;
@@ -56,7 +134,11 @@ export default function Roadmap() {
       months.push({ key: d, label: `${MONTHS[m - 1]}${m === 1 || !months.length ? ` ${y}` : ''}`, offset: (toMs(d) - toMs(from)) / DAY, len: (Math.min(toMs(next), toMs(last) + DAY) - toMs(d)) / DAY });
       d = next;
     }
-    const counts = { risk: data.projects.filter(p => ['overdue', 'off_track', 'stalled', 'at_risk'].includes(p.risk)).length, overdue: data.projects.reduce((n, p) => n + (p.overdue || 0), 0) };
+    const counts = {
+      risk: data.projects.filter(p => ['overdue', 'off_track', 'stalled', 'at_risk'].includes(p.risk)).length,
+      overdue: data.projects.reduce((n, p) => n + (p.overdue || 0), 0),
+      slipping: dated.reduce((n, p) => n + p.milestones.filter(m => SLIPPING.has(m.status)).length, 0),
+    };
     return { from, days, groups, undated, months, counts, span: Math.round((toMs(all[all.length - 1]) - toMs(all[0])) / DAY) };
   }, [data]);
 
@@ -98,7 +180,13 @@ export default function Roadmap() {
         <span className="rm-stat"><b>{data.projects.length}</b> active</span>
         {model.counts.risk > 0 && <span className="rm-stat warn"><Flame size={14} /> <b>{model.counts.risk}</b> need attention</span>}
         {model.counts.overdue > 0 && <span className="rm-stat bad"><AlertTriangle size={14} /> <b>{model.counts.overdue}</b> overdue task{model.counts.overdue > 1 ? 's' : ''}</span>}
-        <span className="rm-legend"><Diamond size={12} /> key-result deadline</span>
+        {(model.counts.slipping > 0 || slippingOnly) && (
+          <button type="button" className={`rm-filter ${slippingOnly ? 'on' : ''}`} aria-pressed={slippingOnly} onClick={() => setSlipping(!slippingOnly)}
+            title="Show only projects with a goal that's behind pace, stalled or overdue">
+            <Flame size={13} /> Slipping only <b>{model.counts.slipping}</b>
+          </button>
+        )}
+        <span className="rm-legend"><Diamond size={12} /> key-result deadline — tap one for its forecast</span>
       </div>
 
       {model.groups.length > 0 && (
@@ -118,7 +206,8 @@ export default function Roadmap() {
             <div className="rm-body">
               {ticks.map(t => <span key={t} className="rm-grid" style={{ left: `calc(var(--rm-label) + ${x(t)}px)` }} aria-hidden="true" />)}
               <div className="rm-today" style={{ left: `calc(var(--rm-label) + ${x(data.today) + dw / 2}px)` }} aria-hidden="true" />
-              {model.groups.map(g => (
+              {slippingOnly && !model.counts.slipping && <div className="rm-none">Nothing is slipping — every goal with a deadline is on pace. 🎯</div>}
+              {model.groups.map(g => ({ ...g, projects: slippingOnly ? g.projects.filter(p => p.milestones.some(m => SLIPPING.has(m.status))) : g.projects })).filter(g => g.projects.length).map(g => (
                 <div key={g.id || 'none'} className="rm-group" style={{ '--cat': g.color }}>
                   <div className="rm-group-head"><span className="rm-dot" />{g.name}<i>{g.projects.length}</i></div>
                   {g.projects.map(p => {
@@ -150,8 +239,14 @@ export default function Roadmap() {
                             </span>
                           )}
                           {p.milestones.map((m, i) => (
-                            <span key={i} className={`rm-ms ${RISK[m.status]?.tone || ''}`} style={{ left: x(m.date) + dw / 2 }}
-                              title={`${m.title}\nTarget ${fmtDay(m.date)} · ${m.current ?? 0}/${m.target ?? '?'} ${m.unit || ''}\n${RISK[m.status]?.label || ''}`} />
+                            <button key={m.id || i} type="button"
+                              className={`rm-ms-hit ${slippingOnly && !SLIPPING.has(m.status) ? 'dim' : ''} ${goal?.goal.id === m.id ? 'open' : ''}`}
+                              style={{ left: x(m.date) + dw / 2 }}
+                              onClick={(e) => { const anchor = e.currentTarget; setGoal(g => (g?.goal.id === m.id ? null : { goal: m, anchor })); }}
+                              aria-label={`${m.title}: ${RISK[m.status]?.label || m.status}, ${m.current ?? 0} of ${m.target ?? '?'} ${m.unit || ''}, due ${fmtDay(m.date)}. Open forecast`}
+                              title={`${m.title} · ${m.current ?? 0}/${m.target ?? '?'} ${m.unit || ''} · due ${fmtDay(m.date)}`}>
+                              <span className={`rm-ms ${RISK[m.status]?.tone || ''}`} />
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -164,7 +259,10 @@ export default function Roadmap() {
         </div>
       )}
 
-      {model.undated.length > 0 && (
+      {goal && <GoalCard goal={goal.goal} anchor={goal.anchor} onClose={() => setGoal(null)} onFix={draft} fixing={fixingId === goal.goal.id} />}
+      {fixModal}
+
+      {model.undated.length > 0 && !slippingOnly && (
         <div className="ptv-tray">
           <div className="ptv-tray-head"><span><CalendarClock size={14} /> <b>{model.undated.length}</b> project{model.undated.length > 1 ? 's' : ''} without dates — give {model.undated.length > 1 ? 'them' : 'it'} dated tasks to place {model.undated.length > 1 ? 'them' : 'it'} here</span></div>
           <div className="ptv-chips">

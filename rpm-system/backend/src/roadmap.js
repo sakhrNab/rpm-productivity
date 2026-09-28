@@ -45,7 +45,8 @@ async function getRoadmap(pool, userId, today) {
       progress: s.total ? s.done / s.total : 0,
       next_date: ymd(s.next_date) || null,
       risk: worst(krs.map(k => k.status)),
-      milestones: krs.filter(k => k.target_date).map(k => ({ title: k.title, date: k.target_date, status: k.status, current: k.current, target: k.target, unit: k.unit })),
+      // The whole forecast per key result, so a diamond can open its card (pace, need, finish).
+      milestones: krs.filter(k => k.target_date).map(k => ({ ...k, date: k.target_date })),
     };
   });
 }

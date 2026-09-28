@@ -1602,10 +1602,12 @@ app.put('/api/settings/capacity', authenticateToken, async (req, res) => {
 // Draft AI catch-up actions for a slipping key result (proposal — nothing applied).
 app.post('/api/forecast/fix', authenticateToken, aiLimiter, async (req, res) => {
   try {
-    const { keyResultId, modelKey } = req.body;
+    const { keyResultId, today } = req.body;
     if (!keyResultId) return res.status(400).json({ error: 'keyResultId is required' });
-    if (!modelKey) return res.status(400).json({ error: 'modelKey is required' });
-    res.json(await draftFix({ pool, userId: req.userId, modelKey, keyResultId }));
+    // No model from this browser → the saved default / cheapest usable one.
+    const modelKey = await coachEngine.resolveModel(pool, req.userId, { model: req.body.modelKey || null });
+    if (!modelKey) return res.status(400).json({ error: 'Add an AI provider key in Settings to draft a catch-up plan.' });
+    res.json(await draftFix({ pool, userId: req.userId, modelKey, keyResultId, today }));
   } catch (error) {
     console.error('[forecast] fix error:', error.message);
     res.status(error instanceof AiError ? 400 : 500).json({ error: error.message || 'Failed' });
