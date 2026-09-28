@@ -1,63 +1,77 @@
-/* Key result modal — shell in styles/ui.css, shared kit in modalKit.css */
-.modal.ckr-modal { max-width: 560px; }
+/* Key result create / edit — a live preview of the real KR card (left, pinned) beside
+   numbered steps (right). Shell in styles/ui.css, field kit in modalKit.css. */
+.modal.ckr-modal {
+  max-width: 980px;
+  background:
+    radial-gradient(640px 260px at 0% 0%, rgba(78, 205, 196, 0.12), transparent 64%),
+    radial-gradient(520px 220px at 100% 0%, rgba(255, 105, 180, 0.07), transparent 62%),
+    linear-gradient(180deg, #13244a 0%, #0c1834 100%);
+}
 
-/* Title: reads like a one-line headline but wraps + grows with long text */
-.modal .mk-body textarea.ckr-title.mk-hero {
-  min-height: 0; height: auto; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; field-sizing: content;
+.modal-body.ckr-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+@media (min-width: 880px) {
+  .modal-body.ckr-body { grid-template-columns: minmax(290px, 360px) minmax(0, 1fr); gap: 26px; align-items: start; }
+  .ckr-preview { position: sticky; top: 96px; }
 }
-.modal .mk-body .ckr-num.ckr-num { font-family: var(--ui-mono); font-weight: 600; }
-.modal .mk-body .ckr-date.ckr-date { font-family: var(--ui-mono); color-scheme: dark; }
 
-.ckr-measure { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@media (max-width: 400px) { .ckr-measure { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ckr-measure > :last-child { grid-column: 1 / -1; } }
+/* ---------- live preview ---------- */
+.ckr-preview { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ckr-preview-label { display: flex; align-items: center; gap: 8px; margin: 0; font: 600 0.66rem var(--ui-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); }
+.ckr-live { width: 8px; height: 8px; border-radius: 50%; background: #ff6b81; box-shadow: 0 0 0 3px rgba(255, 107, 129, 0.2); animation: ckr-live 1.6s ease-in-out infinite; }
+@keyframes ckr-live { 50% { opacity: 0.35; } }
+.ckr-card {
+  position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: radial-gradient(110% 80% at 0% 0%, rgba(78, 205, 196, 0.1), transparent 60%), linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.22)), #0f1d3b;
+  box-shadow: 0 24px 50px -24px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.ckr-card::before { content: ''; position: absolute; left: 16px; right: 16px; top: -1px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, #4ecdc4, rgba(78, 205, 196, 0.3) 70%, transparent); box-shadow: 0 0 14px rgba(78, 205, 196, 0.5); }
+.ckr-card-desc { margin: 0; padding-top: 10px; border-top: 1px solid var(--ui-hair); font-size: 0.82rem; line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
+.ckr-preview-help { margin: 0; font-size: 0.78rem; line-height: 1.45; color: var(--text-muted); }
 
-/* Live preview of the card's progress bar */
-.ckr-preview { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border-primary); background: rgba(255, 255, 255, 0.025); }
-.ckr-preview-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.ckr-preview-val { min-width: 0; font: 600 0.9rem var(--ui-mono); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ckr-preview-val i { font-style: normal; color: var(--text-muted); }
-.ckr-preview-pct { font: 700 1.05rem var(--ui-mono); color: var(--accent-cyan); }
-.ckr-preview.is-empty .ckr-preview-val { font: 400 0.82rem var(--font-body); color: var(--text-muted); }
+/* ---------- steps: a numbered rail ---------- */
+.ckr-steps { position: relative; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.ckr-steps::before { content: ''; position: absolute; left: 15px; top: 16px; bottom: 16px; width: 2px; border-radius: 2px; background: linear-gradient(180deg, rgba(78, 205, 196, 0.55), rgba(255, 255, 255, 0.05)); }
+.ckr-step { position: relative; display: flex; gap: 14px; min-width: 0; }
+.ckr-step-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.ckr-step-no {
+  position: relative; z-index: 1; flex: 0 0 auto; display: grid; place-items: center; width: 32px; height: 32px; margin-top: 2px; border-radius: 50%;
+  font: 700 0.84rem var(--ui-mono); color: #fff; background: linear-gradient(135deg, rgba(78, 205, 196, 0.7), #13244a);
+  border: 1px solid rgba(78, 205, 196, 0.6); box-shadow: 0 0 14px -2px rgba(78, 205, 196, 0.6);
+}
+.mk-body .ckr-label { display: flex; align-items: center; gap: 6px; margin: 0; }
+.mk-body .form-label svg { color: var(--accent-cyan); }
 
-/* ---- Inline progress editor on the key-result card ---- */
-.kr-editor {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+/* The title textarea is the card headline: big Outfit, grows with its content. */
+.modal .mk-body textarea.ckr-title { resize: none; overflow: hidden; min-height: 0; line-height: 1.3; font: 700 1.3rem/1.3 'Outfit', var(--font-display); }
+
+.ckr-measure { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1.2fr); align-items: end; gap: 10px; }
+.modal .mk-body .ckr-measure input.form-input { height: 50px; }
+.ckr-of { padding-bottom: 12px; font: 600 0.8rem var(--ui-mono); color: var(--text-muted); }
+.modal .mk-body .ckr-measure input.ckr-num { font: 700 1.25rem var(--ui-mono); letter-spacing: -0.02em; text-align: center; }
+.ckr-picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.ckr-pick {
+  min-height: 34px; padding: 0 12px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--border-primary); background: rgba(255, 255, 255, 0.03); color: var(--text-secondary); font: 600 0.78rem var(--font-body);
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
 }
-.kr-step {
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-primary);
-  border-radius: 7px;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+.ckr-pick:hover { color: var(--text-primary); border-color: rgba(78, 205, 196, 0.5); }
+.ckr-pick.on { color: #06121f; background: var(--accent-cyan); border-color: var(--accent-cyan); }
+.ckr-pick.due:hover { border-color: rgba(255, 183, 77, 0.5); }
+.ckr-pick.due.on { background: #ffb74d; border-color: #ffb74d; }
+.ckr-due-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.modal .mk-body .ckr-due-row input.ckr-date { flex: 0 1 190px; min-width: 150px; color-scheme: dark; }
+
+@media (max-width: 879px) {
+  /* narrower: the preview is a compact card above the steps */
+  .ckr-preview-help, .ckr-card-desc { display: none; }
 }
-.kr-step:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
-.kr-current-input {
-  width: 56px;
-  padding: 3px 6px;
-  text-align: center;
-  border: 1px solid var(--border-primary);
-  border-radius: 7px;
-  background: var(--bg-primary, var(--bg-secondary));
-  color: var(--text-primary);
-  font-size: 0.82rem;
-  font-weight: 600;
-  -moz-appearance: textfield;
+@media (max-width: 640px) {
+  .ckr-steps::before { left: 13px; }
+  .ckr-step { gap: 10px; }
+  .ckr-step-no { width: 28px; height: 28px; font-size: 0.76rem; }
+  .ckr-measure { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .ckr-measure .ckr-unit { grid-column: 1 / -1; }
+  .modal .mk-body .ckr-due-row input.ckr-date { flex: 1 1 100%; }
 }
-.kr-current-input::-webkit-outer-spin-button,
-.kr-current-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.kr-current-input:focus {
-  outline: none;
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.25);
-}
-.kr-target-val { font-size: 0.82rem; color: var(--text-muted); }
+@media (prefers-reduced-motion: reduce) { .ckr-live { animation: none; } }

@@ -84,7 +84,9 @@ body {
 
 /* Never allow sideways scroll on the page itself — cards/grids must fit the
    viewport on mobile instead of pushing the layout wider than the screen. */
-html, body { max-width: 100%; overflow-x: hidden; }
+/* clip, not hidden: `hidden` on both html and body turns body into a scroll container that never
+   scrolls, which silently breaks every position: sticky element in the app. */
+html, body { max-width: 100%; overflow-x: clip; }
 .main-content, .app-container { min-width: 0; }
 
 #root {

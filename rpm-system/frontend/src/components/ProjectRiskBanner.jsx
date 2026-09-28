@@ -18,7 +18,7 @@ const daysBetween = (from, to) => Math.round((Date.parse(`${to}T00:00:00`) - Dat
 // tasks that sit outside every block.
 export default function ProjectRiskBanner({
   project, onOpenTimeline, onEditAction, onShowKeyResults, onShowBlocks, onShowUnsorted, onEditDeadline,
-  onAskCoach, hasCoach = true,
+  onAskCoach, hasCoach = true, onForecast,
 }) {
   const { api } = useContext(AuthContext);
   const [goals, setGoals] = useState([]);
@@ -26,7 +26,12 @@ export default function ProjectRiskBanner({
   useEffect(() => {
     let live = true;
     api.getForecast()
-      .then(f => { if (live) setGoals((f?.keyResults || []).filter(k => k.project_id === project.id && SLIPPING[k.status])); })
+      .then(f => {
+        if (!live) return;
+        const mine = (f?.keyResults || []).filter(k => k.project_id === project.id);
+        setGoals(mine.filter(k => SLIPPING[k.status]));
+        if (onForecast) onForecast(mine);   // the key result cards reuse it (no second request)
+      })
       .catch(() => {});
     return () => { live = false; };
   }, [api, project.id]);

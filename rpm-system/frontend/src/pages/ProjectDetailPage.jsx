@@ -25,6 +25,7 @@ import CoachStrip, { useAreaCoach } from '../components/CoachStrip';
 import { BRIEF_ME, fixPrompt } from '../utils/coach';
 import ProjectTimeline from '../components/plan/ProjectTimeline';
 import { BlockBand, PurposeQuote, dueInfo } from '../components/blocks/BlockFace';
+import { KrFace } from '../components/keyresults/KrFace';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ProjectRiskBanner from '../components/ProjectRiskBanner';
 import Picker from '../components/Picker';
@@ -153,6 +154,8 @@ function ProjectDetailPage() {
   const [editingKeyResult, setEditingKeyResult] = useState(null);
   const [editingCaptureItem, setEditingCaptureItem] = useState(null);
   const [editingBlock, setEditingBlock] = useState(null);
+  const [krForecast, setKrForecast] = useState({});      // key result id → forecast (from the risk banner's request)
+  const [jumpActive, setJumpActive] = useState('krs');   // which of Key results / RPM blocks is on screen
   const [openKeyResultMenu, setOpenKeyResultMenu] = useState(null);
   const [openCaptureItemMenu, setOpenCaptureItemMenu] = useState(null);
   const [openBlockMenu, setOpenBlockMenu] = useState(null); // { blockId, top, right } or null
@@ -468,6 +471,33 @@ function ProjectDetailPage() {
 
   const scrollToId = (elId) =>
     requestAnimationFrame(() => document.getElementById(elId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  // Bring one key result / block into view and light it up briefly (the KR ↔ block links).
+  const flashTo = (elId) => {
+    setTimeout(() => {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.remove('pd-flash'); void el.offsetWidth; el.classList.add('pd-flash');
+      setTimeout(() => el.classList.remove('pd-flash'), 1600);
+    }, 80);
+  };
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return undefined;
+    const els = ['pd-krs', 'pd-plan'].map(id => document.getElementById(id)).filter(Boolean);
+    if (!els.length) return undefined;
+    const io = new IntersectionObserver((entries) => {
+      const vis = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (vis) setJumpActive(vis.target.id === 'pd-krs' ? 'krs' : 'plan');
+    }, { rootMargin: '-35% 0px -55% 0px' });
+    els.forEach(el => io.observe(el));
+    return () => io.disconnect();
+  });
+  const jumpToBlock = (blockId) => { setView('blocks'); flashTo(`pd-block-${blockId}`); };
+  const jumpToKr = (krId) => flashTo(`pd-kr-${krId}`);
+  const planBlockFor = (kr) => {
+    setEditingBlock({ key_result_id: kr.id, project_id: project.id, category_id: project.category_id });
+    setShowBlockModal(true);
+  };
 
   // Switch the plan area to a lens and bring it (or an element inside it) into view.
   const showPlan = (next, elId = 'pd-plan') => {
@@ -1004,7 +1034,23 @@ function ProjectDetailPage() {
         onEditDeadline={openDeadlineEditor}
         onAskCoach={areaCoach.loading ? undefined : askCoachToFix}
         hasCoach={!!areaCoach.coach}
+        onForecast={(list) => setKrForecast(Object.fromEntries(list.map(k => [k.id, k])))}
       />
+
+      {/* Jump between the measures and the plan — pinned while you scroll either */}
+      <nav className="pd-jump" aria-label="Key results and RPM blocks">
+        <button type="button" className={`pd-jump-btn ${jumpActive === 'krs' ? 'on' : ''}`} onClick={() => scrollToId('pd-krs')}>
+          <Target size={14} /> Key results {krList.length > 0 && <b>{krDone}/{krList.length}</b>}
+        </button>
+        <button type="button" className={`pd-jump-btn ${jumpActive === 'plan' ? 'on' : ''}`} onClick={() => showPlan('blocks')}>
+          <Layers size={14} /> RPM blocks {blockCount > 0 && <b>{blockCount}</b>}
+        </button>
+        {krList.length > 0 && blockCount > 0 && (
+          <span className="pd-jump-link" title="Key results with at least one block driving them">
+            {krList.filter(k => (project.rpm_blocks || []).some(b => b.key_result_id === k.id)).length}/{krList.length} results have a block
+          </span>
+        )}
+      </nav>
 
       {/* ================= Key results (measures) ================= */}
       <section className="ui-card pd-panel pd-krs" id="pd-krs">
@@ -1039,17 +1085,26 @@ function ProjectDetailPage() {
           ) : (
             <div className="kr-list">
               {krList.map((kr, idx) => {
-                const { target, current, hasTarget, pct, done } = krProgress(kr);
+                const { target, current, hasTarget, done } = krProgress(kr);
+                const fc = krForecast[kr.id];
+                // RPM: a result is moved by blocks — show which blocks drive this one.
+                const drivers = (project.rpm_blocks || []).filter(b => b.key_result_id === kr.id);
+                const tone = done ? 'good' : ({ on_track: 'good', at_risk: 'warn', stalled: 'warn', off_track: 'bad', overdue: 'bad' })[fc?.status] || 'none';
                 return (
-                  <div
-                    key={kr.id}
-                    className={`kr-card pd-clickable ${done ? 'kr-card-done' : ''}`}
-                    onClick={() => handleEditKeyResult(kr)}
-                    title="Open key result"
-                  >
-                    <div className="kr-card-head">
-                      <div className="kr-num">{done ? <Check size={13} strokeWidth={3} /> : idx + 1}</div>
-                      <div className="kr-title">{kr.title}</div>
+                  <article key={kr.id} id={`pd-kr-${kr.id}`} className={`kr-card tone-${tone} ${done ? 'kr-card-done' : ''}`}>
+                    <KrFace
+                      number={idx + 1}
+                      title={kr.title}
+                      onTitleClick={() => handleEditKeyResult(kr)}
+                      current={current}
+                      target={hasTarget ? target : null}
+                      unit={kr.unit}
+                      due={dueInfo(kr.target_date, { done })}
+                      status={fc?.status}
+                      pace={fc && fc.required_per_week != null && ['on_track', 'at_risk', 'off_track', 'stalled'].includes(fc.status) ? { need: fc.required_per_week, rate: fc.rate_per_week } : null}
+                      done={done}
+                      tools={(
+                        <>
                       <div className="key-result-actions pd-item-actions">
                         <button
                           type="button"
@@ -1080,12 +1135,12 @@ function ProjectDetailPage() {
                           )}
                         </div>
                       </div>
-                    </div>
+                        </>
+                      )}
+                    />
 
                     {hasTarget && (
                       <div className="kr-progress" onClick={(e) => e.stopPropagation()}>
-                        <div className="ui-meter kr-meter"><i style={{ '--pct': `${pct}%` }} /></div>
-                        <div className="kr-progress-meta">
                           <div className="kr-editor" title="Update progress">
                             <button
                               type="button"
@@ -1112,15 +1167,27 @@ function ProjectDetailPage() {
                               onClick={() => handleUpdateKeyResultProgress(kr, current + 1)}
                             >+</button>
                           </div>
-                          <span className="kr-pct">{pct}%</span>
-                        </div>
+                        <span className="kr-update-label">Update progress</span>
                       </div>
                     )}
 
-                    {kr.target_date && (
-                      <div className="kr-foot"><CalendarIcon size={12} /> {fmtDate(kr.target_date)}</div>
-                    )}
-                  </div>
+                    <div className="kr-drivers">
+                      {drivers.length > 0 ? (
+                        <>
+                          <span className="kr-drivers-label"><Layers size={12} /> Driven by</span>
+                          {drivers.map(b => (
+                            <button key={b.id} type="button" className="kr-driver" onClick={() => jumpToBlock(b.id)} title="Go to this block">
+                              {b.result_title}
+                            </button>
+                          ))}
+                        </>
+                      ) : (
+                        <button type="button" className="kr-driver is-add" onClick={() => planBlockFor(kr)} title="Create an RPM block that drives this key result">
+                          <Plus size={12} /> Plan a block for this
+                        </button>
+                      )}
+                    </div>
+                  </article>
                 );
               })}
             </div>
@@ -1220,6 +1287,7 @@ function ProjectDetailPage() {
             return (
               <article
                 key={block.id}
+                id={`pd-block-${block.id}`}
                 className={`rpm-block pd-block ${draggedBlock?.id === block.id ? 'is-dragging' : ''} ${dragOverBlock === block.id ? 'is-drop-target' : ''} ${blockDone ? 'is-complete' : ''} ${dueTone ? `is-due-${dueTone}` : ''}`}
                 style={catStyle}
                 draggable
@@ -1335,9 +1403,9 @@ function ProjectDetailPage() {
                     return (
                       <div className="pd-block-chips">
                         {kr && (
-                          <span className="rpm-block-kr" title="This block drives toward a key result">
-                            <Target size={11} /> <span>Key result: <strong>{kr.title}</strong></span>
-                          </span>
+                          <button type="button" className="rpm-block-kr" onClick={() => jumpToKr(kr.id)} title="Go to the key result this block drives">
+                            <Target size={11} /> <span>Drives: <strong>{kr.title}</strong></span>
+                          </button>
                         )}
                         {hasTime && (
                           <span className="pd-block-chip" title="Time remaining / planned">

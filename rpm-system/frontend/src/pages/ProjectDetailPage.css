@@ -288,33 +288,39 @@
   .pd-page .pd-action-row + .pd-action-row::after { left: 44px; }
 }
 
-/* ============ Key results ============ */
-.pd-page .pd-krs { scroll-margin-top: 16px; }
-.pd-page .kr-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 10px; align-items: start; }
+/* ============ Key results — measure cards (face: components/keyresults/KrFace) ============ */
+.pd-page .pd-krs { scroll-margin-top: calc(var(--nav-h, 62px) + 64px); }
+.pd-page .kr-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 14px; align-items: start; }
 .pd-page .kr-card {
-  padding: 12px 12px 12px 14px; border-radius: 14px; border: 1px solid var(--ui-hair);
-  background: rgba(0, 0, 0, 0.18); box-shadow: none; transition: border-color 150ms ease, background-color 150ms ease;
+  --kt: #7d8aa3;
+  position: relative; display: flex; flex-direction: column; gap: 12px; min-width: 0;          /* not clipped: its ⋮ menu opens inside */
+  padding: 16px 16px 14px; border-radius: 18px; scroll-margin-top: calc(var(--nav-h, 62px) + 70px);
+  border: 1px solid color-mix(in srgb, var(--kt) 26%, var(--ui-hair));
+  background:
+    radial-gradient(110% 80% at 0% 0%, color-mix(in srgb, var(--kt) 12%, transparent), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.2));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 14px 34px -24px rgba(0, 0, 0, 0.8);
+  transition: border-color 150ms ease, transform 150ms ease;
 }
-.pd-page .kr-card:hover { border-color: rgba(78, 205, 196, 0.35); background: rgba(255, 255, 255, 0.03); box-shadow: none; transform: none; }
-.pd-page .kr-card-done { border-color: rgba(78, 205, 196, 0.28); }
-.pd-page .kr-card-head { display: flex; align-items: center; gap: 10px; }
-.pd-page .kr-num {
-  flex: 0 0 auto; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px;
-  font: 700 0.78rem var(--ui-mono); color: var(--accent-cyan);
-  background: linear-gradient(135deg, rgba(78, 205, 196, 0.2), rgba(255, 105, 180, 0.16)); border: 1px solid var(--border-primary);
+.pd-page .kr-card::before {                       /* status-lit top edge */
+  content: ''; position: absolute; left: 16px; right: 16px; top: -1px; height: 3px; border-radius: 3px; pointer-events: none;
+  background: linear-gradient(90deg, var(--kt), color-mix(in srgb, var(--kt) 30%, transparent) 70%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--kt) 60%, transparent);
 }
-.pd-page .kr-card-done .kr-num { color: var(--ui-ink); background: var(--accent-cyan); border-color: transparent; }
-.pd-page .kr-title { flex: 1; min-width: 0; font-weight: 600; font-size: 0.92rem; line-height: 1.35; overflow-wrap: anywhere; }
-.pd-page .kr-card-done .kr-title { color: var(--text-secondary); }
-.pd-page .kr-progress { margin-top: 12px; }
-.pd-page .kr-meter { height: 6px; }
-.pd-page .kr-progress-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.pd-page .kr-card.tone-good { --kt: #4ecdc4; }
+.pd-page .kr-card.tone-warn { --kt: #ffb74d; }
+.pd-page .kr-card.tone-bad { --kt: #ff6b81; }
+.pd-page .kr-card:hover { border-color: color-mix(in srgb, var(--kt) 50%, transparent); }
+.pd-page .kr-card .key-result-actions { display: inline-flex; align-items: center; gap: 2px; }
+
+.pd-page .kr-progress { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.pd-page .kr-update-label { font: 600 0.62rem var(--ui-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
 .pd-page .kr-editor {
   display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 10px;
   border: 1px solid var(--border-primary); background: rgba(0, 0, 0, 0.22); font: 500 0.8rem var(--ui-mono); color: var(--text-secondary);
 }
 .pd-page .kr-step {
-  display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px;
+  display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 8px;
   background: transparent; color: var(--text-secondary); font: 600 1rem var(--ui-mono); cursor: pointer;
   transition: background-color 150ms ease, color 150ms ease;
 }
@@ -327,9 +333,60 @@
 .pd-page .kr-current-input:focus { outline: none; background: rgba(78, 205, 196, 0.1); }
 .pd-page .kr-sep { color: var(--text-muted); margin: 0 3px; }
 .pd-page .kr-target-val { padding-right: 4px; white-space: nowrap; }
-.pd-page .kr-pct { font: 700 0.95rem var(--ui-mono); color: var(--accent-cyan); }
-.pd-page .kr-card-done .kr-pct { color: var(--ui-good); }
-.pd-page .kr-foot { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font: 500 0.74rem var(--ui-mono); color: var(--text-muted); }
+/* the card's big figure already shows "/ target" — the stepper is just − value + */
+.pd-page .kr-card .kr-sep, .pd-page .kr-card .kr-target-val { display: none; }
+
+/* which blocks drive this result — each one jumps to the block */
+.pd-page .kr-drivers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px solid var(--ui-hair); }
+.pd-page .kr-drivers-label { display: inline-flex; align-items: center; gap: 5px; font: 600 0.62rem var(--ui-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+.pd-page .kr-drivers-label svg { color: var(--accent-cyan); }
+.pd-page .kr-driver {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-height: 30px; padding: 0 11px; border-radius: 999px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 600 0.76rem var(--font-body); color: var(--text-primary);
+  background: color-mix(in srgb, var(--cat) 12%, transparent); border: 1px solid color-mix(in srgb, var(--cat) 40%, transparent);
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.pd-page .kr-driver:hover { background: color-mix(in srgb, var(--cat) 22%, transparent); border-color: var(--cat); }
+.pd-page .kr-driver.is-add { color: var(--accent-cyan); background: transparent; border: 1px dashed rgba(78, 205, 196, 0.45); }
+.pd-page .kr-driver.is-add:hover { background: rgba(78, 205, 196, 0.08); border-style: solid; }
+
+/* the block card's "Drives: <key result>" chip is a link back */
+.pd-page button.rpm-block-kr { cursor: pointer; font: inherit; font-size: 0.74rem; transition: background-color 150ms ease, border-color 150ms ease; }
+.pd-page button.rpm-block-kr:hover { background: rgba(255, 105, 180, 0.16); border-color: rgba(255, 105, 180, 0.6); }
+
+/* a key result / block you jumped to lights up briefly */
+.pd-page .pd-flash { animation: pd-flash 1.5s ease-out; }
+@keyframes pd-flash {
+  0%, 30% { box-shadow: 0 0 0 3px var(--accent-cyan), 0 0 36px rgba(78, 205, 196, 0.55); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* ============ Jump bar: Key results ⇄ RPM blocks (pinned under the top bar) ============ */
+.pd-page .pd-jump {
+  position: sticky; top: calc(var(--nav-h, 62px) + 8px); z-index: 30;
+  display: flex; align-items: center; gap: 6px; width: max-content; max-width: 100%; margin: 0 auto; padding: 5px;
+  border-radius: 999px; border: 1px solid var(--border-primary);
+  background: color-mix(in srgb, #0c1834 92%, transparent); box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.7);
+}
+.pd-page .pd-jump-btn {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 0; cursor: pointer;
+  background: transparent; color: var(--text-secondary); font: 600 0.84rem var(--font-body); white-space: nowrap;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.pd-page .pd-jump-btn b { font: 700 0.74rem var(--ui-mono); color: var(--text-muted); }
+.pd-page .pd-jump-btn:hover { color: var(--text-primary); }
+.pd-page .pd-jump-btn.on { color: var(--text-primary); background: var(--bg-card-hover); box-shadow: inset 0 0 0 1px rgba(78, 205, 196, 0.45); }
+.pd-page .pd-jump-btn.on b { color: var(--accent-cyan); }
+.pd-page .pd-jump-btn svg { color: var(--accent-cyan); }
+.pd-page .pd-jump-link { padding: 0 10px 0 4px; font: 500 0.72rem var(--ui-mono); color: var(--text-muted); white-space: nowrap; }
+.pd-page .pd-plan { scroll-margin-top: calc(var(--nav-h, 62px) + 64px); }
+@media (max-width: 640px) {
+  .pd-page .pd-jump { top: calc(var(--nav-h, 56px) + 6px); }
+  .pd-page .pd-jump-link { display: none; }
+  .pd-page .pd-jump-btn { padding: 0 12px; font-size: 0.8rem; }
+}
+@media (prefers-reduced-motion: reduce) { .pd-page .pd-flash { animation: none; outline: 2px solid var(--accent-cyan); } }
 
 /* ============ Capture list ============ */
 .pd-page .pd-capture-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
