@@ -12,6 +12,9 @@ import CreateActionModal from '../components/modals/CreateActionModal';
 import CreateBlockModal from '../components/modals/CreateBlockModal';
 import CreateProjectModal from '../components/modals/CreateProjectModal';
 import CreateCategoryModal from '../components/modals/CreateCategoryModal';
+import { BlockBand, PurposeQuote, dueInfo } from '../components/blocks/BlockFace';
+import PagedList from '../components/today/PagedList';
+import '../components/today/Today.css';
 import { fileToCompressedDataURL } from '../utils/image';
 import { useToast } from '../components/ToastProvider';
 import CoachDrawer from '../components/CoachDrawer';
@@ -1163,9 +1166,15 @@ function CategoryDetailPage() {
                 )}
               </div>
             ) : (
-              <div className="cd-rows">
-                {filteredActions.map(renderActionRow)}
-              </div>
+              <PagedList
+                items={filteredActions}
+                pageSize={8}
+                fitRows=".cd-row"
+                textOf={(a) => `${a.title} ${a.project_name || ''}`}
+                label="actions"
+                searchPlaceholder="Search actions…"
+                renderPage={(pageItems) => <div className="cd-rows">{pageItems.map(renderActionRow)}</div>}
+              />
             )}
           </section>
 
@@ -1200,7 +1209,7 @@ function CategoryDetailPage() {
                 </button>
               </div>
             ) : (
-              blocks.map(block => {
+              blocks.map((block, blockIdx) => {
                 const stats = calculateBlockStats(block);
                 const blockActions = block.actions || [];
                 const completedActions = blockActions.filter(a => a.is_completed && !a.is_cancelled);
@@ -1210,24 +1219,15 @@ function CategoryDetailPage() {
                 const blockPct = liveCount ? Math.round((completedActions.length / liveCount) * 100) : 0;
                 const starredDur = fmtDur(stats.starredDuration.hours, stats.starredDuration.minutes);
                 const totalDur = fmtDur(stats.totalDuration.hours, stats.totalDuration.minutes);
-                const due = localDay(block.target_date);
-                const dueDays = due ? Math.round((due - today) / 86400000) : null;
-                const dueTone = !due || block.is_completed ? '' : dueDays < 0 ? ' ui-chip--bad' : dueDays <= 7 ? ' ui-chip--warn' : '';
-                const dueText = due
-                  ? `${dueDays < 0 && !block.is_completed ? 'Overdue · ' : 'Due '}${due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-                  : '';
-
                 return (
                   <article key={block.id} className={`ui-card cd-block${block.is_completed ? ' is-done' : ''}`}>
-                    <div className="rpm-block-header cd-block-head">
-                      <div className="cd-block-tags">
-                        {block.project_name && <span className="ui-chip"><FolderOpen size={11} /> {block.project_name}</span>}
-                        {due && <span className={`ui-chip cd-mono${dueTone}`}><CalendarDays size={11} /> {dueText}</span>}
-                        {block.is_completed && <span className="ui-chip ui-chip--good"><Check size={11} /> Complete</span>}
-                      </div>
-                      <div className="cd-block-tools">
-                        {starredDur && <span className="cd-dur cd-dur--star" title="Time on starred actions"><Star size={12} fill="currentColor" />{starredDur}</span>}
-                        {totalDur && <span className="cd-dur" title="Total planned time"><Clock size={12} />{totalDur}</span>}
+                    <BlockBand
+                      number={blockIdx + 1}
+                      result={block.result_title}
+                      due={dueInfo(block.target_date, { done: !!block.is_completed || (liveCount > 0 && blockPct >= 100) })}
+                      progress={{ pct: blockPct, done: completedActions.length, total: liveCount }}
+                      tools={(
+                        <>
                         <div className="cd-relative">
                           <button
                             type="button"
@@ -1267,18 +1267,22 @@ function CategoryDetailPage() {
                             </div>
                           )}
                         </div>
-                      </div>
-                    </div>
+                        </>
+                      )}
+                    />
 
-                    <p className="cd-block-kicker">Result</p>
-                    <h4 className="cd-block-title">{block.result_title}</h4>
-                    {block.purpose && (
-                      <p className="cd-block-purpose"><span>Purpose</span>{block.purpose}</p>
-                    )}
-                    {liveCount > 0 && (
-                      <div className="cd-block-progress">
-                        <div className="ui-meter"><i style={{ '--pct': `${blockPct}%` }} /></div>
-                        <span>{completedActions.length}/{liveCount} done</span>
+                    <div className="cd-block-body">
+                    <PurposeQuote>{block.purpose}</PurposeQuote>
+                    {(block.project_name || totalDur || starredDur || !block.target_date) && (
+                      <div className="cd-block-chips">
+                        {block.project_name && <span className="ui-chip"><FolderOpen size={11} /> {block.project_name}</span>}
+                        {totalDur && <span className="cd-dur" title="Total planned time"><Clock size={12} />{totalDur}</span>}
+                        {starredDur && <span className="cd-dur cd-dur--star" title="Time on starred actions"><Star size={12} fill="currentColor" />{starredDur}</span>}
+                        {!block.target_date && !block.is_completed && (
+                          <button type="button" className="cd-chip-add" onClick={() => handleEditBlock(block)} title="Give this block a deadline">
+                            <CalendarDays size={12} /> Set a deadline
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -1349,6 +1353,7 @@ function CategoryDetailPage() {
                         ))}
                       </div>
                     )}
+                    </div>
                   </article>
                 );
               })
