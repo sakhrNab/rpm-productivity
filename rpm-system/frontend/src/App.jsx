@@ -1,18 +1,14 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, createContext, useContext } from 'react';
 import Navbar from './components/Navbar';
-import CategoriesPage from './pages/CategoriesPage';
 import CategoryDetailPage from './pages/CategoryDetailPage';
-import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
-import CalendarPage from './pages/CalendarPage';
 import PeoplePage from './pages/PeoplePage';
-import MyWeekPage from './pages/MyWeekPage';
-import MyDayPage from './pages/MyDayPage';
-import CompassPage from './pages/CompassPage';
 import RemindersPage from './pages/RemindersPage';
-import CoachesPage from './pages/CoachesPage';
-import AssistantPage from './pages/AssistantPage';
+import TodayPage from './pages/TodayPage';
+import WeekPage from './pages/WeekPage';
+import PlanPage from './pages/PlanPage';
+import CoachHubPage from './pages/CoachHubPage';
 import PlanImportPage from './pages/PlanImportPage';
 import VoiceOrb from './components/VoiceOrb';
 import GlobalFileDrop from './components/GlobalFileDrop';
@@ -159,6 +155,9 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     }).then(r => r.json()),
     getAiUsage: (days = 30) => authFetch(`${API_BASE}/ai/usage?days=${days}`).then(r => r.json()),
     getForecast: () => authFetch(`${API_BASE}/forecast`).then(r => r.json()),
+    // Header bell: unread coach messages, reminders due in 24h, carried-over count.
+    getInbox: () => authFetch(`${API_BASE}/inbox?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`).then(r => r.json()),
+    markInboxRead: () => authFetch(`${API_BASE}/inbox/read-all`, { method: 'POST' }).then(r => r.json()),
     getOverdueActions: (today) => authFetch(`${API_BASE}/actions/overdue?today=${today}`).then(r => r.json()),
     triageOverdue: (body) => authFetch(`${API_BASE}/actions/triage`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
     // Coaches
@@ -404,6 +403,16 @@ const createApi = (getToken, refreshTokenFn, logout) => {
 // App Context for data
 export const AppContext = createContext(null);
 
+// Old list routes → the four tabs. Query params from the old URL are kept and win over
+// the defaults (so /projects?view=roadmap lands on /plan?view=roadmap, not ?view=projects).
+function RedirectTo({ to, params = {} }) {
+  const location = useLocation();
+  const merged = new URLSearchParams(params);
+  new URLSearchParams(location.search).forEach((v, k) => merged.set(k, v));
+  const qs = merged.toString();
+  return <Navigate to={`${to}${qs ? `?${qs}` : ''}${location.hash}`} replace />;
+}
+
 // Protected Route Component
 function ProtectedRoute({ children }) {
   const { user, loading } = useContext(AuthContext);
@@ -614,20 +623,27 @@ function AppContent() {
       <Navbar />
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<CategoriesPage />} />
-          <Route path="/categories" element={<CategoriesPage />} />
+          {/* The four tabs */}
+          <Route path="/" element={<Navigate to="/plan" replace />} />
+          <Route path="/today" element={<TodayPage />} />
+          <Route path="/week" element={<WeekPage />} />
+          <Route path="/plan" element={<PlanPage />} />
+          <Route path="/coach" element={<CoachHubPage />} />
+          {/* Detail + secondary pages */}
           <Route path="/categories/:id" element={<CategoryDetailPage />} />
-          <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/my-week" element={<MyWeekPage />} />
-          <Route path="/my-day" element={<MyDayPage />} />
-          <Route path="/compass" element={<CompassPage />} />
           <Route path="/reminders" element={<RemindersPage />} />
-          <Route path="/coaches" element={<CoachesPage />} />
           <Route path="/people" element={<PeoplePage />} />
-          <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/import" element={<PlanImportPage />} />
+          {/* Old routes (bookmarks, emails, push links) */}
+          <Route path="/my-day" element={<RedirectTo to="/today" />} />
+          <Route path="/compass" element={<RedirectTo to="/today" />} />
+          <Route path="/my-week" element={<RedirectTo to="/week" />} />
+          <Route path="/calendar" element={<RedirectTo to="/week" params={{ view: 'month' }} />} />
+          <Route path="/categories" element={<RedirectTo to="/plan" />} />
+          <Route path="/projects" element={<RedirectTo to="/plan" params={{ view: 'projects' }} />} />
+          <Route path="/assistant" element={<RedirectTo to="/coach" />} />
+          <Route path="/coaches" element={<RedirectTo to="/coach" params={{ tab: 'coaches' }} />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>

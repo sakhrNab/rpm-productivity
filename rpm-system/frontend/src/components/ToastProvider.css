@@ -1,6 +1,6 @@
 .toast-viewport {
   position: fixed;
-  bottom: 20px;
+  bottom: calc(20px + var(--tabbar-h, 0px));
   right: 20px;
   z-index: 4000;
   display: flex;
@@ -57,5 +57,5 @@
 .toast-info .toast-icon { color: var(--accent-cyan, #4ecdc4); }
 
 @media (max-width: 640px) {
-  .toast-viewport { left: 16px; right: 16px; bottom: 16px; max-width: none; }
+  .toast-viewport { left: 16px; right: 16px; bottom: calc(16px + var(--tabbar-h, 0px)); max-width: none; }
 }

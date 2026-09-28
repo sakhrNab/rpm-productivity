@@ -1,5 +1,5 @@
 /* Goal trajectory — mission-control board of key-result forecasts. Mobile first. */
-.fc-panel { margin-top: 18px; }
+.fc-panel { scroll-margin-top: 16px; }
 .fc-t-good { --tone: var(--ui-good); --tone-soft: rgba(78, 205, 196, 0.14); }
 .fc-t-warn { --tone: var(--ui-warn); --tone-soft: rgba(255, 183, 77, 0.14); }
 .fc-t-bad  { --tone: var(--ui-bad);  --tone-soft: rgba(255, 107, 129, 0.14); }

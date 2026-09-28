@@ -9,7 +9,9 @@ import { useToast } from '../components/ToastProvider';
 import CreateActionModal from '../components/modals/CreateActionModal';
 import './CalendarPage.css';
 
-function CalendarPage() {
+// `embedded` (inside the Week tab as "Month"): the Week header owns the page's h1.
+function CalendarPage({ embedded = false }) {
+  const MonthTitle = embedded ? 'h2' : 'h1';
   const { categories, refreshData } = useContext(AppContext);
   const { api } = useContext(AuthContext);
   const { showToast } = useToast();
@@ -82,7 +84,7 @@ function CalendarPage() {
         <div className="cal-head">
           <div className="cal-head-main">
             <p className="ui-kicker"><CalendarDays size={14} /> Calendar</p>
-            <h1 className="cal-month-title"><span className="ui-title-grad">{format(currentDate, 'MMMM')}</span> <span className="cal-year">{format(currentDate, 'yyyy')}</span></h1>
+            <MonthTitle className="cal-month-title"><span className="ui-title-grad">{format(currentDate, 'MMMM')}</span> <span className="cal-year">{format(currentDate, 'yyyy')}</span></MonthTitle>
             <div className="cal-chips">
               <span className="ui-chip"><Clock size={12} /> {inMonth.length} scheduled</span>
               {doneInMonth > 0 && <span className="ui-chip ui-chip--good"><CheckCircle2 size={12} /> {doneInMonth} done</span>}

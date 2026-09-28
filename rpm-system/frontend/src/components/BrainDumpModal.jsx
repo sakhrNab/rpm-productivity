@@ -177,7 +177,7 @@ export default function BrainDumpModal({ onClose, onApplied, initialPlan = null,
             <div className="bd-body">
               <p className="bd-tagline" title="Brain Dump captures new thoughts INTO your plan as structured RPM items. It's the opposite of Compass, which reflects your existing plan back as today's focus.">
                 <span className="ui-chip ui-chip--ai bd-tagline-tag"><Sparkles size={12} /> Capture → organize</span>
-                <Link to="/compass" onClick={onClose} className="bd-crosslink">Already planned? Check your Compass <ArrowRight size={12} /></Link>
+                <Link to="/today" onClick={onClose} className="bd-crosslink">Already planned? Check Today <ArrowRight size={12} /></Link>
               </p>
               <div className={`bd-input-wrap ${listening ? 'is-live' : ''}`}>
                 <textarea

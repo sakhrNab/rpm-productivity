@@ -6,6 +6,7 @@ import { ToastProvider } from './components/ToastProvider'
 import './index.css'
 import './styles/ui.css'
 import './styles/planner.css'
+import './components/coachhub/aiShared.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

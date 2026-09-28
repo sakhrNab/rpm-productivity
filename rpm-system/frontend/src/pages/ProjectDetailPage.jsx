@@ -782,7 +782,7 @@ function ProjectDetailPage() {
         <div className="pd-hero-inner">
           <div className="pd-hero-top">
             <nav className="pd-crumbs" aria-label="Breadcrumb">
-              <Link to="/categories">Categories</Link>
+              <Link to="/plan">Plan</Link>
               <ChevronRight size={13} aria-hidden="true" />
               {category && (
                 <>

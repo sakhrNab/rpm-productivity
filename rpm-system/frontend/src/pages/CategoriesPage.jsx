@@ -2,10 +2,11 @@ import { useContext, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
 import CreateCategoryModal from '../components/modals/CreateCategoryModal';
+import { ShellActions } from '../components/PageShell';
 import './CategoriesPage.css';
 import {
   Target, Heart, DollarSign, Users, Activity, Home, Zap, Inbox, Star,
-  MoreVertical, Trash2, Pencil
+  MoreVertical, Trash2, Pencil, Plus
 } from 'lucide-react';
 
 const iconMap = {
@@ -20,11 +21,13 @@ const iconMap = {
   'star': Star,
 };
 
-function CategoriesPage() {
+// `embedded` (inside the Plan tab as "Areas"): the Plan header owns the title.
+function CategoriesPage({ embedded = false }) {
   const { categories, refreshData, api } = useContext(AppContext);
   const navigate = useNavigate();
   const [openMenuId, setOpenMenuId] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
+  const [creating, setCreating] = useState(false);
   const menuRef = useRef(null);
 
   // Drag-to-reorder: keep a local ordered copy; sync from context when not dragging.
@@ -87,9 +90,17 @@ function CategoriesPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">Active Categories</h1>
-      </div>
+      {embedded ? (
+        <ShellActions>
+          <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+            <Plus size={16} /> New Area
+          </button>
+        </ShellActions>
+      ) : (
+        <div className="page-header">
+          <h1 className="page-title">Active Categories</h1>
+        </div>
+      )}
 
       <div className="categories-grid">
         {items.map(category => {
@@ -166,6 +177,13 @@ function CategoriesPage() {
           );
         })}
       </div>
+
+      {creating && (
+        <CreateCategoryModal
+          onClose={() => setCreating(false)}
+          onSuccess={() => { setCreating(false); refreshData(); }}
+        />
+      )}
 
       {editingCategory && (
         <CreateCategoryModal

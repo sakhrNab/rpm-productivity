@@ -9,7 +9,7 @@ import './GlobalFileDrop.css';
 // Pages with their own drop zones (the Assistant chat, the planner) handle their drops
 // first; this only takes drops nobody handled, and never lets the browser navigate away
 // to show the file.
-const OWN_DROP_ZONES = ['/assistant', '/import'];
+const OWN_DROP_ZONES = ['/import', '/coach'];
 const hasFiles = (e) => Array.from(e.dataTransfer?.types || []).includes('Files');
 
 export default function GlobalFileDrop() {
@@ -58,6 +58,7 @@ export default function GlobalFileDrop() {
     };
   }, [navigate, showToast]);
 
+  // Pages with their own drop zone show their own overlay (the planner; the Coach tab's chat).
   if (!dragging || OWN_DROP_ZONES.includes(location.pathname)) return null;
   return (
     <div className="gfd" aria-hidden="true">

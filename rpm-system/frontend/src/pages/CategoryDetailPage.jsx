@@ -544,7 +544,7 @@ function CategoryDetailPage() {
         <div className="ui-empty cd-notfound">
           <FolderOpen size={22} />
           <span>Category not found.</span>
-          <Link className="btn btn-secondary" to="/categories">Back to categories</Link>
+          <Link className="btn btn-secondary" to="/plan">Back to Plan</Link>
         </div>
       </div>
     );
@@ -876,7 +876,7 @@ function CategoryDetailPage() {
         )}
         <div className="cd-hero-top">
           <nav className="cd-crumbs" aria-label="Breadcrumb">
-            <Link to="/categories">Categories</Link>
+            <Link to="/plan">Plan</Link>
             <ChevronRight size={13} aria-hidden="true" />
             <span className="cd-crumb-cat"><i className="cd-dot" />{category.name}</span>
           </nav>

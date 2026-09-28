@@ -1,0 +1,106 @@
+/* =====================================================================
+   Shared AI output styles — used app-wide (Markdown.jsx renders .asst-md;
+   Jarvis, Today's AI suggestions, the voice orb and coach cards reuse the
+   tool chips, approve/dismiss proposal cards and source pills).
+   Imported by pages/TodayPage and pages/CoachHubPage (both routed eagerly
+   from App.jsx), so these rules are global.
+   ===================================================================== */
+
+/* rendered markdown */
+.asst-md { color: var(--text-primary); line-height: 1.7; }
+.asst-md > *:first-child { margin-top: 0; }
+.asst-md > *:last-child { margin-bottom: 0; }
+.asst-md h1, .asst-md h2, .asst-md h3, .asst-md h4 {
+  color: #fff; font-family: 'Outfit', var(--font-display); font-weight: 700; line-height: 1.3; margin: 18px 0 8px;
+  text-transform: none; letter-spacing: -0.005em;
+}
+.asst-md h1 { font-size: 1.45rem; } .asst-md h2 { font-size: 1.25rem; } .asst-md h3 { font-size: 1.08rem; } .asst-md h4 { font-size: 1rem; }
+.asst-md p { margin: 0 0 12px; }
+.asst-md ul, .asst-md ol { margin: 0 0 12px; padding-left: 22px; }
+.asst-md li { margin: 3px 0; }
+.asst-md li::marker { color: var(--accent-cyan); }
+.asst-md a { color: var(--accent-cyan); text-decoration: underline; text-underline-offset: 2px; }
+.asst-md strong { color: #fff; font-weight: 700; }
+.asst-md blockquote { margin: 0 0 12px; padding: 8px 14px; border-left: 3px solid var(--ui-ai); background: rgba(255, 105, 180, 0.05); color: var(--text-secondary); border-radius: 0 10px 10px 0; }
+.asst-md code { background: rgba(255, 255, 255, 0.08); padding: 1px 6px; border-radius: 5px; font-size: 0.88em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.asst-md pre { background: rgba(3, 9, 20, 0.6); border: 1px solid var(--border-primary); border-radius: 12px; padding: 12px 14px; overflow-x: auto; margin: 0 0 12px; }
+.asst-md pre code { background: none; padding: 0; }
+.asst-md hr { border: none; border-top: 1px solid var(--border-primary); margin: 16px 0; }
+.asst-md-tablewrap { overflow-x: auto; margin: 0 0 12px; border-radius: 12px; border: 1px solid var(--border-primary); }
+.asst-md table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+.asst-md th, .asst-md td { border-bottom: 1px solid var(--ui-hair); padding: 8px 12px; text-align: left; vertical-align: top; }
+.asst-md thead th { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); font: 600 0.7rem var(--ui-mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.asst-md tbody tr:last-child td { border-bottom: 0; }
+.asst-md tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.02); }
+
+/* tool-activity chips (agent actions) */
+.asst-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.asst-tool {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 28px; padding: 3px 11px; border-radius: 999px;
+  font: 500 0.76rem var(--font-body); color: var(--ui-good); background: rgba(78, 205, 196, 0.08); border: 1px solid rgba(78, 205, 196, 0.28);
+  overflow-wrap: anywhere;
+}
+.asst-tool > svg { flex: 0 0 auto; }
+.asst-tool.running { color: var(--text-secondary); background: rgba(255, 255, 255, 0.04); border-color: var(--border-primary); }
+.asst-tool.running > svg { animation: asst-spin 1s linear infinite; }
+.asst-tool.err { color: #ff8a9b; background: rgba(255, 107, 129, 0.1); border-color: rgba(255, 107, 129, 0.35); }
+.asst-tool-open { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; color: var(--accent-cyan); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.asst-tool-open:hover { text-decoration: underline; }
+
+/* proposal (approve/dismiss) cards — Jarvis, Today suggestions */
+.asst-proposals {
+  margin-bottom: 12px; overflow: hidden; border-radius: 16px; border: 1px solid rgba(255, 105, 180, 0.3);
+  background: radial-gradient(500px 160px at 0% 0%, rgba(255, 105, 180, 0.08), transparent 70%), color-mix(in srgb, var(--bg-card) 55%, transparent);
+}
+.asst-proposals-head {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--ui-hair);
+  font: 600 0.68rem var(--ui-mono); letter-spacing: 0.1em; text-transform: uppercase; color: #ff9bd0;
+}
+.asst-proposals-head > svg { flex: 0 0 auto; }
+.asst-proposals-count { margin-left: auto; padding: 2px 8px; border-radius: 999px; color: var(--ui-ink); background: var(--ui-ai); letter-spacing: 0.04em; white-space: nowrap; }
+.asst-proposal {
+  position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px;
+  padding: 12px 14px 12px 17px; transition: background-color 0.15s ease, opacity 0.2s ease;
+}
+.asst-proposal + .asst-proposal { border-top: 1px solid var(--ui-hair); }
+.asst-proposal::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 2px 2px 0; background: var(--ui-ai); }
+.asst-proposal:hover { background: rgba(255, 255, 255, 0.025); }
+.asst-proposal.applied::before { background: var(--ui-good); }
+.asst-proposal.dismissed { opacity: 0.55; }
+.asst-proposal.dismissed::before { background: rgba(255, 255, 255, 0.2); }
+.asst-proposal.dismissed .asst-proposal-label { text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, 0.3); }
+.asst-proposal-label { flex: 1 1 220px; min-width: 0; font-size: 0.9rem; line-height: 1.45; color: var(--text-primary); overflow-wrap: anywhere; }
+.asst-proposal-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.asst-prop-approve, .asst-prop-dismiss {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 6px 14px; border-radius: 10px;
+  font: 600 0.8rem var(--font-body); cursor: pointer; transition: box-shadow 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.asst-prop-approve { color: var(--ui-ink); background: var(--ui-grad); border: 1px solid transparent; }
+.asst-prop-approve:hover { box-shadow: 0 6px 18px rgba(78, 205, 196, 0.35); }
+.asst-prop-dismiss { color: var(--text-secondary); background: transparent; border: 1px solid var(--border-primary); }
+.asst-prop-dismiss:hover { color: #ff8a9b; border-color: rgba(255, 107, 129, 0.45); }
+.asst-proposal-state { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; font: 600 0.78rem var(--font-body); color: var(--text-muted); }
+.asst-proposal-state.done { color: var(--ui-good); }
+.asst-proposal-state.muted { font-weight: 500; }
+
+/* sources */
+.asst-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+.asst-sources-label { display: inline-flex; align-items: center; gap: 5px; font: 600 0.66rem var(--ui-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+.asst-source {
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 10px; border-radius: 999px;
+  font-size: 0.78rem; color: var(--accent-cyan); text-decoration: none; background: rgba(78, 205, 196, 0.08); border: 1px solid rgba(78, 205, 196, 0.25);
+}
+.asst-source:hover { background: rgba(78, 205, 196, 0.16); }
+.asst-usage { margin-top: 10px; }
+
+
+.asst-spin { animation: asst-spin 1s linear infinite; }
+@keyframes asst-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  .asst-proposal-actions { width: 100%; }
+  .asst-prop-approve, .asst-prop-dismiss { flex: 1 1 0; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asst-spin, .asst-tool.running > svg { animation: none; }
+}

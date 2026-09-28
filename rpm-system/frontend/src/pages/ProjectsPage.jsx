@@ -5,9 +5,11 @@ import { Plus, MoreVertical, Trash2, LayoutGrid, GanttChart } from 'lucide-react
 import Roadmap from '../components/plan/Roadmap';
 import ErrorBoundary from '../components/ErrorBoundary';
 import CreateProjectModal from '../components/modals/CreateProjectModal';
+import { ShellActions } from '../components/PageShell';
 import './ProjectsPage.css';
 
-function ProjectsPage() {
+// `embedded` (inside the Plan tab): the Plan header owns the title and the view switch.
+function ProjectsPage({ embedded = false }) {
   const { projects, categories, refreshData, api } = useContext(AppContext);
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -79,6 +81,14 @@ function ProjectsPage() {
 
   return (
     <div>
+      {embedded ? (
+        <ShellActions>
+          <button type="button" className="btn btn-primary" onClick={() => setShowProjectModal(true)}>
+            <Plus size={16} />
+            Create New Project
+          </button>
+        </ShellActions>
+      ) : (
       <div className="page-header">
         <h1 className="page-title">Active Projects</h1>
         <div className="ptv-seg pp-view" role="tablist" aria-label="View">
@@ -94,6 +104,7 @@ function ProjectsPage() {
           Create New Project
         </button>
       </div>
+      )}
 
       {view === 'roadmap' ? (
         <ErrorBoundary message="The roadmap hit an error."><Roadmap /></ErrorBoundary>

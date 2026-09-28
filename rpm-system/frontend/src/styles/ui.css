@@ -165,5 +165,10 @@
 
 /* ---------- room for the voice orb ---------- */
 /* The orb is fixed bottom-right on every page; let the last rows of any page scroll clear
-   of it. (The Assistant is a fixed-height chat and handles the orb itself.) */
-body:has(.vorb-root) .main-content:not(:has(.asst)) { padding-bottom: calc(var(--spacing-lg) + 88px); }
+   of it. (The Assistant is a fixed-height chat and handles the orb itself.) On phones the
+   orb sits on top of the bottom tab bar, so the room includes the bar (--tabbar-h, set in
+   Navbar.css; 0 on wider screens). */
+body:has(.vorb-root) .main-content:not(:has(.asst)) { padding-bottom: calc(var(--spacing-lg) + 88px + var(--tabbar-h, 0px)); }
+@media (max-width: 640px) {
+  body:has(.vorb-root) .main-content:not(:has(.asst)) { padding-bottom: calc(var(--spacing-md) + 76px + var(--tabbar-h, 0px)); }
+}

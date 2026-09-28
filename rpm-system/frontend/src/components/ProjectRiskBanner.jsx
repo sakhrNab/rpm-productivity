@@ -74,13 +74,13 @@ export default function ProjectRiskBanner({
     body: <><b>{overdue.length}</b> overdue task{s(overdue.length)}</>,
   });
   goals.slice(0, 2).forEach((k, i) => items.push({
-    key: `goal-${k.id}`, rank: 2 + i * 0.01, tone: 'bad', Icon: Flame, to: '/compass',
+    key: `goal-${k.id}`, rank: 2 + i * 0.01, tone: 'bad', Icon: Flame, to: '/today',
     title: `${k.title}${k.delta_days ? ` — about ${Math.abs(Math.round(k.delta_days))} days ${k.delta_days > 0 ? 'late' : 'early'} at the current pace` : ''}`,
     text: `Key result “${k.title}” ${SLIPPING[k.status]}${k.delta_days ? ` (about ${Math.abs(Math.round(k.delta_days))} days ${k.delta_days > 0 ? 'late' : 'early'} at the current pace)` : ''}`,
     body: <>“{k.title}” {SLIPPING[k.status]}</>,
   }));
   if (goals.length > 2) items.push({
-    key: 'goals-more', rank: 2.5, tone: 'bad', Icon: Flame, to: '/compass',
+    key: 'goals-more', rank: 2.5, tone: 'bad', Icon: Flame, to: '/today',
     title: goals.slice(2).map(k => k.title).join('\n'), body: <>+{goals.length - 2} more goals slipping</>,
     text: `${goals.length - 2} more key results slipping: ${goals.slice(2).map(k => `“${k.title}”`).join(', ')}`,
   });

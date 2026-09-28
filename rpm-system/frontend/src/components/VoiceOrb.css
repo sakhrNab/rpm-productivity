@@ -1,7 +1,8 @@
 .vorb-root {
   position: fixed;
   right: 22px;
-  bottom: 22px;
+  /* --tabbar-h: the phone bottom tab bar's height (0 on wider screens; see Navbar.css) */
+  bottom: calc(22px + var(--tabbar-h, 0px));
   z-index: 950;
   /* The wrapper is as wide as its widest child (the hands-free chip); its empty area must
      not swallow clicks meant for what's underneath (e.g. the Assistant's Send on phones). */
@@ -174,7 +175,7 @@
   .vorb-panel, .vorb-scrim { animation: none; }
 }
 @media (max-width: 640px) {
-  .vorb-root { right: 14px; bottom: 16px; }
+  .vorb-root { right: 14px; bottom: calc(14px + var(--tabbar-h, 0px)); }
   .vorb { width: 56px; height: 56px; }
   .vorb-panel { width: calc(100vw - 20px); max-height: 82vh; border-radius: 18px; padding: 14px; }
 }

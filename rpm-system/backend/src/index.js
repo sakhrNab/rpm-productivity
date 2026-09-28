@@ -19,6 +19,7 @@ const planImports = require('./ai/imports');
 const { projectTimeline, rescheduleActions } = require('./timeline');
 const capacity = require('./capacity');
 const { getRoadmap } = require('./roadmap');
+const inbox = require('./inbox');
 const { rateLimit } = require('./ratelimit');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
@@ -1547,6 +1548,18 @@ app.post('/api/ai/braindump/apply', authenticateToken, async (req, res) => {
 app.get('/api/forecast', authenticateToken, async (req, res) => {
   try { res.json(await computeForecasts(pool, req.userId)); }
   catch (error) { console.error('[forecast] error:', error.message); res.status(500).json({ error: 'Failed' }); }
+});
+
+// Inbox (header bell): unread coach messages, reminders due soon, carried-over count.
+app.get('/api/inbox', authenticateToken, async (req, res) => {
+  try {
+    const today = todayInTz(await resolveTimezone(pool, req.userId, req.query.tz));
+    res.json(await inbox.getInbox(pool, req.userId, today));
+  } catch (error) { console.error('[inbox]', error.message); res.status(500).json({ error: 'Failed to load inbox' }); }
+});
+app.post('/api/inbox/read-all', authenticateToken, async (req, res) => {
+  try { await inbox.markAllRead(pool, req.userId); res.json({ ok: true }); }
+  catch { res.status(500).json({ error: 'Failed' }); }
 });
 
 // Roadmap — every active project on one timeline with progress, risk and milestones.

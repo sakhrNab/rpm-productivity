@@ -218,94 +218,6 @@ input::placeholder, textarea::placeholder {
   width: 100%;
 }
 
-/* Navbar */
-.navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-primary);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.navbar-brand {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--accent-pink);
-}
-
-.navbar-nav {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-}
-
-.nav-link {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-sm) var(--spacing-md);
-  color: var(--text-secondary);
-  border-radius: var(--radius-sm);
-  font-size: 0.9rem;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: all var(--transition-fast);
-}
-.nav-link svg { flex-shrink: 0; }
-
-.nav-link:hover, .nav-link.active {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.nav-link.active {
-  color: var(--accent-cyan);
-}
-
-.navbar-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  flex-shrink: 0;
-}
-.navbar-actions .btn { flex-shrink: 0; }
-
-/* Brain Dump launcher — the "magic" button */
-.btn-braindump {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 15px;
-  border-radius: 999px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  line-height: 1;
-  white-space: nowrap;
-  flex-shrink: 0;
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  background: linear-gradient(120deg, #7c6bf5, #4ecdc4 55%, #ffd166);
-  background-size: 180% 100%;
-  box-shadow: 0 2px 12px rgba(124,107,245,0.35);
-  transition: background-position var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
-}
-.btn-braindump svg { flex-shrink: 0; }
-.btn-braindump:hover { background-position: 100% 0; transform: translateY(-1px); box-shadow: 0 4px 18px rgba(124,107,245,0.45); }
-.btn-braindump:active { transform: translateY(0); }
-.btn-braindump svg { filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2)); }
-@media (max-width: 640px) {
-  .btn-braindump-label { display: none; }
-  .btn-braindump { padding: 8px; }
-}
 
 /* Cards */
 .card {
@@ -704,12 +616,6 @@ input::placeholder, textarea::placeholder {
   .ar-cat, .ar-proj { max-width: 44vw; }
   .md-actions-list, .md-suggest { max-width: 100%; }
 
-  /* Header — keep everything on one line, nothing clipped off the right edge */
-  .navbar { gap: var(--spacing-sm); padding: var(--spacing-sm) var(--spacing-md); }
-  .navbar-actions { gap: 6px; }
-  .create-menu .btn-primary { padding: 8px 10px; font-size: 0.82rem; }
-  .btn-braindump { padding: 8px; }
-
   /* Modals — never scroll sideways; let chip/selector rows wrap */
   .modal { overflow-x: hidden; }
   .page-header { flex-wrap: wrap; gap: var(--spacing-sm); }
@@ -725,12 +631,6 @@ input::placeholder, textarea::placeholder {
   .pd-action-row { gap: 8px; padding: 10px 10px; }
 }
 
-/* Very small phones: drop the brand wordmark so the avatar never clips */
-@media (max-width: 420px) {
-  .navbar-brand span { display: none; }
-  .navbar-actions { gap: 5px; }
-  .create-menu .btn-primary { padding: 8px; }
-}
 
 /* RPM Blocks */
 .rpm-blocks-container {
@@ -1183,39 +1083,6 @@ input::placeholder, textarea::placeholder {
   background: var(--bg-card-hover);
 }
 
-/* Create Menu */
-.create-menu {
-  position: relative;
-}
-
-.create-menu-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: var(--spacing-sm);
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  min-width: 180px;
-  padding: var(--spacing-sm);
-  z-index: 100;
-}
-
-.create-menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-  font-size: 0.95rem;
-}
-
-.create-menu-item:hover {
-  background: var(--bg-card-hover);
-}
 
 /* Checkbox List */
 .checkbox-list {
@@ -1419,8 +1286,6 @@ input::placeholder, textarea::placeholder {
 
 /* Responsive */
 @media (max-width: 768px) {
-  /* .navbar-nav here is handled by the slide-in drawer rules below (≤860px);
-     the old inline horizontal-scroll layout was removed so it can't conflict. */
   .main-content {
     padding: var(--spacing-md);
   }
@@ -1724,114 +1589,6 @@ input::placeholder, textarea::placeholder {
   text-decoration: underline;
 }
 
-/* =====================================================
-   USER MENU
-   ===================================================== */
-
-.user-menu {
-  position: relative;
-}
-
-.user-avatar-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 2px solid var(--border-primary);
-  background: var(--bg-card);
-  cursor: pointer;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: border-color var(--transition-fast);
-}
-
-.user-avatar-btn:hover {
-  border-color: var(--accent-pink);
-}
-
-.user-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.user-avatar-initials {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  background: linear-gradient(135deg, var(--accent-pink), var(--accent-cyan));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.user-menu-dropdown {
-  position: absolute;
-  top: calc(100% + var(--spacing-sm));
-  right: 0;
-  width: 240px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  z-index: 1000;
-  overflow: hidden;
-  animation: fadeIn var(--transition-fast);
-}
-
-.user-menu-header {
-  padding: var(--spacing-md);
-  background: var(--bg-secondary);
-}
-
-.user-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.user-name {
-  font-weight: 600;
-  color: var(--text-primary);
-  font-size: 0.95rem;
-}
-
-.user-email {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-menu-divider {
-  height: 1px;
-  background: var(--border-primary);
-}
-
-.user-menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.user-menu-item:hover {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
-}
-
-.user-menu-item svg {
-  color: var(--text-muted);
-}
-
-.user-menu-item:hover svg {
-  color: var(--accent-pink);
-}
 
 /* =====================================================
    RESPONSIVE ADJUSTMENTS FOR AUTH
@@ -1889,68 +1646,11 @@ h2 { font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2rem); }
   -webkit-text-fill-color: transparent;
 }
 
-/* Glass navbar — blur lives on a ::before layer so the navbar itself is NOT a
-   containing block for the fixed mobile drawer (backdrop-filter would make it one). */
-.navbar {
-  min-height: var(--nav-h);
-  background: transparent;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-.navbar::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: var(--glass);
-  -webkit-backdrop-filter: saturate(150%) blur(14px);
-  backdrop-filter: saturate(150%) blur(14px);
-}
-
-.navbar-brand span {
-  background: var(--gradient-accent);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.nav-link {
-  position: relative;
-}
-
-.nav-link.active {
-  background: rgba(78, 205, 196, 0.12);
-}
-
-.nav-link.active::after {
-  content: '';
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 2px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--gradient-cool);
-}
-
-/* Hamburger + mobile drawer (hidden on desktop) */
-.navbar-toggle {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  transition: all var(--transition-fast);
-}
-.navbar-toggle:hover { background: rgba(255, 255, 255, 0.06); color: var(--text-primary); }
-.navbar-backdrop { display: none; }
 
 /* Buttons: crisper interactions + keyboard focus */
 .btn { position: relative; }
 .btn-primary:active { transform: translateY(0); }
 .btn:focus-visible,
-.nav-link:focus-visible,
 .dropdown-item:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
@@ -2038,9 +1738,7 @@ select:focus-visible {
 }
 
 /* Dropdowns & modals: soft entrance */
-.dropdown-menu,
-.create-menu-dropdown,
-.user-menu-dropdown {
+.dropdown-menu {
   animation: rpm-pop 140ms ease;
 }
 .modal {
@@ -2067,54 +1765,6 @@ select:focus-visible {
 }
 .project-sections > * { min-width: 0; }
 
-/* ---------- Tablet & mobile: slide-in nav drawer ---------- */
-/* Tightening band: full inline nav is shown but compacted so the 9 items + the
-   action buttons fit without wrapping or clipping on mid-size laptops. */
-@media (min-width: 1181px) and (max-width: 1460px) {
-  .navbar { padding: var(--spacing-md) var(--spacing-md); }
-  .navbar-nav { gap: 2px; }
-  .nav-link { padding: 6px 9px; font-size: 0.82rem; gap: 5px; }
-  .nav-link.active::after { left: 9px; right: 9px; }
-  .btn-braindump { padding: 8px 12px; font-size: 0.84rem; }
-  .create-menu > .btn-primary { padding: 8px 12px; font-size: 0.85rem; }
-}
-
-/* Below 1180px there are too many inline items — collapse to the drawer. */
-@media (max-width: 1180px) {
-  .navbar { flex-wrap: nowrap; gap: var(--spacing-sm); }
-  .navbar-toggle { display: inline-flex; }
-  .navbar-brand { margin-right: auto; }
-
-  .navbar-nav {
-    position: fixed;
-    top: var(--nav-h);
-    left: 0;
-    bottom: 0;
-    width: min(80vw, 300px);
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
-    padding: var(--spacing-md);
-    background: var(--bg-secondary);
-    border-right: 1px solid var(--border-primary);
-    overflow-y: auto;
-    transform: translateX(-100%);
-    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
-    z-index: 200;
-  }
-  .navbar-nav.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
-  .navbar-nav .nav-link { width: 100%; font-size: 1rem; padding: var(--spacing-md); }
-
-  .navbar-backdrop {
-    display: block;
-    position: fixed;
-    inset: var(--nav-h) 0 0 0;
-    background: rgba(0, 0, 0, 0.55);
-    z-index: 150;
-    animation: rpm-fade 180ms ease;
-  }
-}
-@keyframes rpm-fade { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- Phone tuning ---------- */
 @media (max-width: 640px) {
@@ -2123,9 +1773,6 @@ select:focus-visible {
 
   .categories-grid { grid-template-columns: 1fr; }
   .projects-grid { grid-template-columns: 1fr; }
-
-  /* Create button collapses to an icon-ish pill */
-  .create-menu .btn-primary { padding: var(--spacing-sm) var(--spacing-md); }
 
   /* Project/Category header: the Edit / Change-Cover buttons are absolutely
      positioned on desktop and overlap the title on a phone. Drop them into
@@ -2517,20 +2164,8 @@ body {
   box-shadow: 0 26px 56px -18px rgba(0, 0, 0, 0.8);
 }
 
-/* Calendar surface + navbar get the glossy language too */
+/* Calendar surface gets the glossy language too */
 .cal-day-header { background: rgba(255, 255, 255, 0.03); }
-.navbar {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 70%),
-    rgba(10, 22, 40, 0.82);
-}
-/* NOTE: blur intentionally lives on .navbar::before, NOT here. A backdrop-filter
-   on .navbar itself makes it a containing block for the fixed mobile drawer,
-   which collapses the drawer to the navbar's height (menu appears empty). */
-.navbar::before {
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-}
 
 /* ============================================================
    GLOBAL POLISH v3 — decisive glassmorphism (bold, app-wide)
@@ -2596,27 +2231,4 @@ body {
 h1, .page-title, .project-title, .category-title, .dashboard-title, .cd-title, .pd-title {
   font-size: clamp(2.3rem, 1.5rem + 2.8vw, 3.35rem);
   text-shadow: 0 2px 34px rgba(255, 105, 180, 0.16);
-}
-
-/* Logo is the home button — keep it a real tap target on phones (the wordmark
-   is hidden under 420px, leaving only the mark). */
-.navbar-brand { min-height: 44px; display: inline-flex; align-items: center; padding-right: 4px; }
-
-/* Header fit on desktop widths. Ten labelled links need ~1900px; below that the
-   right edge (Create ▾, profile) used to be clipped off-screen. Tighten first, then
-   go icon-only (active link keeps its label, tooltips carry the rest), and never
-   let the links push the actions out: the link row shrinks and scrolls instead. */
-@media (min-width: 861px) {
-  .navbar { gap: var(--spacing-sm); }
-  .navbar-nav { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-  .navbar-nav::-webkit-scrollbar { display: none; }
-}
-@media (min-width: 861px) and (max-width: 1799px) {
-  .navbar-nav { gap: 2px; }
-  .nav-link { padding: 8px 8px; font-size: 0.86rem; }
-}
-/* Labelled links need ~1420px (measured); below that, icons + the current page's label. */
-@media (min-width: 861px) and (max-width: 1439px) {
-  .nav-link:not(.active) span { display: none; }
-  .nav-link:not(.active) { padding: 8px 10px; }
 }

@@ -681,7 +681,7 @@ export default function PlanImportPage() {
             <Link to={`${result.link}?view=timeline`} className="btn btn-primary"><GanttChart size={16} /> Open the timeline</Link>
             <Link to={result.link} className="btn btn-secondary"><FolderKanban size={16} /> Open the project</Link>
             {result.created_category && <Link to={`/categories/${result.category_id}`} className="btn btn-secondary"><Compass size={16} /> See the new area</Link>}
-            <Link to="/calendar" className="btn btn-secondary"><CalendarRange size={16} /> See it on the calendar</Link>
+            <Link to="/week?view=month" className="btn btn-secondary"><CalendarRange size={16} /> See it on the calendar</Link>
             <button type="button" className="btn btn-secondary" onClick={reset}><FileUp size={16} /> Plan another file</button>
           </div>
         </section>

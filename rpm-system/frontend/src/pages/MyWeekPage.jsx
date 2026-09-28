@@ -9,10 +9,12 @@ import Markdown from '../components/Markdown';
 import UsageBadge from '../components/UsageBadge';
 import { useToast } from '../components/ToastProvider';
 import CapacityStrip from '../components/CapacityStrip';
+import { ShellActions } from '../components/PageShell';
 import { sortActions, groupActions } from '../utils/actionSort';
 import './MyWeekPage.css';
 
-function MyWeekPage() {
+// `embedded` (inside the Week tab): the Week header owns the title; buttons move up there.
+function MyWeekPage({ embedded = false }) {
   const { categories, refreshData } = useContext(AppContext);
   const { api } = useContext(AuthContext);
   const { showToast } = useToast();
@@ -127,20 +129,27 @@ function MyWeekPage() {
   if (loading) return <div className="loading"><div className="spinner"></div></div>;
 
   const groups = groupActions(actions);
+  const headerButtons = (
+    <>
+      <button type="button" className="btn btn-secondary" onClick={runSuggest} disabled={suggest?.loading}>
+        <Sparkles size={16} /> {suggest?.loading ? 'Thinking…' : 'AI suggestions'}
+      </button>
+      <button type="button" className="btn btn-primary" onClick={() => setShowActionModal(true)}>
+        <Plus size={16} /> Add Action
+      </button>
+    </>
+  );
 
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">My Week</h1>
-        <div className="md-header-actions">
-          <button type="button" className="btn btn-secondary" onClick={runSuggest} disabled={suggest?.loading}>
-            <Sparkles size={16} /> {suggest?.loading ? 'Thinking…' : 'AI suggestions'}
-          </button>
-          <button type="button" className="btn btn-primary" onClick={() => setShowActionModal(true)}>
-            <Plus size={16} /> Add Action
-          </button>
+      {embedded ? (
+        <ShellActions>{headerButtons}</ShellActions>
+      ) : (
+        <div className="page-header">
+          <h1 className="page-title">My Week</h1>
+          <div className="md-header-actions">{headerButtons}</div>
         </div>
-      </div>
+      )}
 
       {suggest && (
         <div className="md-suggest">
