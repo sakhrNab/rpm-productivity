@@ -38,6 +38,9 @@ function TodayPage() {
   const [triagePlan, setTriagePlan] = useState(null);
   const [forecast, setForecast] = useState(undefined);   // shared up from ForecastPanel (no extra request)
   const suggestRef = useRef(null);
+  const listRef = useRef(null);
+  // Side by side, Carried over takes the natural height of Today's list (never stretches it).
+  const [paneH, setPaneH] = useState(null);
   const forecastRef = useRef(null);
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -198,6 +201,14 @@ function TodayPage() {
     if (suggestLoading) requestAnimationFrame(() => suggestRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
   }, [suggestLoading]);
 
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => setPaneH(Math.round(el.getBoundingClientRect().height)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading]);
+
   const jumpToForecast = () => forecastRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>;
@@ -207,7 +218,7 @@ function TodayPage() {
   const hasAside = !!suggest || overdue.length > 0;
 
   return (
-    <div className={`td-page ${hasAside ? 'has-aside' : ''}`}>
+    <div className={`td-page ${hasAside ? 'has-aside' : ''}`} style={paneH ? { '--pane-h': `${Math.max(420, paneH)}px` } : undefined}>
       <TodayHero
         user={user}
         actions={actions}
@@ -223,7 +234,7 @@ function TodayPage() {
         <CapacityStrip start={today} today={today} refreshKey={actions} onChanged={() => { loadActions(); loadOverdue(); }} />
       </div>
 
-      <section className="ui-card td-list" aria-label="Today's actions">
+      <section ref={listRef} className="ui-card td-list" aria-label="Today's actions">
         <div className="td-list-head">
           <p className="ui-kicker"><ListChecks size={14} /> Today’s actions <span className="ui-count">{actions.length ? `${doneCount}/${actions.length}` : ''}</span></p>
           {actions.length > 0 && <div className="ui-meter td-list-meter" aria-hidden="true"><i style={{ '--pct': `${pct}%` }} /></div>}

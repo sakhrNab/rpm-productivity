@@ -22,10 +22,15 @@
   .td-page.has-aside {
     grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
     grid-template-areas: "hero hero" "cap cap" "list aside" "fc fc";
-    align-items: stretch;           /* today's list and carried over share one height */
+    align-items: start;
   }
-  /* The carried-over card fills its column so both cards end on the same line. */
-  .td-page.has-aside .td-aside > .md-carried { flex: 1 1 auto; }
+  /* Carried over matches the natural height of today's list (--pane-h, measured), so both
+     cards end on the same line without stretching either; its pages scroll inside. */
+  .td-page.has-aside .td-aside > .md-carried { height: var(--pane-h, auto); overflow: hidden; }
+  .td-page.has-aside .md-carried-note { display: none; }            /* room for rows; the text is the heading's tooltip */
+  .td-page.has-aside .md-carried > * { flex-shrink: 0; }            /* header, note, search keep their size… */
+  .td-page.has-aside .md-carried .pl, .td-page.has-aside .md-carried .pl-track { flex: 1 1 auto; min-height: 0; }   /* …the list takes the rest */
+  .td-page.has-aside .md-carried .pl-page { overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.15) transparent; }
 }
 
 /* ---------- hero ---------- */
@@ -234,7 +239,7 @@
 .md-carried-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .md-carried-row {
   display: grid; align-items: center; column-gap: 10px; row-gap: 2px; padding: 8px 0;
-  grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "check name btns" "check age btns";
+  grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "check name name" "check age btns";
   border-top: 1px solid var(--ui-hair);
 }
 .md-carried-check {

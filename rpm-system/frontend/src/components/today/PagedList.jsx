@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { paginate, searchItems } from '../../utils/paging';
 
@@ -6,8 +6,12 @@ import { paginate, searchItems } from '../../utils/paging';
 // (touch) or step through with ‹ › / the dots (and ←/→ when focused). Once there's more
 // than one page it offers a search box. The caller orders the items — most important
 // first — and renders each page. The pager sits at the bottom so side-by-side cards align.
-export default function PagedList({ items, pageSize = 6, textOf, renderPage, label = 'items', searchPlaceholder = 'Search…' }) {
+// fitRows: a row selector — when the list sits in a fixed-height card (fitMedia matches),
+// the page size becomes however many rows fit, so a page never scrolls inside itself.
+export default function PagedList({ items, pageSize: basePageSize = 6, textOf, renderPage, label = 'items', searchPlaceholder = 'Search…', fitRows, fitMedia = '(min-width: 1100px)' }) {
   const [query, setQuery] = useState('');
+  const [fitSize, setFitSize] = useState(null);
+  const pageSize = fitSize || basePageSize;
   const [page, setPage] = useState(0);
   const trackRef = useRef(null);
   const searching = !!query.trim();
@@ -19,6 +23,25 @@ export default function PagedList({ items, pageSize = 6, textOf, renderPage, lab
   // Keep the current page valid as the list changes (done, dropped, filtered).
   useEffect(() => { if (page > last) go(last, false); }, [last]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { go(0, false); }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useLayoutEffect(() => {
+    const track = trackRef.current;
+    if (!fitRows || !track || typeof ResizeObserver === 'undefined') return undefined;
+    const mq = window.matchMedia(fitMedia);
+    const measure = () => {
+      if (!mq.matches) { setFitSize(null); return; }
+      const rows = [...(track.querySelector('.pl-page') || track).querySelectorAll(fitRows)];
+      if (!rows.length) return;
+      const avg = rows.reduce((h, r) => h + r.getBoundingClientRect().height, 0) / rows.length;
+      const fit = Math.max(2, Math.floor(track.clientHeight / Math.max(avg, 1)));
+      setFitSize(prev => (prev === fit ? prev : fit));
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(track);
+    mq.addEventListener?.('change', measure);
+    measure();
+    return () => { ro.disconnect(); mq.removeEventListener?.('change', measure); };
+  }, [fitRows, fitMedia, items.length]);
 
   const go = (i, smooth = true) => {
     const el = trackRef.current;

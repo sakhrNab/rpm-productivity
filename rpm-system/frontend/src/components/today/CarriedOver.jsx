@@ -14,7 +14,7 @@ export default function CarriedOver({ overdue, triaging, onTriage, onMoveAll, on
   return (
     <section className="ui-card md-carried" aria-label="Carried over">
       <div className="md-carried-head">
-        <p className="ui-kicker"><AlertTriangle size={14} /> Carried over <span className="ui-count">{overdue.length}</span></p>
+        <p className="ui-kicker" title="These slipped past their planned date. Nothing moves on its own — decide each one."><AlertTriangle size={14} /> Carried over <span className="ui-count">{overdue.length}</span></p>
         <span className="md-carried-actions">
           <button type="button" className="md-carried-btn ai" onClick={onTriage} disabled={triaging}>
             {triaging ? <><Loader2 size={14} className="md-spin" /> Triaging…</> : <><Wand2 size={14} /> Triage with AI</>}
@@ -23,7 +23,7 @@ export default function CarriedOver({ overdue, triaging, onTriage, onMoveAll, on
         </span>
       </div>
       <p className="md-carried-note">These slipped past their planned date. Nothing moves on its own — decide each one.</p>
-      <PagedList items={ranked} pageSize={pageSize} textOf={textOf} label="carried-over tasks" searchPlaceholder="Search carried over…" renderPage={(pageItems) => (
+      <PagedList items={ranked} pageSize={pageSize} fitRows=".md-carried-row" textOf={textOf} label="carried-over tasks" searchPlaceholder="Search carried over…" renderPage={(pageItems) => (
       <ul className="md-carried-list">
         {pageItems.map(a => (
           <li key={a.id} className={`md-carried-row ${isTop(a) ? 'top' : ''}`}>
