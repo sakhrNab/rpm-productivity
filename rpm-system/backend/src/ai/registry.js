@@ -3,7 +3,7 @@
 // sends; `model` is the provider's real API model id; `family` groups models in
 // the collapsible picker; `webSearch` marks whether native web search is wired.
 //
-// Current as of 2026-09-27 (checked against each provider's model/pricing docs).
+// Current as of 2026-10-01 (checked against each provider's model/pricing docs).
 // Keys are STABLE (saved in localStorage, coaches.model, ai_usage) — when a provider
 // renames a model, change `model`, never `key`.
 
@@ -46,14 +46,16 @@ const MODELS = [
   { key: 'zhipu/glm-4.5-air',  provider: 'zhipu', family: 'GLM-4', model: 'glm-4.5-air', label: 'GLM-4.5 Air',  webSearch: true, reasoning: false },
 
   // ---------- DeepSeek (native web search via Anthropic-compatible endpoint) ----------
+  // V4 Pro (0813 GA) is text-only; V4.1 Flash (2026-09-10) reads images natively — see `vision` below.
   { key: 'deepseek/deepseek-v4-pro',   provider: 'deepseek', family: 'DeepSeek', model: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', webSearch: true, reasoning: true },
-  // deepseek-v4-flash was retired (the old id silently routes to Flash) — call the current id.
-  { key: 'deepseek/deepseek-v4-flash', provider: 'deepseek', family: 'DeepSeek', model: 'deepseek-flash',  label: 'DeepSeek Flash',  webSearch: true, reasoning: false },
+  // deepseek-v4-flash / -vision-exp were retired (old ids still route to V4.1 Flash) — call the current id.
+  { key: 'deepseek/deepseek-v4-flash', provider: 'deepseek', family: 'DeepSeek', model: 'deepseek-flash',  label: 'DeepSeek V4.1 Flash', webSearch: true, reasoning: false },
 ];
 
-// Models that can read an image. DeepSeek's and GLM's chat endpoints here are text-only, so a photo
-// has to go through one of these first (ai/vision.js picks the cheapest one the user has a key for).
-for (const m of MODELS) m.vision = m.provider === 'anthropic' || m.provider === 'openai';
+// Models that can read an image: Claude, OpenAI, and DeepSeek V4.1 Flash (not V4 Pro; GLM here is
+// text-only). When the chosen model can't see, ai/vision.js hands the photo to one that can.
+const VISION_KEYS = new Set(['deepseek/deepseek-v4-flash']);
+for (const m of MODELS) m.vision = m.provider === 'anthropic' || m.provider === 'openai' || VISION_KEYS.has(m.key);
 
 const BY_KEY = Object.fromEntries(MODELS.map(m => [m.key, m]));
 

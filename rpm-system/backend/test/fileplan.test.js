@@ -236,18 +236,25 @@ test('recognises real image bytes (incl. iPhone HEIC) and flags look-alikes', ()
 test('reading an image: clear errors for no vision key, HEIC and oversize; cheapest keyed reader wins', async () => {
   const { readImage, pickReader } = require('../src/ai/vision');
   const jpeg = Buffer.concat([Buffer.from('ffd8ffe0', 'hex'), Buffer.alloc(64)]);
-  const noKeys = { query: async () => ({ rows: [] }) };
+  // keys.js now only lets allow-listed accounts fall back to server keys, so the fake user is on the list
+  process.env.SERVER_KEY_EMAILS = 'u@test.dev';
+  const noKeys = { query: async (sql) => ({ rows: /FROM users/.test(sql) ? [{ email: 'u@test.dev' }] : [] }) };
   const saved = { ...process.env };
   for (const k of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'ZHIPU_API_KEY', 'ZAI_API_KEY', 'DEEPSEEK_API_KEY']) delete process.env[k];
   try {
-    await assert.rejects(readImage({ pool: noKeys, userId: 'u', buffer: jpeg, mime: 'image/jpeg', name: 'a.jpg' }), /Claude or OpenAI API key/);
+    await assert.rejects(readImage({ pool: noKeys, userId: 'u', buffer: jpeg, mime: 'image/jpeg', name: 'a.jpg' }), /DeepSeek, Claude or OpenAI API key/);
     await assert.rejects(readImage({ pool: noKeys, userId: 'u', buffer: jpeg, mime: 'image/heic', name: 'a.heic' }), /HEIC/);
     await assert.rejects(readImage({ pool: noKeys, userId: 'u', buffer: Buffer.alloc(6 * 1048576), mime: 'image/png', name: 'a.png' }), /under 5 MB/);
-    process.env.DEEPSEEK_API_KEY = 'x';                                   // text-only provider: still no reader
-    assert.equal(await pickReader(noKeys, 'u', 'deepseek/deepseek-v4-pro'), null);
+    process.env.ZHIPU_API_KEY = 'x';                                      // GLM is text-only: still no reader
+    assert.equal(await pickReader(noKeys, 'u', 'zhipu/glm-5'), null);
+    process.env.DEEPSEEK_API_KEY = 'x';                                   // V4 Pro can't see, but V4.1 Flash (same key) can
+    assert.equal((await pickReader(noKeys, 'u', 'deepseek/deepseek-v4-pro')).key, 'deepseek/deepseek-v4-flash');
+    assert.equal((await pickReader(noKeys, 'u', 'deepseek/deepseek-v4-flash')).key, 'deepseek/deepseek-v4-flash');
     process.env.OPENAI_API_KEY = 'x';
-    assert.equal((await pickReader(noKeys, 'u', null)).key, 'openai/gpt-5-mini');
     process.env.ANTHROPIC_API_KEY = 'x';
+    assert.equal((await pickReader(noKeys, 'u', 'anthropic/claude-opus-5-5')).key, 'anthropic/claude-opus-5-5');   // the chosen vision model reads it
+    assert.equal((await pickReader(noKeys, 'u', 'deepseek/deepseek-v4-pro')).key, 'deepseek/deepseek-v4-flash');    // can't see → cheapest keyed reader
+    delete process.env.DEEPSEEK_API_KEY;
     assert.equal((await pickReader(noKeys, 'u', null)).key, 'anthropic/claude-haiku-4-5');
   } finally { process.env = saved; }
 });

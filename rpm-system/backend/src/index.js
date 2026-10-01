@@ -22,6 +22,7 @@ const capacity = require('./capacity');
 const { getRoadmap } = require('./roadmap');
 const inbox = require('./inbox');
 const { rateLimit } = require('./ratelimit');
+const { registrationAllowed } = require('./access');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
 const { recordUsage, getUsageSummary } = require('./ai/usage');
@@ -157,6 +158,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
           user = result.rows[0];
           await pool.query('UPDATE users SET provider = $1, provider_id = $2 WHERE id = $3', ['google', profile.id, user.id]);
         } else {
+          if (!registrationAllowed(profile.emails[0].value)) return done(null, false, { message: 'invite-only' });
           result = await pool.query(
             `INSERT INTO users (email, name, avatar, provider, provider_id, email_verified) VALUES ($1, $2, $3, 'google', $4, true) RETURNING *`,
             [profile.emails[0].value, profile.displayName, profile.photos?.[0]?.value || '', profile.id]
@@ -189,6 +191,7 @@ if (MICROSOFT_CLIENT_ID && MICROSOFT_CLIENT_SECRET) {
           user = result.rows[0];
           await pool.query('UPDATE users SET provider = $1, provider_id = $2 WHERE id = $3', ['microsoft', profile.id, user.id]);
         } else {
+          if (!registrationAllowed(profile.emails[0].value)) return done(null, false, { message: 'invite-only' });
           result = await pool.query(
             `INSERT INTO users (email, name, avatar, provider, provider_id, email_verified) VALUES ($1, $2, $3, 'microsoft', $4, true) RETURNING *`,
             [profile.emails[0].value, profile.displayName, '', profile.id]
@@ -211,6 +214,7 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     const { email, password, name } = req.body;
     if (!email || !password || !name) return res.status(400).json({ error: 'Email, password, and name are required' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (!registrationAllowed(email)) return res.status(403).json({ error: 'Sign-ups are invite-only right now. Ask the owner to add your email.' });
     
     const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existingUser.rows.length > 0) return res.status(400).json({ error: 'Email already registered' });

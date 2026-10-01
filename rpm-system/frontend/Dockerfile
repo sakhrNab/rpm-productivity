@@ -24,6 +24,7 @@
     # Copy nginx config files (needed for later stage)
     COPY docker/nginx/nginx.conf /tmp/nginx.conf
     COPY docker/nginx/default.conf /tmp/default.conf
+    COPY docker/nginx/security-headers.conf /tmp/security-headers.conf
     
     # Build arguments for environment variables (injected at build time for Vite)
     ARG VITE_API_URL
@@ -46,6 +47,7 @@
     # Copy custom nginx config from builder stage
     COPY --from=builder /tmp/nginx.conf /etc/nginx/nginx.conf
     COPY --from=builder /tmp/default.conf /etc/nginx/conf.d/default.conf
+    COPY --from=builder /tmp/security-headers.conf /etc/nginx/security-headers.conf
     
     # Copy built static files from Vite build
     COPY --from=builder /app/dist /usr/share/nginx/html

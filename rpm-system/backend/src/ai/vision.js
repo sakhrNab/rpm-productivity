@@ -2,8 +2,8 @@
 // diagram), and the rest of the pipeline treats the result like any other document, so
 // "Plan from a file" and the Assistant's "Ask about it" accept images with no other changes.
 //
-// The user's chat model is often text-only (DeepSeek, GLM), so the reader is chosen
-// separately: the cheapest vision-capable model the user actually has a key for.
+// The model the user picked reads the image when it can see; otherwise (DeepSeek V4 Pro, GLM) the
+// cheapest vision-capable model the user actually has a key for does.
 
 const { MODELS, getModelEntry, providerLabel } = require('./registry');
 const { resolveKey } = require('./keys');
@@ -12,8 +12,8 @@ const { runChat, AiError } = require('./service');
 const { ExtractError, MAX_TEXT } = require('./extract');
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;               // Anthropic's per-image ceiling
-// Cheapest first — transcription does not need a flagship.
-const READERS = ['anthropic/claude-haiku-4-5', 'openai/gpt-5-mini', 'openai/gpt-4o-mini', 'openai/gpt-6-luna', 'anthropic/claude-sonnet-5', 'openai/gpt-5.6-luna'];
+// Fallbacks, cheapest first — transcription does not need a flagship.
+const READERS = ['deepseek/deepseek-v4-flash', 'anthropic/claude-haiku-4-5', 'openai/gpt-5-mini', 'openai/gpt-4o-mini', 'openai/gpt-6-luna', 'anthropic/claude-sonnet-5', 'openai/gpt-5.6-luna'];
 
 const PROMPT = `You are the eyes of a planning assistant. Read the attached image and write down what it contains.
 
@@ -24,7 +24,7 @@ Output only the transcription (plain text / Markdown). No preamble, no commentar
 
 // Which model will read the image for this user? Returns { key, entry } or null.
 async function pickReader(pool, userId, preferredKey) {
-  const order = [...READERS, preferredKey, ...MODELS.filter(m => m.vision).map(m => m.key)].filter(Boolean);
+  const order = [preferredKey, ...READERS, ...MODELS.filter(m => m.vision).map(m => m.key)].filter(Boolean);
   const seen = new Set();
   const hasKey = new Map();
   for (const key of order) {
@@ -50,7 +50,7 @@ async function readImage({ pool, userId, buffer, mime, name, preferredKey, abort
   }
   const reader = await pickReader(pool, userId, preferredKey);
   if (!reader) {
-    throw new ExtractError('Reading a photo needs a vision model — add a Claude or OpenAI API key in Settings (DeepSeek and GLM can’t see images).');
+    throw new ExtractError('Reading a photo needs a vision model — add a DeepSeek, Claude or OpenAI API key in Settings (DeepSeek V4 Pro and GLM can’t see images; DeepSeek V4.1 Flash can).');
   }
 
   let text = '', rawUsage = null;

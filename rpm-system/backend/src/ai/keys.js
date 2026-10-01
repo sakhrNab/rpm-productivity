@@ -2,8 +2,10 @@
 
 const { encryptSecret, decryptSecret, isConfigured } = require('./crypto');
 const { allProviders } = require('./registry');
+const { canUseServerKeys } = require('../access');
 
-// Owner-level fallback keys from env (used only when a user has not set their own).
+// Owner-level fallback keys from env — used only when a user has not set their own AND the account
+// is named in SERVER_KEY_EMAILS (see access.js). Anyone else must bring their own key.
 const ENV_KEY = {
   anthropic: () => process.env.ANTHROPIC_API_KEY,
   openai: () => process.env.OPENAI_API_KEY,
@@ -29,6 +31,11 @@ async function deleteKey(pool, userId, provider) {
   await pool.query('DELETE FROM user_api_keys WHERE user_id = $1 AND provider = $2', [userId, provider]);
 }
 
+async function userMayUseServerKeys(pool, userId) {
+  const { rows } = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+  return !!rows[0] && canUseServerKeys(rows[0].email);
+}
+
 // Masked status for every known provider (never returns plaintext).
 async function listKeysMasked(pool, userId) {
   const { rows } = await pool.query(
@@ -36,9 +43,10 @@ async function listKeysMasked(pool, userId) {
     [userId]
   );
   const byProvider = Object.fromEntries(rows.map(r => [r.provider, r]));
+  const mayUseServerKeys = await userMayUseServerKeys(pool, userId);
   return allProviders().map(provider => {
     const row = byProvider[provider];
-    const envConfigured = !!ENV_KEY[provider]?.();
+    const envConfigured = mayUseServerKeys && !!ENV_KEY[provider]?.();
     return {
       provider,
       configured: !!row || envConfigured,
@@ -59,7 +67,8 @@ async function resolveKey(pool, userId, provider) {
     try { return decryptSecret(rows[0]); }
     catch (e) { console.error('[ai] failed to decrypt key for', provider, e.message); }
   }
-  return ENV_KEY[provider]?.() || null;
+  if (!ENV_KEY[provider]?.()) return null;
+  return (await userMayUseServerKeys(pool, userId)) ? ENV_KEY[provider]() : null;
 }
 
 module.exports = { saveKey, deleteKey, listKeysMasked, resolveKey };
