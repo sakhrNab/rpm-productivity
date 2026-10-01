@@ -5,7 +5,13 @@ import { fmtCost } from './UsageBadge';
 import './UsageDashboard.css';
 
 const RANGES = [{ d: 7, label: '7d' }, { d: 30, label: '30d' }, { d: 90, label: '90d' }];
-const FEATURE_LABEL = { chat: 'Assistant', compass: 'Compass', braindump: 'Brain Dump', suggestions: 'Suggestions' };
+const FEATURE_LABEL = {
+  chat: 'Assistant', compass: 'Compass', braindump: 'Brain Dump', suggestions: 'Suggestions',
+  image_read: 'Photo reading', file_plan: 'File plans', coach_chat: 'Coach chat', coach_checkin: 'Coach check-ins',
+  coach_draft: 'Coach drafts', coach_memory: 'Coach memory', fix: 'Goal fixes', triage: 'Triage',
+};
+// Unknown keys still read well: "some_new_thing" → "Some new thing".
+const featureLabel = (k) => FEATURE_LABEL[k] || (k ? String(k).replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()) : 'Other');
 
 function fmtTokens(n) {
   n = Number(n) || 0;
@@ -30,21 +36,32 @@ export default function UsageDashboard() {
   const total = data?.total || { cost: 0, calls: 0, input: 0, output: 0, cached: 0 };
   const maxDay = Math.max(1, ...((data?.byDay || []).map(d => d.cost)));
 
+  const maxModel = Math.max(0.0000001, ...((data?.byModel || []).map(m => m.cost || 0)));
+
   return (
     <div className="usage-dash">
       <div className="usage-dash-head">
-        <h3><BarChart3 size={16} /> AI usage &amp; cost</h3>
-        <div className="usage-range">
+        <div className="usage-dash-title">
+          <span className="ui-icon-badge usage-badge-ico" aria-hidden="true"><BarChart3 size={20} /></span>
+          <div>
+            <h2>AI usage &amp; cost</h2>
+            <p>Estimated from public per-token prices, per model.</p>
+          </div>
+        </div>
+        <div className="ui-seg usage-range" role="tablist" aria-label="Period">
           {RANGES.map(r => (
-            <button key={r.d} type="button" className={days === r.d ? 'active' : ''} onClick={() => setDays(r.d)}>{r.label}</button>
+            <button key={r.d} type="button" role="tab" aria-selected={days === r.d} className={days === r.d ? 'on' : ''} onClick={() => setDays(r.d)}>{r.label}</button>
           ))}
         </div>
       </div>
 
       {loading ? (
-        <p className="usage-muted">Loading…</p>
+        <div className="ui-empty usage-empty"><div className="spinner usage-spinner" /><p>Loading…</p></div>
       ) : !data || total.calls === 0 ? (
-        <p className="usage-muted">No AI usage recorded in this period yet. Costs are estimated from public model prices and appear here after you use the Assistant, Compass, Brain Dump, or AI suggestions.</p>
+        <div className="ui-empty usage-empty">
+          <Coins size={24} />
+          <p>No AI usage recorded in this period yet. Costs are estimated from public model prices and appear here after you use the Assistant, Compass, Brain Dump, or AI suggestions.</p>
+        </div>
       ) : (
         <>
           <div className="usage-cards">
@@ -66,13 +83,14 @@ export default function UsageDashboard() {
 
           {data.byModel?.length > 0 && (
             <div className="usage-section">
-              <h4>By model</h4>
+              <h3 className="ui-kicker">By model</h3>
               <div className="usage-table">
                 {data.byModel.map((m, i) => (
                   <div key={i} className="usage-row">
                     <span className="usage-row-name">{m.model || 'unknown'}</span>
-                    <span className="usage-row-meta">{m.calls} · {fmtTokens((m.input || 0) + (m.output || 0))} tok</span>
                     <span className="usage-row-cost">{fmtCost(m.cost)}</span>
+                    <span className="usage-row-meta">{m.calls} call{m.calls !== 1 ? 's' : ''} · {fmtTokens((m.input || 0) + (m.output || 0))} tok</span>
+                    <span className="ui-meter usage-row-meter" aria-hidden="true"><i style={{ '--pct': `${Math.max(2, Math.round(((m.cost || 0) / maxModel) * 100))}%` }} /></span>
                   </div>
                 ))}
               </div>
@@ -81,10 +99,10 @@ export default function UsageDashboard() {
 
           {data.byFeature?.length > 0 && (
             <div className="usage-section">
-              <h4>By feature</h4>
+              <h3 className="ui-kicker">By feature</h3>
               <div className="usage-chips">
                 {data.byFeature.map((f, i) => (
-                  <span key={i} className="usage-chip">{FEATURE_LABEL[f.feature] || f.feature || 'other'} · {fmtCost(f.cost)}</span>
+                  <span key={i} className="ui-chip usage-chip">{featureLabel(f.feature)} <b>{fmtCost(f.cost)}</b></span>
                 ))}
               </div>
             </div>
@@ -92,7 +110,7 @@ export default function UsageDashboard() {
 
           {data.byDay?.length > 1 && (
             <div className="usage-section">
-              <h4>Daily cost</h4>
+              <h3 className="ui-kicker">Daily cost</h3>
               <div className="usage-bars">
                 {data.byDay.map((d, i) => (
                   <div key={i} className="usage-bar-col" title={`${d.day}: ${fmtCost(d.cost)}`}>

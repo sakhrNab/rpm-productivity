@@ -355,10 +355,11 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       return res;
     },
     // Read a file's text for the Assistant ("Ask about it"). Same multipart + token-refresh path as the import.
-    extractFile: async (file) => {
+    extractFile: async (file, modelKey) => {
       const send = (token) => {
         const fd = new FormData();
         fd.append('file', file);
+        if (modelKey) fd.append('modelKey', modelKey);
         return fetch(`${API_BASE}/ai/extract`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd });
       };
       let res = await send(getToken());

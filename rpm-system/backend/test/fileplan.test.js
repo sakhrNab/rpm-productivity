@@ -220,3 +220,34 @@ test('normalizePlan: a weak existing fit keeps the drafted area as an option; pl
   assert.equal(legacy.placement.new_category.name, 'Travel');
   assert.deepEqual(legacy.placement.new_category.one_year_goals, []);
 });
+
+// ---------- images (photos / screenshots → vision reader) ----------
+test('recognises real image bytes (incl. iPhone HEIC) and flags look-alikes', () => {
+  const { sniffImage, imageKind } = require('../src/ai/extract');
+  assert.equal(sniffImage(Buffer.from('ffd8ffe000104a46494600010100', 'hex')), 'image/jpeg');
+  assert.equal(sniffImage(Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex')), 'image/png');
+  assert.equal(sniffImage(Buffer.from('474946383961010001000000', 'hex')), 'image/gif');
+  assert.equal(sniffImage(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 ')])), 'image/webp');
+  assert.equal(sniffImage(Buffer.from('000000186674797068656963000000006d696631', 'hex')), 'image/heic');
+  assert.equal(imageKind(Buffer.from('not really a jpeg at all'), 'IMG_3182.JPG'), 'image/unreadable');   // extension says image, bytes disagree
+  assert.equal(imageKind(Buffer.from('just text, long enough'), 'notes.txt'), null);                      // documents keep their own path
+});
+
+test('reading an image: clear errors for no vision key, HEIC and oversize; cheapest keyed reader wins', async () => {
+  const { readImage, pickReader } = require('../src/ai/vision');
+  const jpeg = Buffer.concat([Buffer.from('ffd8ffe0', 'hex'), Buffer.alloc(64)]);
+  const noKeys = { query: async () => ({ rows: [] }) };
+  const saved = { ...process.env };
+  for (const k of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'ZHIPU_API_KEY', 'ZAI_API_KEY', 'DEEPSEEK_API_KEY']) delete process.env[k];
+  try {
+    await assert.rejects(readImage({ pool: noKeys, userId: 'u', buffer: jpeg, mime: 'image/jpeg', name: 'a.jpg' }), /Claude or OpenAI API key/);
+    await assert.rejects(readImage({ pool: noKeys, userId: 'u', buffer: jpeg, mime: 'image/heic', name: 'a.heic' }), /HEIC/);
+    await assert.rejects(readImage({ pool: noKeys, userId: 'u', buffer: Buffer.alloc(6 * 1048576), mime: 'image/png', name: 'a.png' }), /under 5 MB/);
+    process.env.DEEPSEEK_API_KEY = 'x';                                   // text-only provider: still no reader
+    assert.equal(await pickReader(noKeys, 'u', 'deepseek/deepseek-v4-pro'), null);
+    process.env.OPENAI_API_KEY = 'x';
+    assert.equal((await pickReader(noKeys, 'u', null)).key, 'openai/gpt-5-mini');
+    process.env.ANTHROPIC_API_KEY = 'x';
+    assert.equal((await pickReader(noKeys, 'u', null)).key, 'anthropic/claude-haiku-4-5');
+  } finally { process.env = saved; }
+});

@@ -11,12 +11,12 @@ import Picker from '../components/Picker';
 import PlanTimeline from '../components/plan/PlanTimeline';
 import { fmtDay, reminderUpcoming } from '../utils/planFormat';
 import TaskEditor from '../components/plan/TaskEditor';
-import { takePendingFile } from '../utils/pendingFile';
+import { takePendingFile, acceptFile } from '../utils/pendingFile';
+import { isImageFile } from '../utils/uploadPrep';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { schedulePlan } from '../utils/planSchedule';
 import './PlanImportPage.css';
 
-const MAX_BYTES = 10 * 1024 * 1024;
 const STAGES = [
   { id: 'reading', label: 'Reading your file' },
   { id: 'thinking', label: 'Understanding what it asks for' },
@@ -126,10 +126,13 @@ export default function PlanImportPage() {
   }, [stage, progress.started]);
 
   // ---------- upload + analyze ----------
-  const pick = (f) => {
-    if (!f) return;
-    if (f.size > MAX_BYTES) { showToast('That file is over 10 MB.', 'error'); return; }
-    setFile(f);
+  // A photo gets a thumbnail beside the text the model read from it.
+  const previewUrl = useMemo(() => (file && file.size && isImageFile(file) ? URL.createObjectURL(file) : ''), [file]);
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+
+  const pick = async (f) => {
+    const ok = await acceptFile(f, showToast);              // photos are converted + shrunk here
+    if (ok) setFile(ok);
   };
 
   // A file dropped on the orb (or anywhere outside the drop zone) while already here.
@@ -343,7 +346,7 @@ export default function PlanImportPage() {
           <h1 className="pim-title">Plan from a file</h1>
           <p className="pim-sub">
             <span className="pim-tag">AI</span>
-            Drop a brief, meeting notes, a spreadsheet or a syllabus — I’ll place it in your plan and schedule every task.
+            Drop a brief, meeting notes, a spreadsheet, a syllabus — or a photo or screenshot of one — I’ll place it in your plan and schedule every task.
           </p>
         </div>
       </header>
@@ -371,7 +374,7 @@ export default function PlanImportPage() {
               </>) : (<>
                 <FileUp size={34} />
                 <strong>Drop a file here</strong>
-                <span className="pim-file-meta">or click to browse · up to 10 MB</span>
+                <span className="pim-file-meta">or tap to browse · PDF, Word, Excel, photos &amp; screenshots · up to 10 MB</span>
               </>)}
             </div>
           </label>
@@ -427,7 +430,8 @@ export default function PlanImportPage() {
               <span className="pim-doc-name">{file?.name}</span>
               {fileInfo && <span className="pim-doc-meta">{fileInfo.kind.toUpperCase()} · {fileInfo.chars.toLocaleString()} chars{fileInfo.meta?.pages ? ` · ${fileInfo.meta.pages} pages` : ''}</span>}
             </div>
-            <pre className="pim-doc-text">{fileInfo?.preview || ' '}</pre>
+            {previewUrl && <img className="pim-doc-img" src={previewUrl} alt="" />}
+            <pre className="pim-doc-text">{fileInfo?.preview || (fileInfo ? ' ' : file && isImageFile(file) ? 'Reading the image…' : ' ')}</pre>
             <div className="pim-beam" aria-hidden="true" />
           </div>
           <div className="pim-pipeline">

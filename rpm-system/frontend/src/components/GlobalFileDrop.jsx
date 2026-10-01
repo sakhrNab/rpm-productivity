@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { FileUp } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { setPendingFile, MAX_UPLOAD_BYTES } from '../utils/pendingFile';
+import { isImageFile } from '../utils/uploadPrep';
 import './GlobalFileDrop.css';
 
 // Drop a file anywhere in the app — or on the voice orb — to turn it into a plan.
@@ -38,7 +39,8 @@ export default function GlobalFileDrop() {
       if (handled) return;
       const file = e.dataTransfer.files?.[0];
       if (!file) return;
-      if (file.size > MAX_UPLOAD_BYTES) { showToast('That file is over 10 MB.', 'error'); return; }
+      // photos are shrunk by the planner, so only documents are size-checked here
+      if (!isImageFile(file) && file.size > MAX_UPLOAD_BYTES) { showToast('That file is over 10 MB.', 'error'); return; }
       if (pathRef.current === '/import') { window.dispatchEvent(new CustomEvent('rpm:plan-file', { detail: file })); return; }
       setPendingFile(file);
       navigate('/import');
@@ -65,7 +67,7 @@ export default function GlobalFileDrop() {
       <div className="gfd-card">
         <FileUp size={34} />
         <b>Drop to turn it into a plan</b>
-        <span>A brief, notes, a spreadsheet, a PDF — I’ll place it in your projects and schedule the work.</span>
+        <span>A brief, notes, a spreadsheet, a PDF, even a photo — I’ll place it in your projects and schedule the work.</span>
       </div>
     </div>
   );

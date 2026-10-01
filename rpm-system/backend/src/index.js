@@ -13,7 +13,8 @@ const { applyProposal, isUuid } = require('./ai/tools');
 const { buildHistory, buildActionLog, sanitizeClientMessages, sanitizeAttachments, MAX_MESSAGE_CHARS, ATTACH_MAX_CHARS } = require('./ai/history');
 const { resolveTimezone, todayInTz } = require('./ai/context');
 const aiMemory = require('./ai/memory');
-const { extractText, ExtractError } = require('./ai/extract');
+const { extractText, imageKind, ExtractError } = require('./ai/extract');
+const { readImage } = require('./ai/vision');
 const { generateFilePlan, applyFilePlan, loadExisting } = require('./ai/fileplan');
 const planImports = require('./ai/imports');
 const { projectTimeline, rescheduleActions } = require('./timeline');
@@ -1307,6 +1308,12 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req, res) => {
 // ============================================================
 // File → Plan: upload any document, get a scheduled, placed RPM plan (preview), then apply.
 // ============================================================
+// Documents are decoded locally; photos/screenshots go to a vision model for transcription.
+const readUpload = (req, name, abortSignal) => {
+  const mime = imageKind(req.file.buffer, name);
+  if (!mime) return extractText(req.file.buffer, name);
+  return readImage({ pool, userId: req.userId, buffer: req.file.buffer, mime, name, preferredKey: req.body?.modelKey, abortSignal });
+};
 const planUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } }).single('file');
 
 // Read a file for the Assistant ("Ask about it"): text only, nothing stored until it's sent.
@@ -1319,7 +1326,7 @@ app.post('/api/ai/extract', authenticateToken, aiLimiter, (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'Choose a file.' });
   const name = String(req.file.originalname || 'file').slice(0, 200);
   try {
-    const x = await extractText(req.file.buffer, name);
+    const x = await readUpload(req, name);
     if (!x.text || !x.text.trim()) return res.status(422).json({ error: 'I couldn’t find any text in that file.' });
     const text = x.text.slice(0, ATTACH_MAX_CHARS);
     res.json({ name, kind: x.kind, chars: x.chars, truncated: x.truncated || text.length < x.text.length, text });
@@ -1342,7 +1349,7 @@ app.post('/api/ai/import', authenticateToken, aiLimiter, (req, res, next) => {
   const fileName = String(req.file.originalname || 'file').slice(0, 200);
 
   let extracted;
-  try { extracted = await extractText(req.file.buffer, fileName); }
+  try { extracted = await readUpload(req, fileName); }
   catch (e) {
     if (e instanceof ExtractError) return res.status(415).json({ error: e.message });
     console.error('[import] extract:', e.message);

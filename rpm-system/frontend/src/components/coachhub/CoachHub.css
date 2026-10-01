@@ -203,6 +203,23 @@ body:has(.vorb-root) .chub-coachview .coach-composer { margin-right: 80px; }
   body:has(.chub) .chub-coachview .coach-composer { margin-right: 0; }
 }
 
+/* ---------- phone viewport lock (see utils/useViewportLock.js) ----------
+   The hub is exactly one screen tall and scrolls its own lists, so the page itself is pinned: nothing
+   for Safari's collapsing toolbar to drag around. --vvh is the visible height; with the keyboard up
+   the tab bar steps aside and the hub shrinks to what's left. */
+@media (max-width: 860px) {
+  html.rpm-chat-lock { overflow: hidden; overscroll-behavior: none; height: 100%; }
+  html.rpm-chat-lock body { overscroll-behavior: none; }
+  html.rpm-chat-lock .asst {
+    height: calc(var(--vvh, 100dvh) - var(--nav-h) - 2 * var(--spacing-md) - var(--tabbar-h, 0px));
+  }
+  html.rpm-chat-lock.rpm-kbd .asst { height: calc(var(--vvh, 100dvh) - var(--nav-h) - 2 * var(--spacing-md)); min-height: 0; }
+  html.rpm-chat-lock.rpm-kbd .tn-bottom { display: none; }
+  html.rpm-chat-lock.rpm-kbd .app-container .main-content { padding-bottom: var(--spacing-md); }
+  html.rpm-chat-lock.rpm-vv-pan #root { transform: translateY(var(--vvt, 0px)); }
+  .asst-main { min-height: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .asst-dropzone { animation: none; }
   .chub-ov-card { transition: none; }

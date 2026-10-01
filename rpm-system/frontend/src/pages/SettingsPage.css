@@ -1,132 +1,196 @@
-.settings-page { max-width: 820px; }
+/* =====================================================================
+   Settings — hero, segmented tabs, glass cards for API keys / default
+   model / memory / reminders & channels / usage. Mission-control language
+   (styles/ui.css primitives). Component CSS loads before index.css, so every
+   rule is scoped under .settings-page to win on specificity.
+   ===================================================================== */
+.settings-page { display: flex; flex-direction: column; gap: 16px; max-width: 820px; margin: 0 auto; padding: 0 0 24px; min-width: 0; }
 
-.settings-section {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
+/* ---------- hero ---------- */
+.settings-page .settings-hero { display: flex; align-items: flex-start; gap: 14px; padding: 22px; }
+.settings-page .settings-hero-icon { width: 48px; height: 48px; border-radius: 14px; }
+.settings-page .settings-hero-text { min-width: 0; }
+.settings-page .settings-title {
+  margin: 6px 0 4px; font-family: 'Outfit', var(--font-display); font-weight: 700; letter-spacing: -0.01em;
+  font-size: clamp(1.6rem, 3.4vw, 2.3rem); line-height: 1.1;
 }
-.settings-section-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: var(--spacing-lg); color: var(--accent-cyan); }
-.settings-section-head h2 { font-size: 1.15rem; color: var(--text-primary); margin-bottom: 4px; }
-.settings-section-head p { font-size: 0.88rem; color: var(--text-secondary); }
+.settings-page .settings-sub { margin: 0; color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5; }
 
-.settings-warn {
-  display: flex; align-items: center; gap: 10px;
-  background: rgba(255,183,77,0.1); border: 1px solid rgba(255,183,77,0.35);
-  color: var(--accent-orange); border-radius: var(--radius-md);
-  padding: 12px 14px; font-size: 0.85rem; margin-bottom: var(--spacing-md);
+/* ---------- tabs (segmented, scrolls sideways on narrow phones) ---------- */
+.settings-page .settings-seg { display: flex; align-self: stretch; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.settings-page .settings-seg::-webkit-scrollbar { display: none; }
+.settings-page .settings-seg > button { flex: 1 1 auto; justify-content: center; min-height: 44px; padding: 8px 14px; white-space: nowrap; font-weight: 600; }
+.settings-page .settings-seg > button:focus-visible { outline: none; box-shadow: var(--ring, 0 0 0 3px rgba(78, 205, 196, 0.35)); }
+.settings-page .settings-seg > button.on svg { color: var(--accent-cyan); }
+.settings-page .settings-seg-n { font: 700 0.72rem var(--ui-mono); color: var(--text-muted); }
+.settings-page .settings-seg > button.on .settings-seg-n { color: var(--accent-cyan); }
+.settings-page .settings-tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ui-good); box-shadow: 0 0 8px var(--ui-good); }
+
+/* ---------- section cards ---------- */
+.settings-page .settings-section { display: flex; flex-direction: column; gap: 14px; padding: 20px; background: var(--ui-glass); }
+.settings-page .settings-section-head { display: flex; align-items: flex-start; gap: 14px; min-width: 0; margin: 0; color: inherit; }
+.settings-page .settings-section-text { flex: 1 1 auto; min-width: 0; }
+.settings-page .settings-section-head h2 {
+  margin: 2px 0 4px; font: 700 1.2rem/1.2 'Outfit', var(--font-display); letter-spacing: -0.005em; text-transform: none; color: var(--text-primary);
 }
-.settings-warn code { background: rgba(0,0,0,0.3); padding: 1px 6px; border-radius: 4px; }
+.settings-page .settings-section-head p { margin: 0; font-size: 0.88rem; line-height: 1.5; color: var(--text-secondary); }
+.settings-page .settings-section-count { flex: 0 0 auto; font-family: var(--ui-mono); }
+.settings-page .settings-mono { font-family: var(--ui-mono); letter-spacing: 0.04em; }
 
-.settings-keys { display: flex; flex-direction: column; gap: var(--spacing-md); }
-.settings-key-row {
-  display: flex; flex-direction: column; gap: 8px;
-  padding: var(--spacing-md);
-  background: var(--bg-card); border: 1px solid var(--border-primary); border-radius: var(--radius-md);
+.settings-page .settings-warn {
+  display: flex; align-items: flex-start; gap: 10px; margin: 0;
+  background: rgba(255, 183, 77, 0.09); border: 1px solid rgba(255, 183, 77, 0.35);
+  color: #ffc56e; border-radius: 14px; padding: 12px 14px; font-size: 0.85rem; line-height: 1.5;
 }
-.settings-key-info { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.settings-key-label { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text-primary); }
-.settings-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 0.72rem; font-weight: 600; border-radius: 999px; padding: 2px 8px;
+.settings-page .settings-warn svg { margin-top: 2px; }
+.settings-page .settings-warn code { font-family: var(--ui-mono); background: rgba(0, 0, 0, 0.3); padding: 1px 6px; border-radius: 5px; overflow-wrap: anywhere; }
+
+.settings-page .settings-note {
+  display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--text-muted); font-size: 0.8rem; line-height: 1.5;
 }
-.settings-badge.ok { color: var(--accent-green); background: rgba(129,199,132,0.12); border: 1px solid rgba(129,199,132,0.35); }
-.settings-badge.env { color: var(--accent-cyan); background: rgba(78,205,196,0.12); border: 1px solid rgba(78,205,196,0.3); }
-.settings-key-get { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--accent-cyan); }
+.settings-page .settings-note svg { margin-top: 2px; color: var(--accent-cyan); }
 
-.settings-key-actions { display: flex; gap: 8px; align-items: center; }
-.settings-key-input { flex: 1; min-width: 0; }
-.settings-key-save { white-space: nowrap; }
-
-.settings-note {
-  display: flex; align-items: center; gap: 8px;
-  margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.82rem;
+/* ---------- API keys ---------- */
+.settings-page .settings-keys { display: flex; flex-direction: column; gap: 10px; }
+.settings-page .settings-key-row {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px;
+  background: rgba(255, 255, 255, 0.025); border: 1px solid var(--ui-hair); border-radius: 16px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
+.settings-page .settings-key-row.is-set { border-color: rgba(78, 205, 196, 0.28); background: linear-gradient(90deg, rgba(78, 205, 196, 0.07), rgba(255, 255, 255, 0.02) 70%); }
+.settings-page .settings-key-info { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.settings-page .settings-key-label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; min-width: 0; }
+.settings-page .settings-key-name { font: 600 1rem 'Outfit', var(--font-display); color: var(--text-primary); }
+.settings-page .settings-key-get {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 32px; font-size: 0.8rem; font-weight: 500; color: var(--accent-cyan);
+}
+.settings-page .settings-key-actions { display: flex; gap: 8px; align-items: center; }
+.settings-page .settings-key-input { flex: 1 1 auto; min-width: 0; min-height: 44px; font-size: 16px; }   /* 16px: no iOS zoom on focus */
+.settings-page .settings-key-save { white-space: nowrap; min-height: 44px; }
+.settings-page .settings-key-del { width: 44px; height: 44px; border-radius: 12px; color: var(--text-muted); }
+.settings-page .settings-key-del:hover { color: #ff8a9b; border-color: rgba(255, 107, 129, 0.45); }
 
+/* default model */
+.settings-page .settings-model-select { width: 100%; max-width: 440px; }
+.settings-page .settings-model-select .picker-trigger { min-height: 44px; border-radius: 12px; }
+
+/* ---------- memory ---------- */
+.settings-page .settings-mem-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.settings-page .settings-mem-form .form-input { flex: 1 1 220px; min-width: 0; min-height: 44px; font-size: 16px; }
+.settings-page .settings-mem-form .btn { min-height: 44px; }
+.settings-page .settings-mem-list { display: flex; flex-direction: column; gap: 6px; }
+.settings-page .settings-mem-empty p { margin: 0; max-width: 360px; line-height: 1.5; }
+.settings-page .settings-mem-item {
+  display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 6px 6px 12px; border-radius: 14px;
+  border: 1px solid var(--ui-hair); background: rgba(255, 255, 255, 0.025);
+}
+.settings-page .settings-mem-item.pinned { border-color: rgba(255, 183, 77, 0.35); background: linear-gradient(90deg, rgba(255, 183, 77, 0.08), rgba(255, 255, 255, 0.02) 70%); }
+.settings-page .settings-mem-kind { flex: 0 0 auto; font-family: var(--ui-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.settings-page .settings-mem-text { flex: 1; min-width: 0; color: var(--text-primary); font-size: 0.9rem; line-height: 1.45; overflow-wrap: anywhere; }
+.settings-page .settings-mem-btn {
+  flex: 0 0 auto; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border-radius: 10px;
+  border: 1px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+.settings-page .settings-mem-btn:hover, .settings-page .settings-mem-btn:focus-visible { outline: none; color: var(--text-primary); border-color: rgba(78, 205, 196, 0.45); }
+.settings-page .settings-mem-btn.del:hover, .settings-page .settings-mem-btn.del:focus-visible { color: #ff8a9b; border-color: rgba(255, 107, 129, 0.45); background: rgba(255, 107, 129, 0.08); }
+.settings-page .settings-mem-item.pinned .settings-mem-btn:not(.del) { color: #ffc56e; }
+
+/* ---------- reminders & channels ---------- */
+.settings-page .settings-group-kicker { margin: 6px 2px -4px; }
+.settings-page .settings-group-kicker:first-of-type { margin-top: 0; }
+.settings-page .settings-remind-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px;
+  border: 1px solid var(--ui-hair); border-radius: 16px; background: rgba(255, 255, 255, 0.025);
+}
+.settings-page .settings-remind-main { display: flex; align-items: flex-start; gap: 12px; min-width: 0; flex: 1 1 auto; color: var(--accent-cyan); }
+.settings-page .settings-row-ico {
+  flex: 0 0 auto; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; color: var(--accent-cyan);
+  background: rgba(78, 205, 196, 0.1); border: 1px solid rgba(78, 205, 196, 0.25);
+}
+.settings-page .settings-remind-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
+.settings-page .settings-remind-sub { font-size: 0.82rem; line-height: 1.5; color: var(--text-muted); margin-top: 2px; }
+.settings-page .settings-info-btn { display: inline-grid; place-items: center; width: 40px; height: 40px; margin: -10px -4px; border-radius: 10px; color: var(--text-muted); }
+.settings-page .settings-info-btn:hover, .settings-page .settings-info-btn:focus-visible { outline: none; color: var(--accent-cyan); }
+.settings-page .settings-remind-detail {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin: -4px 0 0 18px; padding: 12px 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.14); border-radius: 14px;
+}
+.settings-page .settings-remind-field { display: flex; flex-direction: column; gap: 4px; font: 600 0.7rem var(--ui-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+.settings-page .settings-remind-check { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 0.86rem; color: var(--text-secondary); }
+.settings-page .settings-remind-check input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent-cyan); }
+.settings-page .settings-remind-detail .form-input { min-height: 44px; font-size: 16px; }
+.settings-page .settings-time { width: 130px; }
+.settings-page .settings-tz { width: 220px; max-width: 100%; }
+.settings-page .settings-remind-detail .btn { min-height: 44px; }
+.settings-page .settings-remind-row .btn { min-height: 44px; flex: 0 0 auto; }
+
+.settings-page .settings-chief-row { background: linear-gradient(135deg, rgba(78, 205, 196, 0.1), rgba(149, 117, 205, 0.08)); border-color: rgba(78, 205, 196, 0.3); }
+
+.settings-page .settings-tg-connected { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.settings-page .settings-tg-owner { margin-left: 18px; }
+.settings-page .settings-tg-owner .settings-key-input { flex: 1 1 240px; }
+.settings-page .settings-tg-note { padding: 0 4px; }
+.settings-page .settings-tg-remove-link { align-self: flex-start; min-height: 36px; padding: 0 4px; color: var(--text-muted); font-size: 0.8rem; text-decoration: underline; }
+.settings-page .settings-tg-remove-link:hover { color: #ff8a9b; }
+.settings-page .settings-tg-steps { background: rgba(0, 0, 0, 0.22); border: 1px solid var(--ui-hair); border-radius: 14px; padding: 14px 16px; }
+.settings-page .settings-tg-steps ol { margin: 8px 0 6px; padding-left: 20px; color: var(--text-secondary); font-size: 0.88rem; }
+.settings-page .settings-tg-steps li { margin: 4px 0; }
+.settings-page .settings-tg-steps code { font-family: var(--ui-mono); background: rgba(0, 0, 0, 0.3); padding: 1px 5px; border-radius: 5px; font-size: 0.85em; }
+
+.settings-page .settings-custom-rem {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px;
+  border-radius: 16px; border: 1px solid rgba(149, 117, 205, 0.3); background: linear-gradient(90deg, rgba(149, 117, 205, 0.09), transparent 80%);
+}
+.settings-page .settings-subhead { display: flex; align-items: center; gap: 8px; margin: 0; font: 600 1rem 'Outfit', var(--font-display); text-transform: none; letter-spacing: 0; color: var(--text-primary); }
+.settings-page .settings-subhead svg { color: var(--ui-info); }
+.settings-page .settings-custom-rem .settings-remind-sub { margin: 0; }
+.settings-page .settings-rem-link { min-height: 44px; }
+.settings-page .settings-remind-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 0; padding-top: 4px; }
+.settings-page .settings-remind-actions .btn { min-height: 44px; }
+
+/* toggle switch: 44px hit area, glowing when on */
+.settings-page .settings-switch { position: relative; display: inline-block; flex: 0 0 auto; width: 48px; height: 44px; cursor: pointer; }
+.settings-page .settings-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+.settings-page .settings-switch span {
+  position: absolute; left: 0; top: 10px; width: 48px; height: 26px; border-radius: 999px; pointer-events: none;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.16); transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+.settings-page .settings-switch span::before {
+  content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text-muted); transition: transform var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.settings-page .settings-switch input:checked + span { background: rgba(78, 205, 196, 0.2); border-color: var(--accent-cyan); }
+.settings-page .settings-switch input:checked + span::before { transform: translateX(22px); background: var(--accent-cyan); box-shadow: 0 0 10px rgba(78, 205, 196, 0.7); }
+.settings-page .settings-switch input:focus-visible + span { box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.35); }
+
+/* ---------- phone ---------- */
 @media (max-width: 640px) {
-  .settings-key-actions { flex-wrap: wrap; }
-  .settings-key-input { flex: 1 1 100%; }
+  .settings-page { gap: 12px; }
+  /* four equal tabs, icon over label — all visible without sideways scrolling */
+  .settings-page .settings-seg { gap: 2px; padding: 3px; }
+  .settings-page .settings-seg > button { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 3px; min-height: 54px; padding: 6px 2px; font-size: 0.74rem; }
+  .settings-page .settings-hero, .settings-page .settings-section { padding: 16px; }
+  .settings-page .settings-hero-icon { width: 42px; height: 42px; }
+  .settings-page .settings-section-head { gap: 12px; }
+  .settings-page .settings-section-badge { width: 36px; height: 36px; }
+  .settings-page .settings-section-head > .settings-section-count, .settings-page .settings-seg-n { display: none; }
+  .settings-page .settings-key-actions { flex-wrap: wrap; }
+  .settings-page .settings-key-input { flex: 1 1 100%; }
+  .settings-page .settings-key-save { flex: 1 1 auto; }
+  .settings-page .settings-remind-row { flex-wrap: wrap; padding: 12px; }
+  .settings-page .settings-remind-main { flex: 1 1 calc(100% - 64px); }
+  .settings-page .settings-remind-row > .btn, .settings-page .settings-tg-connected { margin-left: 48px; }
+  .settings-page .settings-remind-detail { margin-left: 0; }
+  .settings-page .settings-remind-detail .btn { flex: 1 1 100%; }
+  .settings-page .settings-tg-owner { margin-left: 0; }
+  .settings-page .settings-tz { width: 100%; }
+  .settings-page .settings-remind-field { flex: 1 1 100%; }
+  .settings-page .settings-remind-field .settings-time { width: 100%; }
+  .settings-page .settings-remind-actions .btn { flex: 1 1 100%; justify-content: center; }
+  .settings-page .settings-rem-link { width: 100%; justify-content: center; }
+  .settings-page .settings-mem-form .btn { flex: 1 1 100%; }
 }
-
-/* Default model selector */
-.settings-section + .settings-section { margin-top: var(--spacing-lg); }
-.settings-model-select { width: 100%; max-width: 440px; margin-bottom: var(--spacing-md); cursor: pointer; }
-
-/* Reminders */
-.settings-remind-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-primary); }
-.settings-remind-main { display: flex; align-items: flex-start; gap: 12px; color: var(--accent-cyan); }
-.settings-remind-title { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-primary); }
-.settings-remind-sub { font-size: 0.82rem; color: var(--text-muted); margin-top: 2px; }
-.settings-info-btn { display: inline-flex; color: var(--text-muted); }
-.settings-info-btn:hover { color: var(--accent-cyan); }
-.settings-soon { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-orange); border: 1px solid rgba(255,183,77,0.4); border-radius: 999px; padding: 1px 7px; }
-.settings-remind-detail { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 12px 0 12px 28px; border-bottom: 1px solid var(--border-primary); }
-.settings-remind-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--text-secondary); }
-.settings-time { width: 120px; } .settings-tz { width: 200px; }
-.settings-remind-check { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-secondary); }
-.settings-tg-steps { background: var(--bg-card); border: 1px solid var(--border-primary); border-radius: var(--radius-md); padding: 14px 16px; margin: 10px 0; }
-.settings-tg-steps ol { margin: 8px 0 6px; padding-left: 20px; color: var(--text-secondary); font-size: 0.88rem; }
-.settings-tg-steps li { margin: 4px 0; }
-.settings-remind-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: var(--spacing-md); }
-
-/* Toggle switch */
-.settings-switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
-.settings-switch input { opacity: 0; width: 0; height: 0; }
-.settings-switch span { position: absolute; inset: 0; background: var(--bg-card); border: 1px solid var(--border-primary); border-radius: 999px; transition: all var(--transition-fast); cursor: pointer; }
-.settings-switch span::before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: var(--text-muted); border-radius: 50%; transition: all var(--transition-fast); }
-.settings-switch input:checked + span { background: rgba(78,205,196,0.2); border-color: var(--accent-cyan); }
-.settings-switch input:checked + span::before { transform: translateX(18px); background: var(--accent-cyan); }
-
-/* Telegram controls */
-.settings-tg-connected { display: flex; align-items: center; gap: 10px; }
-.settings-tg-owner { padding-left: 28px; }
-.settings-tg-note { padding: 8px 0 8px 28px; }
-.settings-tg-remove-link { color: var(--text-muted); font-size: 0.8rem; padding: 8px 0 0 28px; text-decoration: underline; }
-.settings-tg-remove-link:hover { color: var(--accent-red); }
-.settings-tg-steps code { background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
-
-/* Settings tabs */
-.settings-tabs {
-  display: flex; gap: 6px; margin-bottom: var(--spacing-lg);
-  border-bottom: 1px solid var(--border-primary);
-  overflow-x: auto; scrollbar-width: none;
+@media (prefers-reduced-motion: reduce) {
+  .settings-page .settings-key-row, .settings-page .settings-mem-btn, .settings-page .settings-switch span, .settings-page .settings-switch span::before { transition: none; }
 }
-.settings-tabs::-webkit-scrollbar { display: none; }
-.settings-tab {
-  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; white-space: nowrap;
-  padding: 10px 16px; color: var(--text-secondary); font-weight: 600; font-size: 0.92rem;
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
-}
-@media (max-width: 640px) { .settings-tab { padding: 10px 12px; font-size: 0.85rem; } }
-.settings-tab:hover { color: var(--text-primary); }
-.settings-tab.active { color: var(--accent-cyan); border-bottom-color: var(--accent-cyan); }
-.settings-tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-green); }
-
-/* Custom reminders */
-.settings-custom-rem { border-top: 1px solid var(--border-primary); margin-top: 12px; padding-top: 14px; }
-.settings-subhead { display: flex; align-items: center; gap: 7px; font-size: 0.95rem; color: var(--text-primary); margin-bottom: 10px; }
-.settings-rem-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-primary); }
-.settings-rem-title { flex: 1; min-width: 0; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.settings-rem-when { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
-.settings-rem-del { color: var(--text-muted); display: inline-flex; }
-.settings-rem-del:hover { color: var(--accent-red); }
-.settings-rem-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
-.settings-rem-title-in { flex: 1 1 180px; min-width: 140px; }
-.settings-rem-kind, .settings-rem-dow { width: auto; cursor: pointer; }
-
-/* Chief of Staff briefing — highlighted row */
-.settings-chief-row { background: linear-gradient(135deg, rgba(78,205,196,0.08), rgba(167,139,250,0.06)); border: 1px solid var(--border-primary); border-radius: 12px; padding: 12px 14px; }
-.settings-chief-row .settings-remind-main svg { color: var(--accent-cyan); }
-
-/* Assistant memory */
-.settings-mem-list { display: flex; flex-direction: column; }
-.settings-mem-empty { color: var(--text-muted); font-size: 0.88rem; padding: 6px 0; }
-.settings-mem-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-primary); }
-.settings-mem-kind { flex: 0 0 auto; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-cyan); background: rgba(78, 205, 196, 0.1); padding: 2px 8px; border-radius: 999px; }
-.settings-mem-text { flex: 1; min-width: 0; color: var(--text-primary); font-size: 0.9rem; overflow-wrap: anywhere; }
-.settings-mem-btn { flex: 0 0 auto; display: inline-flex; background: none; border: 0; padding: 4px; color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm); }
-.settings-mem-btn:hover { color: var(--text-primary); }
-.settings-mem-btn.del:hover { color: var(--accent-red); }
-.settings-mem-item.pinned .settings-mem-btn:not(.del) { color: var(--accent-orange); }
-.settings-mem-form { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-.settings-mem-form .form-input { flex: 1 1 220px; min-width: 0; }

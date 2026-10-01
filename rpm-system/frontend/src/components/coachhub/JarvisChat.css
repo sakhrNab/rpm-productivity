@@ -149,11 +149,13 @@
 .asst-messages + * { border-top: 1px solid var(--ui-hair); }
 .asst-messages + .asst-attach { border-top-color: rgba(78, 205, 196, 0.35); }
 .asst-input {
-  flex: 1; min-width: 0; resize: none; max-height: 180px; min-height: 44px; padding: 11px 14px; border-radius: 14px;
+  flex: 1; min-width: 0; resize: none; max-height: 132px; min-height: 44px; padding: 11px 14px; border-radius: 14px;
+  scrollbar-width: none; overflow-y: auto;
   background: rgba(3, 9, 20, 0.4); border: 1px solid var(--border-primary); color: var(--text-primary);
   font-family: inherit; font-size: 16px; line-height: 1.45; transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.asst-input::placeholder { color: var(--text-muted); }
+.asst-input::-webkit-scrollbar { display: none; }
+.asst-input::placeholder { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .asst-input:focus { outline: none; border-color: var(--accent-cyan); box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.15); }
 .asst-input:disabled { opacity: 0.6; }
 .asst-send { flex: 0 0 auto; align-self: flex-end; width: 44px; height: 44px; padding: 0; border-radius: 12px; }
@@ -219,18 +221,37 @@ body:has(.vorb-root) .asst-attach { margin-right: 116px; }
   .asst-messages { padding: 18px 14px; }
 }
 @media (max-width: 640px) {
-  .asst-topbar { padding: 10px 12px; }
-  .asst-model-picker { flex: 1 1 100%; }
-  .asst-model-btn { width: 100%; }
+  /* One compact row: the model on the left, the three mode switches as icon buttons on the right. */
+  .asst-topbar { flex-wrap: nowrap; gap: 8px; padding: 8px 12px; }
+  .asst-model-picker { flex: 1 1 0; min-width: 0; }
+  .asst-model-btn { width: 100%; min-height: 44px; }
   .asst-model-btn-label { flex: 1; text-align: left; }
-  .asst-toggles { flex: 1 1 100%; flex-wrap: nowrap; }
-  .asst-websearch { flex: 1 1 0; justify-content: center; padding: 5px 6px; }
+  .asst-model-btn-prov { display: none; }
+  .asst-toggles { flex: 0 0 auto; flex-wrap: nowrap; gap: 2px; padding: 3px; }
+  .asst-websearch { position: relative; flex: 0 0 auto; width: 40px; min-height: 38px; justify-content: center; padding: 0; }
+  .asst-tog-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .asst-tog-dot { position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; }
+  .asst-ws-hint { display: none; }
+  .asst-model-menu { position: fixed; top: auto; left: 12px; right: 12px; width: auto; min-width: 0; max-width: none; max-height: 60dvh; }
+  /* Welcome: tighter, so the starters and the composer both fit above the tab bar */
+  .asst-messages { padding: 14px 12px; gap: 18px; }
+  .asst-empty { gap: 8px; padding: 4px 0; }
+  .asst-empty-badge { width: 48px; height: 48px; border-radius: 15px; }
+  .asst-empty-title { font-size: 1.6rem; }
+  .asst-empty > p:not(.ui-kicker) { font-size: 0.88rem; }
+  .asst-starters { gap: 6px; margin-top: 4px; }
+  .asst-starter { min-height: 44px; padding: 9px 12px; font-size: 0.82rem; border-radius: 12px; }
+  .asst-starter span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .asst-empty-hint { display: none; }
+  /* Voice switches: icon chips (the labels live in the tooltip / aria) */
+  .asst-voice-toggle { min-width: 36px; min-height: 36px; justify-content: center; padding: 0 10px; }
+  .asst-voice-label { display: none; }
+  .asst-voicebar { gap: 6px; padding: 8px 12px 0; }
   .asst-msg.assistant .asst-msg-content,
   .asst-msg.assistant .asst-tools, .asst-msg.assistant .asst-proposals,
   .asst-msg.assistant .asst-sources, .asst-msg.assistant .asst-usage, .asst-msg.assistant .asst-files { padding-left: 0; margin-left: 0; }
   .asst-msg.user .asst-msg-content { max-width: 92%; }
-  .asst-composer { gap: 6px; padding: 10px 12px 12px; }
-  .asst-voicebar { padding: 8px 12px 0; }
+  .asst-composer { gap: 6px; padding: 8px 12px 10px; }
   .asst-attach { margin: 8px 12px 0; }
 }
 

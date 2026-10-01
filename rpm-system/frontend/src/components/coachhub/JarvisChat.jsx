@@ -75,6 +75,14 @@ export default function JarvisChat({ j }) {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The message box grows with what you type (up to ~5 lines), then scrolls.
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight + 2, 132)}px`;
+  }, [input, inputRef]);
+
   // Split a message's tools into executed chips vs approval proposals.
   const renderTools = (m, mi) => {
     const tools = m.tools || [];
@@ -193,17 +201,17 @@ export default function JarvisChat({ j }) {
         </div>
 
         <div className="asst-toggles">
-          <button className={`asst-websearch ${rpmMode ? 'on' : ''}`} onClick={() => setRpmMode(v => !v)}
+          <button className={`asst-websearch ${rpmMode ? 'on' : ''}`} onClick={() => setRpmMode(v => !v)} aria-pressed={rpmMode} aria-label={`RPM mode ${rpmMode ? 'on' : 'off'}`}
             title="RPM mode: the assistant sees your projects, key results and actions — and can act on them">
-            <Sparkles size={15} /> RPM {rpmMode ? 'on' : 'off'}<i className="asst-tog-dot" />
+            <Sparkles size={15} /> <span className="asst-tog-label">RPM {rpmMode ? 'on' : 'off'}</span><i className="asst-tog-dot" />
           </button>
-          <button className={`asst-websearch ${autoMode ? 'on' : ''}`} disabled={!rpmMode} onClick={() => setAutoMode(v => !v)}
+          <button className={`asst-websearch ${autoMode ? 'on' : ''}`} disabled={!rpmMode} onClick={() => setAutoMode(v => !v)} aria-pressed={autoMode} aria-label={autoMode ? 'Auto mode on' : 'Ask first mode'}
             title={autoMode ? 'Auto: changes apply immediately' : 'Ask first: changes are suggested for your approval'}>
-            <Wand2 size={15} /> {autoMode ? 'Auto' : 'Ask first'}<i className="asst-tog-dot" />
+            <Wand2 size={15} /> <span className="asst-tog-label">{autoMode ? 'Auto' : 'Ask first'}</span><i className="asst-tog-dot" />
           </button>
-          <button className={`asst-websearch ${webSearch ? 'on' : ''}`} disabled={!selectedModel?.webSearch} onClick={() => setWebSearch(v => !v)}
+          <button className={`asst-websearch ${webSearch ? 'on' : ''}`} disabled={!selectedModel?.webSearch} onClick={() => setWebSearch(v => !v)} aria-pressed={webSearch} aria-label={`Web search ${webSearch ? 'on' : 'off'}`}
             title={selectedModel?.webSearch ? 'Toggle web search' : 'This model has no web search'}>
-            <Globe size={15} /> Web {webSearch ? 'on' : 'off'}<i className="asst-tog-dot" />
+            <Globe size={15} /> <span className="asst-tog-label">Web {webSearch ? 'on' : 'off'}</span><i className="asst-tog-dot" />
           </button>
         </div>
         {selectedModel && !selectedModel.webSearch && (
@@ -267,13 +275,13 @@ export default function JarvisChat({ j }) {
       {(sttSupported() || ttsSupported()) && (
         <div className="asst-voicebar">
           {ttsSupported() && (
-            <button type="button" className={`asst-voice-toggle ${speakReplies ? 'on' : ''}`} onClick={toggleSpeak} title="Read replies aloud">
-              {speakReplies ? <Volume2 size={14} /> : <VolumeX size={14} />} Speak replies
+            <button type="button" className={`asst-voice-toggle ${speakReplies ? 'on' : ''}`} onClick={toggleSpeak} title="Read replies aloud" aria-pressed={speakReplies}>
+              {speakReplies ? <Volume2 size={14} /> : <VolumeX size={14} />} <span className="asst-voice-label">Speak replies</span>
             </button>
           )}
           {sttSupported() && (
-            <button type="button" className={`asst-voice-toggle ${convMode ? 'on' : ''}`} onClick={toggleConv} title="Hands-free conversation">
-              <Radio size={14} /> Conversation
+            <button type="button" className={`asst-voice-toggle ${convMode ? 'on' : ''}`} onClick={toggleConv} title="Hands-free conversation" aria-pressed={convMode}>
+              <Radio size={14} /> <span className="asst-voice-label">Conversation</span>
             </button>
           )}
           {speaking && (
@@ -312,7 +320,7 @@ export default function JarvisChat({ j }) {
         </button>
         <textarea ref={inputRef} className="asst-input"
           aria-label="Message Jarvis"
-          placeholder={listening ? 'Listening…' : attach?.status === 'ready' ? `Ask about ${attach.file.name}… (or just send)` : (selectedModel ? `Message ${selectedModel.label}…` : 'Select a model to begin…')}
+          placeholder={listening ? 'Listening…' : attach?.status === 'ready' ? 'Ask about the file… or just send' : (selectedModel ? 'Message Jarvis…' : 'Select a model to begin…')}
           value={input} onChange={e => setInput(e.target.value)} onKeyDown={onKeyDown} rows={1}
           disabled={!modelKey || streaming} />
         {sttSupported() && (

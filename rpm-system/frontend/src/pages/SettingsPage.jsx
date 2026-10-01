@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { useToast } from '../components/ToastProvider';
-import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe, Bell, Send, Info, Mail, Smartphone, Plus, Clock, BarChart3, Compass, Brain, Pin } from 'lucide-react';
+import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Globe, Bell, Send, Info, Mail, Smartphone, Plus, Clock, BarChart3, Compass, Brain, Pin, SlidersHorizontal } from 'lucide-react';
 import Picker from '../components/Picker';
 import { subscribeToPush, unsubscribeFromPush, pushSupported } from '../utils/push';
 import UsageDashboard from '../components/UsageDashboard';
@@ -15,6 +15,20 @@ function describeReminder(r) {
   if (r.kind === 'weekly') return `${DOW_LABELS[r.remind_dow] || ''} at ${r.remind_time || '09:00'}`;
   if (r.remind_at) { try { return new Date(r.remind_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); } catch { return 'once'; } }
   return 'once';
+}
+
+// Section header shared by every card: icon badge · sentence-case title · one-line explainer (+ optional right slot).
+function SectionHead({ icon, title, children, aside }) {
+  return (
+    <div className="settings-section-head">
+      <span className="ui-icon-badge settings-section-badge" aria-hidden="true">{icon}</span>
+      <div className="settings-section-text">
+        <h2>{title}</h2>
+        <p>{children}</p>
+      </div>
+      {aside}
+    </div>
+  );
 }
 
 const PROVIDERS = [
@@ -230,43 +244,47 @@ function SettingsPage() {
 
   return (
     <div className="settings-page">
-      <div className="page-header">
-        <h1 className="page-title">Settings</h1>
-      </div>
+      <header className="ui-card settings-hero">
+        <span className="ui-icon-badge settings-hero-icon" aria-hidden="true"><SlidersHorizontal size={22} /></span>
+        <div className="settings-hero-text">
+          <p className="ui-kicker">Control room</p>
+          <h1 className="settings-title"><span className="ui-title-grad">Settings</span></h1>
+          <p className="settings-sub">Your AI keys and default model, what the Assistant remembers, how RPM nudges you — and what it all costs.</p>
+        </div>
+      </header>
 
-      <div className="settings-tabs">
-        <button type="button" className={`settings-tab ${tab === 'api' ? 'active' : ''}`} onClick={() => setTab('api')}>
+      <div className="ui-seg settings-seg" role="tablist" aria-label="Settings sections">
+        <button type="button" role="tab" aria-selected={tab === 'api'} className={tab === 'api' ? 'on' : ''} onClick={() => setTab('api')}>
           <KeyRound size={15} /> API keys
         </button>
-        <button type="button" className={`settings-tab ${tab === 'reminders' ? 'active' : ''}`} onClick={() => setTab('reminders')}>
-          <Bell size={15} /> Reminders {tg?.connected && <span className="settings-tab-dot" />}
+        <button type="button" role="tab" aria-selected={tab === 'memory'} className={tab === 'memory' ? 'on' : ''} onClick={() => setTab('memory')}>
+          <Brain size={15} /> Memory {memories.length > 0 && <span className="settings-seg-n">{memories.length}</span>}
         </button>
-        <button type="button" className={`settings-tab ${tab === 'usage' ? 'active' : ''}`} onClick={() => setTab('usage')}>
+        <button type="button" role="tab" aria-selected={tab === 'reminders'} className={tab === 'reminders' ? 'on' : ''} onClick={() => setTab('reminders')}>
+          <Bell size={15} /> Reminders {tg?.connected && <span className="settings-tab-dot" title="Telegram connected" />}
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'usage'} className={tab === 'usage' ? 'on' : ''} onClick={() => setTab('usage')}>
           <BarChart3 size={15} /> Usage
         </button>
       </div>
 
       {tab === 'usage' && (
-        <section className="settings-section">
+        <section className="ui-card settings-section">
           <UsageDashboard />
         </section>
       )}
 
       {tab === 'api' && (<>
-      <section className="settings-section">
-        <div className="settings-section-head">
-          <KeyRound size={18} />
-          <div>
-            <h2>AI provider API keys</h2>
-            <p>Bring your own keys. They're encrypted at rest (AES-256-GCM) and never shown again after saving.</p>
-          </div>
-        </div>
+      <section className="ui-card settings-section">
+        <SectionHead icon={<KeyRound size={20} />} title="AI provider API keys">
+          Bring your own keys. They're encrypted at rest (AES-256-GCM) and never shown again after saving.
+        </SectionHead>
 
         {!storageEnabled && (
-          <div className="settings-warn">
+          <div className="settings-warn" role="alert">
             <AlertTriangle size={16} />
-            Key storage isn't enabled on the server yet (the <code>AI_KEYS_SECRET</code> master key is missing).
-            You can't save keys until an admin sets it.
+            <span>Key storage isn't enabled on the server yet (the <code>AI_KEYS_SECRET</code> master key is missing).
+            You can't save keys until an admin sets it.</span>
           </div>
         )}
 
@@ -274,15 +292,17 @@ function SettingsPage() {
           {PROVIDERS.map(p => {
             const st = status[p.id] || {};
             return (
-              <div key={p.id} className="settings-key-row">
+              <div key={p.id} className={`settings-key-row ${st.configured ? 'is-set' : ''}`}>
                 <div className="settings-key-info">
                   <div className="settings-key-label">
-                    {p.label}
-                    {st.configured && (
-                      <span className={`settings-badge ${st.source === 'env' ? 'env' : 'ok'}`}>
-                        <Check size={12} /> {st.source === 'env' ? 'server default' : `saved ····${st.last4 || ''}`}
-                      </span>
-                    )}
+                    <span className="settings-key-name">{p.label}</span>
+                    {st.configured
+                      ? (
+                        <span className={`ui-chip ${st.source === 'env' ? 'ui-chip--info' : 'ui-chip--good'}`}>
+                          <Check size={12} /> {st.source === 'env' ? 'server default' : <>saved <span className="settings-mono">····{st.last4 || ''}</span></>}
+                        </span>
+                      )
+                      : <span className="ui-chip">not set</span>}
                   </div>
                   <a className="settings-key-get" href={p.url} target="_blank" rel="noopener noreferrer">
                     Get a key <ExternalLink size={11} />
@@ -293,6 +313,7 @@ function SettingsPage() {
                     type="password"
                     className="form-input settings-key-input"
                     placeholder={st.configured ? 'Replace key…' : p.hint}
+                    aria-label={`${p.label} API key`}
                     value={drafts[p.id] || ''}
                     onChange={e => setDrafts(d => ({ ...d, [p.id]: e.target.value }))}
                     autoComplete="off"
@@ -306,7 +327,7 @@ function SettingsPage() {
                     {savingId === p.id ? 'Saving…' : 'Save'}
                   </button>
                   {st.configured && st.source === 'user' && (
-                    <button className="btn btn-icon btn-secondary settings-key-del" onClick={() => remove(p.id)} aria-label="Remove key">
+                    <button className="btn btn-icon btn-secondary settings-key-del" onClick={() => remove(p.id)} aria-label={`Remove ${p.label} key`} title="Remove key">
                       <Trash2 size={15} />
                     </button>
                   )}
@@ -318,19 +339,15 @@ function SettingsPage() {
 
         <div className="settings-note">
           <ShieldCheck size={15} />
-          Keys are stored encrypted and only decrypted server-side to make requests. We show only the last 4 characters.
+          <span>Keys are stored encrypted and only decrypted server-side to make requests. We show only the last 4 characters.</span>
         </div>
       </section>
 
       {availableModels.length > 0 && (
-        <section className="settings-section settings-default-model">
-          <div className="settings-section-head">
-            <Sparkles size={18} />
-            <div>
-              <h2>Default AI model</h2>
-              <p>The model the Assistant opens with. Change it any time from the Assistant too.</p>
-            </div>
-          </div>
+        <section className="ui-card settings-section settings-default-model">
+          <SectionHead icon={<Sparkles size={20} />} title="Default AI model">
+            The model the Assistant opens with. Change it any time from the Assistant too.
+          </SectionHead>
           <Picker
             className="settings-model-select"
             value={availableModels.some(m => m.key === defaultModel) ? defaultModel : ''}
@@ -343,63 +360,63 @@ function SettingsPage() {
               })))}
           />
           <div className="settings-note">
-            <Globe size={14} /> Models marked 🌐 support web search. If you pick one without it, the Assistant will tell you and the web-search toggle stays off for that model.
+            <Globe size={14} /> <span>Models marked 🌐 support web search. If you pick one without it, the Assistant will tell you and the web-search toggle stays off for that model.</span>
           </div>
         </section>
       )}
-      <section className="settings-section settings-memory">
-        <div className="settings-section-head">
-          <Brain size={18} />
-          <div>
-            <h2>Assistant memory</h2>
-            <p>What the Assistant and voice orb remember about you across conversations. It saves things you tell it
-              (“remember I prefer mornings for deep work”); you can add, pin or delete them here.</p>
-          </div>
+      </>)}
+
+      {tab === 'memory' && (
+      <section className="ui-card settings-section settings-memory">
+        <SectionHead icon={<Brain size={20} />} title="Assistant memory"
+          aside={memories.length > 0 ? <span className="ui-chip settings-section-count">{memories.length} remembered</span> : null}>
+          What the Assistant and voice orb remember about you across conversations. It saves things you tell it
+          (“remember I prefer mornings for deep work”); you can add, pin or delete them here.
+        </SectionHead>
+        <div className="settings-mem-form">
+          <input className="form-input" placeholder="Add something it should know about you…" aria-label="Add a memory" value={newMemory}
+            maxLength={300} onChange={e => setNewMemory(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addMemory(); }} />
+          <button type="button" className="btn btn-primary" onClick={addMemory} disabled={!newMemory.trim()}><Plus size={15} /> Remember</button>
         </div>
         <div className="settings-mem-list">
-          {memories.length === 0 && <div className="settings-mem-empty">Nothing remembered yet.</div>}
+          {memories.length === 0 && (
+            <div className="ui-empty settings-mem-empty"><Brain size={24} /><p>Nothing remembered yet. Tell the Assistant a preference, or add one above.</p></div>
+          )}
           {memories.map(m => (
             <div key={m.id} className={`settings-mem-item ${m.pinned ? 'pinned' : ''}`}>
-              <span className="settings-mem-kind">{m.kind}</span>
+              <span className="ui-chip ui-chip--good settings-mem-kind">{m.kind}</span>
               <span className="settings-mem-text">{m.content}</span>
-              <button type="button" className="settings-mem-btn" onClick={() => togglePin(m)} title={m.pinned ? 'Unpin' : 'Pin (always kept)'} aria-label={m.pinned ? 'Unpin memory' : 'Pin memory'}>
-                <Pin size={14} />
+              <button type="button" className="settings-mem-btn" onClick={() => togglePin(m)} title={m.pinned ? 'Unpin' : 'Pin (always kept)'} aria-label={m.pinned ? 'Unpin memory' : 'Pin memory'} aria-pressed={!!m.pinned}>
+                <Pin size={15} />
               </button>
               <button type="button" className="settings-mem-btn del" onClick={() => forgetMemory(m.id)} title="Forget" aria-label="Forget memory">
-                <Trash2 size={14} />
+                <Trash2 size={15} />
               </button>
             </div>
           ))}
         </div>
-        <div className="settings-mem-form">
-          <input className="form-input" placeholder="Add something it should know about you…" value={newMemory}
-            maxLength={300} onChange={e => setNewMemory(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addMemory(); }} />
-          <button type="button" className="btn btn-primary" onClick={addMemory} disabled={!newMemory.trim()}><Plus size={15} /> Remember</button>
-        </div>
       </section>
-      </>)}
+      )}
 
       {tab === 'reminders' && prefs && (
-        <section className="settings-section settings-reminders">
-          <div className="settings-section-head">
-            <Bell size={18} />
-            <div>
-              <h2>Reminders</h2>
-              <p>Get a morning digest of your day and overdue tasks. More channels coming.</p>
-            </div>
-          </div>
+        <section className="ui-card settings-section settings-reminders">
+          <SectionHead icon={<Bell size={20} />} title="Reminders &amp; channels">
+            Get a morning digest of your day and overdue tasks, and pick where each nudge lands.
+          </SectionHead>
+
+          <p className="ui-kicker settings-group-kicker">Briefings</p>
 
           {/* Chief of Staff — proactive briefing */}
           <div className="settings-remind-row settings-chief-row">
             <div className="settings-remind-main">
-              <Compass size={16} />
+              <span className="settings-row-ico" aria-hidden="true"><Compass size={17} /></span>
               <div>
                 <div className="settings-remind-title">Chief of Staff briefing</div>
                 <div className="settings-remind-sub">Each morning it messages you first — your plan plus which goals are slipping and the fix — on your enabled channels (email / Telegram / web push).</div>
               </div>
             </div>
             <label className="settings-switch">
-              <input type="checkbox" checked={!!prefs.chief_enabled} onChange={e => setPref({ chief_enabled: e.target.checked })} />
+              <input type="checkbox" role="switch" aria-label="Chief of Staff briefing" checked={!!prefs.chief_enabled} onChange={e => setPref({ chief_enabled: e.target.checked })} />
               <span />
             </label>
           </div>
@@ -418,14 +435,14 @@ function SettingsPage() {
           {/* Email */}
           <div className="settings-remind-row">
             <div className="settings-remind-main">
-              <Mail size={16} />
+              <span className="settings-row-ico" aria-hidden="true"><Mail size={17} /></span>
               <div>
                 <div className="settings-remind-title">Email digest</div>
                 <div className="settings-remind-sub">A daily summary to your account email.</div>
               </div>
             </div>
             <label className="settings-switch">
-              <input type="checkbox" checked={!!prefs.email_enabled && !!prefs.digest_enabled}
+              <input type="checkbox" role="switch" aria-label="Email digest" checked={!!prefs.email_enabled && !!prefs.digest_enabled}
                 onChange={e => setPref({ email_enabled: e.target.checked, digest_enabled: e.target.checked })} />
               <span />
             </label>
@@ -453,28 +470,29 @@ function SettingsPage() {
           {/* Per-task reminders (fires on whichever channels are enabled) */}
           <div className="settings-remind-row">
             <div className="settings-remind-main">
-              <Clock size={16} />
+              <span className="settings-row-ico" aria-hidden="true"><Clock size={17} /></span>
               <div>
                 <div className="settings-remind-title">Remind me at each task's time</div>
                 <div className="settings-remind-sub">When a task has a scheduled time, get a nudge when it's due — on your enabled channels (email, Telegram, web push).</div>
               </div>
             </div>
             <label className="settings-switch">
-              <input type="checkbox" checked={!!prefs.task_time_enabled} onChange={e => setPref({ task_time_enabled: e.target.checked })} />
+              <input type="checkbox" role="switch" aria-label="Remind me at each task's time" checked={!!prefs.task_time_enabled} onChange={e => setPref({ task_time_enabled: e.target.checked })} />
               <span />
             </label>
           </div>
 
+          <p className="ui-kicker settings-group-kicker">Channels</p>
           {/* Telegram */}
           <div className="settings-remind-row">
             <div className="settings-remind-main">
-              <Send size={16} />
+              <span className="settings-row-ico" aria-hidden="true"><Send size={17} /></span>
               <div>
                 <div className="settings-remind-title">
                   Telegram
                   <button type="button" className="settings-info-btn" onClick={() => setTgSteps(v => !v)} aria-label="How to connect Telegram"><Info size={14} /></button>
-                  {tg?.connected && <span className="settings-badge ok"><Check size={12} /> Connected</span>}
-                  {tg && !tg.botConfigured && <span className="settings-soon">Not set up</span>}
+                  {tg?.connected && <span className="ui-chip ui-chip--good"><Check size={12} /> Connected</span>}
+                  {tg && !tg.botConfigured && <span className="ui-chip ui-chip--warn">Not set up</span>}
                 </div>
                 <div className="settings-remind-sub">Instant push + tap “✅ Done” right in chat.</div>
               </div>
@@ -485,7 +503,7 @@ function SettingsPage() {
             {tg?.connected && (
               <div className="settings-tg-connected">
                 <label className="settings-switch" title="Telegram reminders">
-                  <input type="checkbox" checked={!!prefs?.telegram_enabled} onChange={e => toggleTgReminders(e.target.checked)} /><span />
+                  <input type="checkbox" role="switch" aria-label="Telegram reminders" checked={!!prefs?.telegram_enabled} onChange={e => toggleTgReminders(e.target.checked)} /><span />
                 </label>
                 <button className="btn btn-secondary" onClick={disconnectTg}>Disconnect</button>
               </div>
@@ -537,9 +555,9 @@ function SettingsPage() {
           {/* Web push */}
           <div className="settings-remind-row">
             <div className="settings-remind-main">
-              <Smartphone size={16} />
+              <span className="settings-row-ico" aria-hidden="true"><Smartphone size={17} /></span>
               <div>
-                <div className="settings-remind-title">Web push {pushOn && <span className="settings-badge ok"><Check size={12} /> On</span>}</div>
+                <div className="settings-remind-title">Web push {pushOn && <span className="ui-chip ui-chip--good"><Check size={12} /> On</span>}</div>
                 <div className="settings-remind-sub">Browser notifications (on iPhone, add RPM to your Home Screen first).</div>
               </div>
             </div>
@@ -547,7 +565,7 @@ function SettingsPage() {
               pushOn
                 ? <button className="btn btn-secondary" onClick={disablePush} disabled={pushBusy}>{pushBusy ? '…' : 'Disable'}</button>
                 : <button className="btn btn-primary" onClick={enablePush} disabled={pushBusy}>{pushBusy ? 'Enabling…' : 'Enable'}</button>
-            ) : <span className="settings-soon">Not supported here</span>}
+            ) : <span className="ui-chip ui-chip--warn">Not supported here</span>}
           </div>
 
           {/* Custom reminders live on their own page now */}

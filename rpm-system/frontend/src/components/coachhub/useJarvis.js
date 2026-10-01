@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../App';
 import { useToast } from '../ToastProvider';
 import { sttSupported, startListening, stopListening, speak, cancelSpeak } from '../../utils/speech';
-import { setPendingFile, MAX_UPLOAD_BYTES } from '../../utils/pendingFile';
+import { setPendingFile, acceptFile } from '../../utils/pendingFile';
 
 export const DEFAULT_FILE_QUESTION = 'What is in this file, and what should I do with it?';
 
@@ -154,9 +154,9 @@ export default function useJarvis() {
   const dismissProposal = (mi, ti) => updateTool(mi, ti, { status: 'dismissed' }, true);
 
   // ---------- files ----------
-  const chooseFile = (f) => {
+  const chooseFile = async (picked) => {
+    const f = await acceptFile(picked, showToast);          // photos are converted + shrunk here
     if (!f) return false;
-    if (f.size > MAX_UPLOAD_BYTES) { showToast('That file is over 10 MB.', 'error'); return false; }
     setAttach({ file: f, status: 'choose' });
     return true;
   };
@@ -165,7 +165,7 @@ export default function useJarvis() {
     const f = attach.file;
     setAttach({ file: f, status: 'reading' });
     try {
-      const data = await api.extractFile(f);
+      const data = await api.extractFile(f, modelKey);
       setAttach(a => (a && a.file === f ? { file: f, status: 'ready', data } : a));
     } catch (e) {
       showToast(e.message || 'Could not read that file.', 'error');

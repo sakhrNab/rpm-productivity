@@ -7,6 +7,7 @@ import useJarvis from '../components/coachhub/useJarvis';
 import JarvisChat from '../components/coachhub/JarvisChat';
 import HubSidebar from '../components/coachhub/HubSidebar';
 import CoachesOverview from '../components/coachhub/CoachesOverview';
+import useViewportLock from '../utils/useViewportLock';
 import '../components/coachhub/aiShared.css';
 import '../components/coachhub/CoachHub.css';
 
@@ -27,6 +28,7 @@ export default function CoachHubPage() {
   const view = params.get('view');
   const mode = coachId ? 'coach' : view === 'coaches' ? 'overview' : 'jarvis';
 
+  useViewportLock(true);
   const j = useJarvis();
   const [coaches, setCoaches] = useState(null);
   const [unread, setUnread] = useState({});
@@ -84,7 +86,7 @@ export default function CoachHubPage() {
     onDrop: (e) => {
       if (!hasFiles(e)) return;
       e.preventDefault(); dragDepth.current = 0; setDragging(false);
-      if (j.chooseFile(e.dataTransfer.files?.[0])) showJarvis();
+      j.chooseFile(e.dataTransfer.files?.[0]).then(ok => { if (ok) showJarvis(); });
     },
   };
 

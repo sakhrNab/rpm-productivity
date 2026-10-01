@@ -174,6 +174,23 @@ function looksLikeText(buf) {
   return bad / Math.max(1, s.length) < 0.01;
 }
 
+// Images are not text — the bytes are sniffed here and read by a vision model (ai/vision.js).
+// HEIC/HEIF (iPhone originals) is recognised only to give a useful message: browsers convert
+// it to JPEG before upload, and nothing on the server can decode it.
+const IMAGE_EXT = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.jpe': 'image/jpeg', '.jfif': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' };
+function sniffImage(buf) {
+  if (!buf || buf.length < 12) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
+  if (buf.readUInt32BE(0) === 0x89504e47) return 'image/png';
+  if (buf.subarray(0, 4).toString('latin1') === 'GIF8') return 'image/gif';
+  if (buf.subarray(0, 4).toString('latin1') === 'RIFF' && buf.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
+  if (buf.subarray(4, 8).toString('latin1') === 'ftyp' && /^(heic|heix|hevc|hevx|heim|heis|mif1|msf1|avif)/.test(buf.subarray(8, 12).toString('latin1'))) {
+    return buf.subarray(8, 12).toString('latin1') === 'avif' ? 'image/avif' : 'image/heic';
+  }
+  return null;
+}
+const imageKind = (buf, name) => sniffImage(buf) || (IMAGE_EXT[path.extname(String(name || '')).toLowerCase()] ? 'image/unreadable' : null);
+
 const TEXT_EXT = new Set(['.txt', '.md', '.markdown', '.csv', '.tsv', '.json', '.yaml', '.yml', '.xml', '.log', '.ini', '.toml', '.ics', '.vtt', '.srt', '.tex', '.org', '.rst', '.adoc']);
 
 async function extractText(buffer, originalName = '') {
@@ -219,4 +236,4 @@ async function extractText(buffer, originalName = '') {
   return { kind, text: truncated ? text.slice(0, MAX_TEXT) : text, chars: text.length, truncated, meta };
 }
 
-module.exports = { extractText, ExtractError, htmlText, rtfText, looksLikeText, MAX_TEXT };
+module.exports = { extractText, sniffImage, imageKind, ExtractError, htmlText, rtfText, looksLikeText, MAX_TEXT };

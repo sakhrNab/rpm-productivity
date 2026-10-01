@@ -16,7 +16,7 @@
   min-height: var(--nav-h, 62px); padding: 0 var(--spacing-lg);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 70%),
-    rgba(8, 18, 36, 0.94);
+    #081224;
   border-bottom: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.08));
 }
 .tn::after {                                              /* hairline of light along the bottom edge */
@@ -153,7 +153,7 @@
 
 /* Inbox */
 .tn-bell { position: relative; }
-.tn-inbox { width: 380px; display: flex; flex-direction: column; max-height: min(560px, calc(100vh - var(--nav-h, 62px) - 24px)); }
+.tn-inbox { width: 380px; display: flex; flex-direction: column; max-height: min(560px, calc(100vh - var(--nav-h, 62px) - 24px)); max-height: min(560px, calc(100dvh - var(--nav-h, 62px) - 24px)); }
 .tn-inbox-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 12px 10px 16px;
   border-bottom: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.08));
@@ -228,7 +228,7 @@
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 970;
     display: grid; grid-template-columns: repeat(5, 1fr); align-items: stretch;
     height: var(--tabbar-h); padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: linear-gradient(180deg, rgba(12, 24, 48, 0.97), rgba(7, 15, 30, 0.99));
+    background: linear-gradient(180deg, #0c1830, #070f1e);
     border-top: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.08));
     box-shadow: 0 -12px 30px -12px rgba(0, 0, 0, 0.7);
   }

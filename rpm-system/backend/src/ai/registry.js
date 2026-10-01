@@ -51,6 +51,10 @@ const MODELS = [
   { key: 'deepseek/deepseek-v4-flash', provider: 'deepseek', family: 'DeepSeek', model: 'deepseek-flash',  label: 'DeepSeek Flash',  webSearch: true, reasoning: false },
 ];
 
+// Models that can read an image. DeepSeek's and GLM's chat endpoints here are text-only, so a photo
+// has to go through one of these first (ai/vision.js picks the cheapest one the user has a key for).
+for (const m of MODELS) m.vision = m.provider === 'anthropic' || m.provider === 'openai';
+
 const BY_KEY = Object.fromEntries(MODELS.map(m => [m.key, m]));
 
 // ESTIMATED prices in USD per 1,000,000 tokens: { in, out, cache } (standard tier,

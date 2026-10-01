@@ -1,43 +1,60 @@
-.usage-dash { display: flex; flex-direction: column; gap: 1rem; }
-.usage-dash-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.usage-dash-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1rem; }
-.usage-muted { color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; }
+/* Usage & cost — rendered inside a Settings .ui-card. Mission-control language:
+   mono numerals, glass stat tiles, meters for share-of-spend, gradient daily bars.
+   Scoped under .usage-dash so it beats index.css (which loads after this file). */
+.usage-dash { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.usage-dash .usage-dash-head { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
+.usage-dash .usage-dash-title { display: flex; align-items: flex-start; gap: 14px; min-width: 0; }
+.usage-dash .usage-dash-title h2 { margin: 2px 0 4px; font: 700 1.2rem/1.2 'Outfit', var(--font-display); letter-spacing: -0.005em; text-transform: none; color: var(--text-primary); }
+.usage-dash .usage-dash-title p { margin: 0; font-size: 0.88rem; line-height: 1.5; color: var(--text-secondary); }
+.usage-dash .usage-range > button { min-height: 40px; padding: 6px 16px; font-family: var(--ui-mono); font-weight: 600; }
 
-.usage-range { display: inline-flex; gap: 2px; background: var(--bg-hover); border: 1px solid var(--border-primary); border-radius: 999px; padding: 2px; }
-.usage-range button { padding: 4px 12px; border: none; background: transparent; color: var(--text-muted); border-radius: 999px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
-.usage-range button.active { background: var(--accent-cyan); color: #04231f; }
+.usage-dash .usage-empty { padding: 30px 18px; }
+.usage-dash .usage-empty p { margin: 0; max-width: 460px; line-height: 1.55; }
+.usage-dash .usage-spinner { width: 30px; height: 30px; }
 
-.usage-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
-.usage-card {
-  display: flex; flex-direction: column; gap: 4px;
-  background: var(--bg-card); border: 1px solid var(--border-primary);
-  border-radius: 12px; padding: 0.85rem 0.95rem;
+.usage-dash .usage-cards { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; }
+.usage-dash .usage-card {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 14px 16px; border-radius: 16px;
+  background: color-mix(in srgb, var(--bg-card) 70%, transparent); border: 1px solid var(--border-primary);
 }
-.usage-card-hero { background: linear-gradient(135deg, rgba(78,205,196,0.14), rgba(167,139,250,0.10)); }
-.usage-card-label { display: inline-flex; align-items: center; gap: 5px; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
-.usage-card-val { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.usage-card-hero .usage-card-val { color: var(--accent-cyan); }
-.usage-card-sub { display: inline-flex; align-items: center; gap: 4px; font-size: 0.76rem; color: var(--text-muted); }
+.usage-dash .usage-card-hero {
+  border-color: rgba(78, 205, 196, 0.35);
+  background: radial-gradient(360px 140px at 100% 0%, rgba(255, 105, 180, 0.12), transparent 65%), linear-gradient(135deg, rgba(78, 205, 196, 0.16), rgba(149, 117, 205, 0.08));
+}
+.usage-dash .usage-card-label { display: inline-flex; align-items: center; gap: 6px; font: 600 0.68rem var(--ui-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+.usage-dash .usage-card-label svg { color: var(--accent-cyan); }
+.usage-dash .usage-card-val { font: 700 1.6rem/1.15 var(--ui-mono); font-variant-numeric: tabular-nums; color: var(--text-primary); overflow-wrap: anywhere; }
+.usage-dash .usage-card-hero .usage-card-val { font-size: 1.9rem; color: var(--accent-cyan); text-shadow: 0 0 24px rgba(78, 205, 196, 0.35); }
+.usage-dash .usage-card-sub { display: inline-flex; align-items: center; gap: 4px; font: 500 0.76rem var(--ui-mono); color: var(--text-muted); }
 
-.usage-section h4 { margin: 0 0 0.5rem; font-size: 0.85rem; color: var(--text-secondary); font-weight: 600; }
-.usage-table { display: flex; flex-direction: column; gap: 2px; }
-.usage-row { display: flex; align-items: center; gap: 0.75rem; padding: 6px 8px; border-radius: 8px; background: var(--bg-hover); font-size: 0.85rem; }
-.usage-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, monospace); font-size: 0.8rem; }
-.usage-row-meta { color: var(--text-muted); font-size: 0.76rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.usage-row-cost { color: var(--accent-cyan); font-weight: 600; font-variant-numeric: tabular-nums; min-width: 62px; text-align: right; }
+.usage-dash .usage-section { display: flex; flex-direction: column; gap: 10px; }
+.usage-dash .usage-section > .ui-kicker { text-transform: uppercase; font-size: 0.72rem; font-family: var(--ui-mono); letter-spacing: 0.12em; }
+.usage-dash .usage-table { display: flex; flex-direction: column; gap: 6px; }
+.usage-dash .usage-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name cost' 'meta meta' 'meter meter'; gap: 3px 12px;
+  padding: 10px 14px; border-radius: 14px; border: 1px solid var(--ui-hair); background: rgba(255, 255, 255, 0.025);
+}
+.usage-dash .usage-row-name { grid-area: name; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 0.84rem var(--ui-mono); color: var(--text-primary); }
+.usage-dash .usage-row-cost { grid-area: cost; font: 700 0.9rem var(--ui-mono); font-variant-numeric: tabular-nums; color: var(--accent-cyan); text-align: right; }
+.usage-dash .usage-row-meta { grid-area: meta; font: 500 0.74rem var(--ui-mono); font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.usage-dash .usage-row-meter { grid-area: meter; margin-top: 4px; height: 4px; }
 
-.usage-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.usage-chip { font-size: 0.8rem; padding: 3px 10px; border-radius: 999px; background: var(--bg-hover); border: 1px solid var(--border-primary); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.usage-dash .usage-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.usage-dash .usage-chip { padding: 5px 12px; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.usage-dash .usage-chip b { font-family: var(--ui-mono); font-weight: 700; color: var(--text-primary); }
 
-.usage-bars { display: flex; align-items: flex-end; gap: 3px; height: 70px; padding-top: 4px; }
-.usage-bar-col { flex: 1; height: 100%; display: flex; align-items: flex-end; }
-.usage-bar { width: 100%; min-height: 2px; background: linear-gradient(to top, var(--accent-cyan), var(--accent-yellow, #ffd166)); border-radius: 3px 3px 0 0; }
+.usage-dash .usage-bars { display: flex; align-items: flex-end; gap: 3px; height: 84px; padding: 8px 8px 0; border-radius: 14px; border: 1px solid var(--ui-hair); background: rgba(0, 0, 0, 0.18); }
+.usage-dash .usage-bar-col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
+.usage-dash .usage-bar { width: 100%; min-height: 2px; background: linear-gradient(to top, #4ecdc4, #ff69b4); border-radius: 3px 3px 0 0; opacity: 0.9; }
+.usage-dash .usage-bar-col:hover .usage-bar { opacity: 1; box-shadow: 0 0 10px rgba(78, 205, 196, 0.5); }
 
-.usage-note { font-size: 0.76rem; color: var(--text-muted); line-height: 1.5; margin: 0; }
+.usage-dash .usage-note { margin: 0; font-size: 0.78rem; color: var(--text-muted); line-height: 1.55; }
+.usage-dash .usage-note b { color: var(--text-secondary); }
 
-@media (max-width: 560px) {
-  .usage-cards { grid-template-columns: 1fr; }
-  .usage-dash-head { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .usage-dash-head h3 { font-size: 0.95rem; white-space: nowrap; }
-  .usage-range { align-self: stretch; justify-content: space-between; }
+@media (max-width: 640px) {
+  .usage-dash .usage-cards { grid-template-columns: 1fr 1fr; }
+  .usage-dash .usage-card-hero { grid-column: 1 / -1; }
+  .usage-dash .usage-dash-head { flex-direction: column; align-items: stretch; }
+  .usage-dash .usage-range { display: flex; }
+  .usage-dash .usage-range > button { flex: 1 1 0; justify-content: center; }
 }
