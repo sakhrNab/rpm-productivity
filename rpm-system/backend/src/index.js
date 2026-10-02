@@ -22,6 +22,7 @@ const capacity = require('./capacity');
 const { getRoadmap } = require('./roadmap');
 const inbox = require('./inbox');
 const { rateLimit } = require('./ratelimit');
+const { securityEvent } = require('./securityEvent');
 const { registrationAllowed } = require('./access');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
@@ -139,7 +140,11 @@ const authenticateToken = async (req, res, next) => {
 
 // Rate limits: brute-force protection on auth, and a runaway-loop guard on AI calls
 // (each AI request spends the user's own provider credit).
-const authLimiter = rateLimit({ name: 'auth', windowMs: 15 * 60 * 1000, max: 20, message: 'Too many attempts — wait 15 minutes and try again.' });
+const authLimiter = rateLimit({
+  name: 'auth', windowMs: 15 * 60 * 1000, max: 20, message: 'Too many attempts — wait 15 minutes and try again.',
+  // req.ip is the address the limiter itself keys on (trust proxy = 1)
+  onLimit: (req) => securityEvent('login_rate_limited', { user: req.body?.email, ip: req.ip, reason: /register/.test(req.path) ? 'register' : 'login' }),
+});
 const aiLimiter = rateLimit({ name: 'ai', windowMs: 60 * 1000, max: 30, message: 'Too many AI requests in a minute — slow down a little.' });
 
 // Passport Strategies
@@ -214,10 +219,16 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     const { email, password, name } = req.body;
     if (!email || !password || !name) return res.status(400).json({ error: 'Email, password, and name are required' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    if (!registrationAllowed(email)) return res.status(403).json({ error: 'Sign-ups are invite-only right now. Ask the owner to add your email.' });
-    
+    if (!registrationAllowed(email)) {
+      securityEvent('signup', { user: email, ip: req.ip, reason: 'invite_only' });
+      return res.status(403).json({ error: 'Sign-ups are invite-only right now. Ask the owner to add your email.' });
+    }
+
     const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-    if (existingUser.rows.length > 0) return res.status(400).json({ error: 'Email already registered' });
+    if (existingUser.rows.length > 0) {
+      securityEvent('signup', { user: email, ip: req.ip, reason: 'email_taken' });
+      return res.status(400).json({ error: 'Email already registered' });
+    }
     
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await pool.query(
@@ -231,7 +242,8 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     const { accessToken, refreshToken } = generateTokens(user);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, refreshToken, expiresAt]);
-    
+    securityEvent('signup', { user: user.email, ip: req.ip, reason: 'created' });
+
     res.status(201).json({ user, accessToken, refreshToken });
   } catch (error) {
     console.error('Registration error:', error);
@@ -245,18 +257,28 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
     
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (result.rows.length === 0) return res.status(401).json({ error: 'Invalid email or password' });
-    
+    if (result.rows.length === 0) {
+      securityEvent('login_failed', { user: email, ip: req.ip, reason: 'unknown_user' });
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
     const user = result.rows[0];
-    if (!user.password_hash) return res.status(401).json({ error: 'This account uses social login' });
-    
+    if (!user.password_hash) {
+      securityEvent('login_failed', { user: email, ip: req.ip, reason: 'no_password_set' });
+      return res.status(401).json({ error: 'This account uses social login' });
+    }
+
     const validPassword = await bcrypt.compare(password, user.password_hash);
-    if (!validPassword) return res.status(401).json({ error: 'Invalid email or password' });
-    
+    if (!validPassword) {
+      securityEvent('login_failed', { user: email, ip: req.ip, reason: 'bad_password' });
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
     const { accessToken, refreshToken } = generateTokens(user);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, refreshToken, expiresAt]);
-    
+    securityEvent('login_success', { user: user.email, ip: req.ip });
+
     res.json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar }, accessToken, refreshToken });
   } catch (error) {
     console.error('Login error:', error);
@@ -321,6 +343,7 @@ app.get('/api/auth/google/callback', passport.authenticate('google', { session: 
     const { accessToken, refreshToken } = generateTokens(req.user);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [req.user.id, refreshToken, expiresAt]);
+    securityEvent('login_success', { user: req.user.email, ip: req.ip, reason: 'google' });
     res.redirect(`${FRONTEND_URL}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
   } catch (error) { res.redirect(`${FRONTEND_URL}/login?error=google_failed`); }
 });
@@ -331,6 +354,7 @@ app.get('/api/auth/microsoft/callback', passport.authenticate('microsoft', { ses
     const { accessToken, refreshToken } = generateTokens(req.user);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [req.user.id, refreshToken, expiresAt]);
+    securityEvent('login_success', { user: req.user.email, ip: req.ip, reason: 'microsoft' });
     res.redirect(`${FRONTEND_URL}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
   } catch (error) { res.redirect(`${FRONTEND_URL}/login?error=microsoft_failed`); }
 });
@@ -1992,7 +2016,10 @@ app.put('/api/settings/ai-model', authenticateToken, async (req, res) => {
 app.post('/api/telegram/webhook', async (req, res) => {
   try {
     const secret = await telegram.getWebhookSecret(pool);
-    if (!secret || req.get('X-Telegram-Bot-Api-Secret-Token') !== secret) return res.sendStatus(401);
+    if (!secret || req.get('X-Telegram-Bot-Api-Secret-Token') !== secret) {
+      securityEvent('webhook_rejected', { ip: req.ip, reason: secret ? 'bad_secret' : 'no_secret_configured' });
+      return res.sendStatus(401);
+    }
     await telegram.handleUpdate(pool, req.body, (actionId) => pool.query('UPDATE actions SET is_completed = true WHERE id = $1', [actionId]),
       async (userId, actionId, op) => {
         const prefs = await notifications.getPrefs(pool, userId);
