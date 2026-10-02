@@ -50,6 +50,7 @@ export default function useJarvis() {
   const speakRef = useRef(false); speakRef.current = speakReplies;
   const sendRef = useRef(null);
 
+  const [photoReaders, setPhotoReaders] = useState([]);
   const configuredProviders = useMemo(
     () => new Set(providers.filter(p => p.configured).map(p => p.provider)),
     [providers]
@@ -64,7 +65,7 @@ export default function useJarvis() {
 
   useEffect(() => {
     api.getAiModels()
-      .then(data => { setModels(data.models || []); setProviders(data.providers || []); })
+      .then(data => { setModels(data.models || []); setProviders(data.providers || []); setPhotoReaders(data.photoReaders || []); })
       .catch(() => showToast('Failed to load AI models', 'error'));
     refreshConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -336,7 +337,7 @@ export default function useJarvis() {
 
   return {
     // models / modes
-    models, modelKey, setModelKey, selectedModel, configuredProviders, noModels,
+    models, modelKey, setModelKey, selectedModel, configuredProviders, noModels, photoReaders,
     modelMenuOpen, setModelMenuOpen, openFamilies, setOpenFamilies, pickerRef,
     rpmMode, setRpmMode, autoMode, setAutoMode, webSearch, setWebSearch,
     // conversations

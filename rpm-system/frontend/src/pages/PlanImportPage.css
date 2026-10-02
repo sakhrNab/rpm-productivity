@@ -58,6 +58,7 @@
 .pim-note textarea { font-size: 16px; resize: vertical; }
 .pim-go { justify-content: center; min-height: 48px; font-size: 1rem; gap: 8px; margin-top: auto; }
 .pim-fine { margin: 0; font-size: 0.78rem; color: var(--text-muted); text-align: center; }
+.pim-reader { text-align: left; color: var(--accent-cyan); }
 .pim-link { color: var(--accent-cyan); }
 
 /* ---------- analyzing ---------- */

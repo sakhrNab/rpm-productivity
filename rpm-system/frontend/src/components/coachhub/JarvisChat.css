@@ -199,6 +199,9 @@ body:has(.vorb-root) .asst-attach { margin-right: 116px; }
 .asst-attach-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .asst-attach-file i { flex-shrink: 0; font-style: normal; font: 500 0.72rem var(--ui-mono); color: var(--text-muted); }
 .asst-attach-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Which model reads an attached photo (the chosen one, or the vision fallback the server will use). */
+.asst-attach-reader { flex-basis: 100%; display: flex; align-items: center; gap: 6px; font-style: normal; font: 500 0.72rem var(--ui-mono); color: var(--text-muted); }
+.asst-attach-reader svg { flex-shrink: 0; color: var(--accent-cyan); }
 .asst-attach-btn {
   display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 10px;
   border: 1px solid var(--border-primary); background: var(--bg-hover); color: var(--text-primary); font: 500 0.82rem var(--font-body); cursor: pointer;

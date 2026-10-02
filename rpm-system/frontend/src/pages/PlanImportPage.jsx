@@ -13,6 +13,7 @@ import { fmtDay, reminderUpcoming } from '../utils/planFormat';
 import TaskEditor from '../components/plan/TaskEditor';
 import { takePendingFile, acceptFile } from '../utils/pendingFile';
 import { isImageFile } from '../utils/uploadPrep';
+import { photoReader } from '../utils/photoReader';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { schedulePlan } from '../utils/planSchedule';
 import './PlanImportPage.css';
@@ -60,6 +61,7 @@ export default function PlanImportPage() {
   const [note, setNote] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [models, setModels] = useState([]);
+  const [photoReaders, setPhotoReaders] = useState([]);
   const [modelKey, setModelKey] = useState(localStorage.getItem('ai.modelKey') || '');
 
   const [fileInfo, setFileInfo] = useState(null);
@@ -90,6 +92,7 @@ export default function PlanImportPage() {
       const ok = new Set((d.providers || []).filter(p => p.configured).map(p => p.provider));
       const avail = (d.models || []).filter(m => ok.has(m.provider));
       setModels(avail);
+      setPhotoReaders(d.photoReaders || []);
       if (!avail.some(m => m.key === modelKey) && avail[0]) setModelKey(avail[0].key);
     }).catch(() => {});
     loadRecent();
@@ -389,9 +392,15 @@ export default function PlanImportPage() {
               <span>Model</span>
               {models.length ? (
                 <Picker value={modelKey} onChange={v => { setModelKey(v); localStorage.setItem('ai.modelKey', v); }}
-                  options={models.map(m => ({ value: m.key, label: m.label }))} header="Plan with" />
+                  options={models.map(m => ({ value: m.key, label: m.label, hint: m.vision ? 'reads images' : undefined }))} header="Plan with" />
               ) : <Link to="/settings" className="pim-link">Add an API key in Settings</Link>}
             </div>
+            {file && isImageFile(file) && models.length > 0 && (() => {
+              const reader = photoReader(models, new Set(models.map(m => m.provider)), modelKey, photoReaders);
+              const chosen = models.find(m => m.key === modelKey);
+              if (!reader) return <p className="pim-fine pim-reader">None of your models can read photos — add a DeepSeek, Claude or OpenAI key in Settings.</p>;
+              return <p className="pim-fine pim-reader">{reader.key === modelKey ? `${reader.label} reads the photo and builds the plan.` : `${reader.label} reads the photo, then ${chosen ? chosen.label : 'your model'} builds the plan.`}</p>;
+            })()}
             <button type="button" className="btn btn-primary pim-go" disabled={!file || !modelKey} onClick={analyze}>
               <Sparkles size={17} /> Build my plan
             </button>

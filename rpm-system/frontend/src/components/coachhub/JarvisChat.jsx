@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import {
   Send, Globe, Sparkles, ChevronDown, ChevronRight, Zap, Wand2, Check, X, ExternalLink, Info,
   Mic, Volume2, VolumeX, Radio, Square, Paperclip, FileText, Loader2, GanttChart, MessageCircle,
-  Target, TrendingUp, CalendarDays, ListChecks,
+  Target, TrendingUp, CalendarDays, ListChecks, Eye,
 } from 'lucide-react';
 import Markdown from '../Markdown';
 import UsageBadge from '../UsageBadge';
 import { sttSupported, ttsSupported } from '../../utils/speech';
+import { isImageFile } from '../../utils/uploadPrep';
+import { photoReader } from '../../utils/photoReader';
 import './JarvisChat.css';
 
 const PROVIDER_LABEL = {
@@ -61,7 +63,7 @@ function FileChips({ files }) {
 // The Jarvis chat pane (Coach hub main area). All state comes from useJarvis() — `j`.
 export default function JarvisChat({ j }) {
   const {
-    models, modelKey, setModelKey, selectedModel, configuredProviders, noModels,
+    models, modelKey, setModelKey, selectedModel, configuredProviders, noModels, photoReaders,
     modelMenuOpen, setModelMenuOpen, openFamilies, setOpenFamilies, pickerRef,
     rpmMode, setRpmMode, autoMode, setAutoMode, webSearch, setWebSearch,
     messages, input, setInput, streaming, send, stop, onKeyDown, applyStarter, inputRef, scrollRef,
@@ -186,6 +188,7 @@ export default function JarvisChat({ j }) {
                             <button key={m.key} role="option" aria-selected={m.key === modelKey} className={`asst-model-item asst-model-sub ${m.key === modelKey ? 'active' : ''}`} disabled={!configured}
                               onClick={() => { setModelKey(m.key); setModelMenuOpen(false); }}>
                               <span className="asst-model-item-label">{m.label}</span>
+                              {m.vision && <Eye size={12} className="asst-model-web" aria-label="Reads images"><title>Reads images</title></Eye>}
                               {m.webSearch && <Globe size={12} className="asst-model-web" aria-label="Web search" />}
                               {m.key === modelKey && <Check size={14} className="asst-model-check" />}
                             </button>
@@ -309,6 +312,12 @@ export default function JarvisChat({ j }) {
             </span>
           )}
           <button type="button" className="asst-attach-x" onClick={() => setAttach(null)} aria-label="Remove file" disabled={attach.status === 'reading'}><X size={14} /></button>
+          {attach.status !== 'ready' && isImageFile(attach.file) && (() => {
+            const reader = photoReader(models, configuredProviders, modelKey, photoReaders);
+            if (!reader) return <i className="asst-attach-reader">No model with a key can read photos — add a DeepSeek, Claude or OpenAI key in Settings</i>;
+            if (reader.key === modelKey) return <i className="asst-attach-reader"><Eye size={12} /> {reader.label} reads the photo</i>;
+            return <i className="asst-attach-reader"><Eye size={12} /> {reader.label} reads the photo{selectedModel ? `, then ${selectedModel.label} takes it from there` : ''}</i>;
+          })()}
         </div>
       )}
       <div className="asst-composer">

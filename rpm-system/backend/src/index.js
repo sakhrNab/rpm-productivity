@@ -14,7 +14,7 @@ const { buildHistory, buildActionLog, sanitizeClientMessages, sanitizeAttachment
 const { resolveTimezone, todayInTz } = require('./ai/context');
 const aiMemory = require('./ai/memory');
 const { extractText, imageKind, ExtractError } = require('./ai/extract');
-const { readImage } = require('./ai/vision');
+const { readImage, READERS: PHOTO_READERS } = require('./ai/vision');
 const { generateFilePlan, applyFilePlan, loadExisting } = require('./ai/fileplan');
 const planImports = require('./ai/imports');
 const { projectTimeline, rescheduleActions } = require('./timeline');
@@ -1158,7 +1158,7 @@ app.get('/api/health', async (req, res) => {
 app.get('/api/ai/models', authenticateToken, async (req, res) => {
   try {
     const providers = await aiKeys.listKeysMasked(pool, req.userId);
-    res.json({ models: aiRegistry.MODELS, providers, storageEnabled: aiKeysConfigured() });
+    res.json({ models: aiRegistry.MODELS, providers, storageEnabled: aiKeysConfigured(), photoReaders: PHOTO_READERS });
   } catch (error) {
     console.error('[ai] models error:', error);
     res.status(500).json({ error: 'Failed to load models' });
