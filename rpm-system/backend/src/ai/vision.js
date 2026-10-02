@@ -13,7 +13,7 @@ const { ExtractError, MAX_TEXT } = require('./extract');
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;               // Anthropic's per-image ceiling
 // Fallbacks, cheapest first — transcription does not need a flagship.
-const READERS = ['deepseek/deepseek-v4-flash', 'anthropic/claude-haiku-4-5', 'openai/gpt-5-mini', 'openai/gpt-4o-mini', 'openai/gpt-6-luna', 'anthropic/claude-sonnet-5', 'openai/gpt-5.6-luna'];
+const READERS = ['deepseek/deepseek-v4-flash', 'anthropic/claude-haiku-4-5', 'openai/gpt-5-mini', 'openai/gpt-4o-mini', 'openai/gpt-6-luna', 'anthropic/claude-sonnet-5-5', 'anthropic/claude-sonnet-5', 'openai/gpt-5.6-luna'];
 
 const PROMPT = `You are the eyes of a planning assistant. Read the attached image and write down what it contains.
 

@@ -3,7 +3,7 @@
 // sends; `model` is the provider's real API model id; `family` groups models in
 // the collapsible picker; `webSearch` marks whether native web search is wired.
 //
-// Current as of 2026-10-01 (checked against each provider's model/pricing docs).
+// Current as of 2026-10-02 (checked against each provider's model/pricing docs).
 // Keys are STABLE (saved in localStorage, coaches.model, ai_usage) — when a provider
 // renames a model, change `model`, never `key`.
 
@@ -19,6 +19,7 @@ const MODELS = [
   { key: 'anthropic/claude-opus-5-5',   provider: 'anthropic', family: 'Opus',   model: 'claude-opus-5-5',           label: 'Claude Opus 5.5',  webSearch: true, reasoning: true },
   { key: 'anthropic/claude-opus-5',     provider: 'anthropic', family: 'Opus',   model: 'claude-opus-5',             label: 'Claude Opus 5',    webSearch: true, reasoning: true },
   { key: 'anthropic/claude-opus-4-8',   provider: 'anthropic', family: 'Opus',   model: 'claude-opus-4-8',           label: 'Claude Opus 4.8',  webSearch: true, reasoning: true },
+  { key: 'anthropic/claude-sonnet-5-5', provider: 'anthropic', family: 'Sonnet', model: 'claude-sonnet-5-5',         label: 'Claude Sonnet 5.5', webSearch: true, reasoning: true },
   { key: 'anthropic/claude-sonnet-5',   provider: 'anthropic', family: 'Sonnet', model: 'claude-sonnet-5',           label: 'Claude Sonnet 5',  webSearch: true, reasoning: true },
   { key: 'anthropic/claude-haiku-4-5',  provider: 'anthropic', family: 'Haiku',  model: 'claude-haiku-4-5',          label: 'Claude Haiku 4.5', webSearch: true, reasoning: false },
   { key: 'anthropic/claude-fable-5-1',  provider: 'anthropic', family: 'Fable',  model: 'claude-fable-5-1',          label: 'Claude Fable 5.1', webSearch: true, reasoning: true },
@@ -26,6 +27,7 @@ const MODELS = [
 
   // ---------- OpenAI (native web search via Responses API) ----------
   { key: 'openai/gpt-6-astra',    provider: 'openai', family: 'GPT-6',   model: 'gpt-6-astra',    label: 'GPT-6 Astra',     webSearch: true, reasoning: true },
+  { key: 'openai/gpt-6.1-sol',    provider: 'openai', family: 'GPT-6',   model: 'gpt-6.1-sol',    label: 'GPT-6.1 Sol',     webSearch: true, reasoning: true },
   { key: 'openai/gpt-6-sol',      provider: 'openai', family: 'GPT-6',   model: 'gpt-6-sol',      label: 'GPT-6 Sol',       webSearch: true, reasoning: true },
   { key: 'openai/gpt-6-luna',     provider: 'openai', family: 'GPT-6',   model: 'gpt-6-luna',     label: 'GPT-6 Luna',      webSearch: true, reasoning: false },
   // There is no bare "gpt-5.6" id — the Sol tier is gpt-5.6-sol (key kept for saved prefs).
@@ -49,7 +51,7 @@ const MODELS = [
   // V4 Pro (0813 GA) is text-only; V4.1 Flash (2026-09-10) reads images natively — see `vision` below.
   { key: 'deepseek/deepseek-v4-pro',   provider: 'deepseek', family: 'DeepSeek', model: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', webSearch: true, reasoning: true },
   // deepseek-v4-flash / -vision-exp were retired (old ids still route to V4.1 Flash) — call the current id.
-  { key: 'deepseek/deepseek-v4-flash', provider: 'deepseek', family: 'DeepSeek', model: 'deepseek-flash',  label: 'DeepSeek V4.1 Flash', webSearch: true, reasoning: false },
+  { key: 'deepseek/deepseek-v4-flash', provider: 'deepseek', family: 'DeepSeek', model: 'deepseek-flash',  label: 'DeepSeek V4.1 Flash', webSearch: true, reasoning: true },
 ];
 
 // Models that can read an image: Claude, OpenAI, and DeepSeek V4.1 Flash (not V4 Pro; GLM here is
@@ -60,7 +62,7 @@ for (const m of MODELS) m.vision = m.provider === 'anthropic' || m.provider === 
 const BY_KEY = Object.fromEntries(MODELS.map(m => [m.key, m]));
 
 // ESTIMATED prices in USD per 1,000,000 tokens: { in, out, cache } (standard tier,
-// from each provider's pricing page on 2026-09-27). `cache` = cached-input price.
+// from each provider's pricing page on 2026-10-02). `cache` = cached-input price.
 // DeepSeek bills peak/off-peak; the PEAK rate is used so estimates never under-count.
 // Cost shown in the app is labelled "estimated". Unknown models fall back to DEFAULT_PRICE.
 const DEFAULT_PRICE = { in: 5, out: 25, cache: 0.5 };
@@ -68,11 +70,13 @@ const PRICING = {
   'anthropic/claude-opus-5-5':  { in: 4,    out: 20,   cache: 0.2 },
   'anthropic/claude-opus-5':    { in: 5,    out: 25,   cache: 0.5 },
   'anthropic/claude-opus-4-8':  { in: 5,    out: 25,   cache: 0.5 },
+  'anthropic/claude-sonnet-5-5': { in: 2,    out: 10,   cache: 0.2 },
   'anthropic/claude-sonnet-5':  { in: 2,    out: 10,   cache: 0.2 },
   'anthropic/claude-haiku-4-5': { in: 1,    out: 5,    cache: 0.1 },
   'anthropic/claude-fable-5-1': { in: 10,   out: 50,   cache: 0.25 },
   'anthropic/claude-fable-5':   { in: 10,   out: 50,   cache: 1 },
   'openai/gpt-6-astra':         { in: 10,   out: 50,   cache: 1 },
+  'openai/gpt-6.1-sol':         { in: 2,    out: 10,   cache: 0.1 },
   'openai/gpt-6-sol':           { in: 2,    out: 10,   cache: 0.2 },
   'openai/gpt-6-luna':          { in: 0.1,  out: 0.5,  cache: 0.01 },
   'openai/gpt-5.6':             { in: 4,    out: 20,   cache: 0.4 },
