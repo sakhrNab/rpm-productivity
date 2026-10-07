@@ -404,7 +404,7 @@ const createApi = (getToken, refreshTokenFn, logout) => {
         method, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       }).then(async (r) => {
         const data = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
+        if (!r.ok) { const err = new Error(data.error || `Request failed (${r.status})`); err.status = r.status; err.data = data; throw err; }
         return data;
       });
       return {
@@ -418,6 +418,12 @@ const createApi = (getToken, refreshTokenFn, logout) => {
         remove: (section, id) => call(`/${section}/${id}`, 'DELETE'),
         followUp: (leadId, data = {}) => call(`/leads/${leadId}/follow-up`, 'POST', data),
         fixToAction: (fixId, data = {}) => call(`/fixes/${fixId}/action`, 'POST', data),
+        // Agents: RPM only queues and displays runs; the local runner claims and reports them.
+        agentJobs: () => call('/agent-runs/jobs'),
+        agentRuns: () => call('/agent-runs'),
+        agentRun: (id) => call(`/agent-runs/${id}`),
+        queueRun: (jobId, inputs = {}, confirmed = false) => call('/agent-runs', 'POST', { job_id: jobId, inputs, confirmed }),
+        cancelRun: (id) => call(`/agent-runs/${id}/cancel`, 'POST', {}),
       };
     })(),
 
