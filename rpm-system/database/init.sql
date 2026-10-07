@@ -670,3 +670,19 @@ ALTER TABLE coaches ADD COLUMN IF NOT EXISTS last_alert_at TIMESTAMPTZ;
 ALTER TABLE coaches ADD COLUMN IF NOT EXISTS last_alert_sig TEXT DEFAULT '';
 -- The user's default AI model, so scheduled check-ins can run while they're away.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_default_model VARCHAR(80);
+
+-- Personal access tokens (rpm-mcp, revenue dashboard). Only the sha256 of a token is stored.
+-- Added 2026-10-07; applied to prod by hand (init.sql only runs on an empty database).
+CREATE TABLE IF NOT EXISTS personal_access_tokens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(80) NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  last4 VARCHAR(4),
+  scopes TEXT[] NOT NULL DEFAULT '{read}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_pat_user ON personal_access_tokens(user_id);

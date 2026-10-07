@@ -24,6 +24,7 @@ const inbox = require('./inbox');
 const { rateLimit } = require('./ratelimit');
 const { securityEvent } = require('./securityEvent');
 const { registrationAllowed } = require('./access');
+const pat = require('./pat');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
 const { recordUsage, getUsageSummary } = require('./ai/usage');
@@ -123,11 +124,30 @@ const generateTokens = (user) => ({
   refreshToken: jwt.sign({ userId: user.id }, JWT_REFRESH_SECRET, { expiresIn: '7d' })
 });
 
+// Personal access tokens (rpm-mcp, revenue dashboard): 120 requests/min per token-holder IP.
+const patLimiter = rateLimit({ name: 'pat', windowMs: 60 * 1000, max: 120 });
+
 // Auth Middleware
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Access token required' });
+  if (pat.isPat(token)) return patLimiter(req, res, async () => {
+    let found = null;
+    try { found = await pat.verifyPat(pool, token); } catch (e) { console.error('pat verify:', e.message); }
+    if (!found) {
+      securityEvent('access_denied', { ip: req.ip, reason: 'pat_invalid' });
+      return res.status(401).json({ error: 'Invalid or revoked token' });
+    }
+    if (!pat.patRouteAllowed(req.method, req.originalUrl, found.scopes)) {
+      securityEvent('access_denied', { user: found.userId, ip: req.ip, reason: `pat_route ${req.method} ${req.originalUrl.split('?')[0]}` });
+      return res.status(403).json({ error: 'This route is not available to access tokens' });
+    }
+    req.userId = found.userId;
+    req.authKind = 'pat';
+    req.patScopes = found.scopes;
+    return next();
+  });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
