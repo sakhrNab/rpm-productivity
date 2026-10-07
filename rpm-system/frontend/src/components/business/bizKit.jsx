@@ -333,5 +333,5 @@ export function Loading() {
 }
 
 export const AddButton = ({ onClick, label }) => (
-  <button type="button" className="btn btn-primary bz-add" onClick={onClick}><Plus size={16} /> {label}<kbd className="bz-kbd" aria-hidden="true">N</kbd></button>
+  <button type="button" className="btn btn-secondary bz-add" onClick={onClick}><Plus size={16} /> {label}</button>
 );

@@ -17,12 +17,14 @@ function hide(id) {
   try { const s = hiddenToday(); s.add(id); localStorage.setItem(KEY, JSON.stringify({ date: todayStr(), ids: [...s] })); } catch { /* private mode */ }
 }
 
-export default function NextMoves({ moves, limit = 6, onFocus, compact = false, title = 'Next best moves' }) {
+export default function NextMoves({ moves, limit = 3, onFocus, compact = false, title = 'Next best moves' }) {
   const ctx = useBiz();
   const [hidden, setHidden] = useState(hiddenToday);
   const [busy, setBusy] = useState(null);
   const [done, setDone] = useState(() => new Set());
-  const list = (moves || []).filter((m) => !hidden.has(m.id)).slice(0, limit);
+  const [all, setAll] = useState(false);
+  const visible = (moves || []).filter((m) => !hidden.has(m.id));
+  const list = all ? visible : visible.slice(0, limit);
 
   const run = async (m) => {
     setBusy(m.id);
@@ -34,7 +36,7 @@ export default function NextMoves({ moves, limit = 6, onFocus, compact = false, 
     <section className={`bz-moves ${compact ? 'compact' : ''}`} aria-label={title}>
       <header className="bz-moves-head">
         <p className="ui-kicker"><Sparkles size={14} /> {title}</p>
-        {list.length > 0 && <span className="bz-moves-n">{list.length}</span>}
+        {visible.length > 0 && <span className="bz-moves-n">{visible.length}</span>}
       </header>
       {list.length === 0 ? (
         <p className="bz-moves-clear"><Check size={16} /> Nothing urgent — the pipeline is moving. Log what happened in Results.</p>
@@ -64,6 +66,11 @@ export default function NextMoves({ moves, limit = 6, onFocus, compact = false, 
             );
           })}
         </ol>
+      )}
+      {visible.length > limit && (
+        <button type="button" className="bz-toggle bz-moves-more" aria-expanded={all} onClick={() => setAll((v) => !v)}>
+          {all ? 'Show fewer' : `Show all ${visible.length} moves`}
+        </button>
       )}
     </section>
   );

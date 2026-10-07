@@ -19,7 +19,7 @@ import '../components/business/Business.css';
 // The circuit: Overview, the money flow (Channels → Leads → Results → Revenue), the arsenal that feeds it,
 // and the Agents that work it. One URL per view (/business/leads …); phones get the app's Picker.
 const VIEWS = [
-  { id: 'overview', label: 'Mission flow', short: 'Flow', icon: Workflow, el: Overview, group: 'hub' },
+  { id: 'overview', label: 'Mission flow', icon: Workflow, el: Overview, group: 'hub' },
   { id: 'channels', label: 'Channels', icon: Radio, el: Channels, group: 'flow' },
   { id: 'leads', label: 'Leads', icon: Users, el: Leads, group: 'flow' },
   { id: 'results', label: 'Results', icon: BarChart3, el: Results, group: 'flow' },
@@ -159,7 +159,7 @@ export default function BusinessPage() {
                   const b = badge(v.id);
                   return (
                     <button key={v.id} type="button" aria-current={v.id === view.id ? 'page' : undefined} className={`bz-circuit-node ${v.id === view.id ? 'on' : ''}`} onClick={() => go(v.id)}>
-                      <v.icon size={15} aria-hidden="true" /> <span>{v.short && v.id !== view.id ? v.short : v.label}</span>
+                      <v.icon size={15} aria-hidden="true" /> <span>{v.label}</span>
                       {v.id === 'agents' && <i className={`bz-runner-dot ${online ? 'on' : ''}`} aria-label={online ? 'runner online' : 'runner offline'} />}
                       {b && <em className={`bz-badge tone-${b.tone}`}>{b.n}</em>}
                     </button>

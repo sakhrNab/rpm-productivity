@@ -112,3 +112,11 @@ test('matching: lead source → channel, result channel → model channel', () =
   assert.equal(matchModel('email', model), 'cold');
   assert.equal(matchModel('', model), null);
 });
+
+test('lead → channel: an exact channel name is a link, a word match is a guess', () => {
+  const channels = [{ id: 'c1', name: 'Skool AI Waverider Community' }, { id: 'c3', name: 'Upwork' }];
+  const leads = [{ id: 'a', source: 'Your Skool' }, { id: 'b', source: 'upwork ' }, { id: 'c', source: 'LinkedIn' }];
+  const { leadChannel, leadChannelGuess } = buildLinks({ leads, channels });
+  assert.deepEqual(leadChannel, { a: 'c1', b: 'c3' });
+  assert.deepEqual(leadChannelGuess, { a: true });
+});

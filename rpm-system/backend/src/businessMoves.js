@@ -66,13 +66,20 @@ function matchModel(channel, model) {
 
 /** All link maps the flow canvas needs. */
 function buildLinks({ leads = [], channels = [], fixes = [], offers = [], model = [], resultChannels = [] }) {
-  const leadChannel = {};
-  for (const l of leads) { const c = matchChannel(l.source, channels); if (c) leadChannel[l.id] = c; }
+  // A lead whose source IS a channel's name is linked; any other word match is only a guess the owner confirms.
+  const leadChannel = {}; const leadChannelGuess = {};
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  for (const l of leads) {
+    const c = matchChannel(l.source, channels);
+    if (!c) continue;
+    leadChannel[l.id] = c;
+    if (norm(l.source) !== norm(channels.find((x) => x.id === c)?.name)) leadChannelGuess[l.id] = true;
+  }
   const fixOffers = {};
   for (const f of fixes) { const o = suggestOffers(f, offers); if (o.length) fixOffers[f.id] = { offers: o, explicit: !!f.offer_id }; }
   const resultModel = {};
   for (const ch of resultChannels) { const m = matchModel(ch, model); if (m) resultModel[ch] = m; }
-  return { leadChannel, fixOffers, resultModel };
+  return { leadChannel, leadChannelGuess, fixOffers, resultModel };
 }
 
 // ───────── next best moves ─────────

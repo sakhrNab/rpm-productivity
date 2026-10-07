@@ -1,7 +1,9 @@
 // The arsenal lenses: Offers, Products, Channels, Fixes, Library, Content. Each one draws the links its
 // entities have — fixes wire into the offers they block, products into the offers they power, channels
 // into the pipeline stages their leads sit in — and edits where you read.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { DndContext, DragOverlay, PointerSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
+import ModalHead from '../modals/ModalHead';
 import {
   Gift, Package, Radio, Wrench, Library as LibraryIcon, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink,
   Square, CheckSquare, Pencil, Search, Link2, ChevronDown, ShieldAlert, Users,
@@ -46,13 +48,17 @@ export function Offers() {
   const L = ctx.sum?.flow?.links?.fixOffers || {};
   const leads = ctx.sum?.flow?.leads || [];
 
+  // deep link: /business/offers?edit=<id> opens the editor
+  const editId = ctx.params.get('edit');
+  useEffect(() => { const r = editId && (list.rows || []).find((o) => o.id === editId); if (r) ed.open(r); }, [editId, list.rows]); // eslint-disable-line react-hooks/exhaustive-deps
   const blockers = useMemo(() => (fixes.rows || []).filter((f) => !f.done && (f.offer_id || L[f.id]))
     .sort((a, b) => a.severity.localeCompare(b.severity)), [fixes.rows, L]);
   const links = useMemo(() => {
     const out = [];
     for (const f of blockers) {
       const ids = f.offer_id ? [f.offer_id] : (L[f.id]?.offers || []);
-      for (const oid of ids) out.push({ id: `${f.id}>${oid}`, from: `fx:${f.id}`, to: `of:${oid}`, tone: f.severity === 'P0' ? 'bad' : f.severity === 'P1' ? 'warn' : 'info', dashed: !f.offer_id, weight: f.severity === 'P0' ? 3 : 2 });
+      // drawn only for the hovered / focused item; offers carry a blocker count instead
+      for (const oid of ids) out.push({ id: `${f.id}>${oid}`, from: `fx:${f.id}`, to: `of:${oid}`, tone: f.severity === 'P0' ? 'bad' : f.severity === 'P1' ? 'warn' : 'info', dashed: !f.offer_id, hoverOnly: true, weight: f.severity === 'P0' ? 3 : 2 });
     }
     return out;
   }, [blockers, L]);
@@ -65,7 +71,7 @@ export function Offers() {
   return (
     <section className="bz-lens bz-offers">
       <LensHead icon={Gift} kicker="Offers" title={`${list.rows.length} offer${list.rows.length === 1 ? '' : 's'} · ${ready} ready to sell`}
-        read={blockers.length ? `${blockers.length} open fix${blockers.length === 1 ? '' : 'es'} wire into these offers — dashed = matched by product name, solid = linked.` : 'Nothing blocks these offers.'}>
+        read={blockers.length ? `${blockers.length} open fix${blockers.length === 1 ? '' : 'es'} block these offers. Hover a blocker or an offer to see what connects — dashed = guessed from the product name.` : 'Nothing blocks these offers.'}>
         <AddButton onClick={() => ed.open()} label="Add offer" />
       </LensHead>
       {list.rows.length === 0 ? (
@@ -110,6 +116,7 @@ function OfferSheet({ o, head, cls, focus, blockers, showBlockers, interested, o
           <h3>{o.name}</h3>
           {o.tagline && <p>{o.tagline}</p>}
         </div>
+        {blockers.length > 0 && <span className={`bz-blockcount ${blockers.some((f) => f.severity === 'P0') ? 'p0' : ''}`}><ShieldAlert size={12} /> {blockers.length} blocker{blockers.length === 1 ? '' : 's'}</span>}
         <button type="button" className="bz-icon-btn" aria-label={`Edit ${o.name}`} onClick={onEdit}><Pencil size={15} /></button>
       </header>
       <div className="bz-offer-meter">
@@ -222,26 +229,40 @@ export function Channels() {
   const phone = useMedia('(max-width: 900px)');
   const focus = ctx.params.get('focus');
   const f = ctx.sum?.flow || {};
-  const per = useMemo(() => {
-    const m = {};
+  const biz = useBizApi();
+  const { showToast } = useToast();
+  // per channel → stage counts, split into linked (source = channel name) and guessed (a shared word)
+  const { per, guess, guessIds } = useMemo(() => {
+    const m = {}; const g = {}; const ids = {};
     for (const l of f.leads || []) {
       const c = f.links?.leadChannel?.[l.id];
       if (!c || l.stage === 'lost') continue;
-      (m[c] ||= {})[l.stage] = ((m[c] || {})[l.stage] || 0) + 1;
+      const isGuess = !!f.links?.leadChannelGuess?.[l.id];
+      const t = isGuess ? g : m;
+      (t[c] ||= {})[l.stage] = ((t[c] || {})[l.stage] || 0) + 1;
+      if (isGuess) (ids[c] ||= []).push(l.id);
     }
-    return m;
+    return { per: m, guess: g, guessIds: ids };
   }, [f]);
   const links = useMemo(() => {
     const out = [];
     for (const [cid, st] of Object.entries(per)) for (const [stage, n] of Object.entries(st)) out.push({ id: `${cid}>${stage}`, from: `ch:${cid}`, to: `cs:${stage}`, tone: 'flow', weight: 1.6 + Math.log2(n + 1) * 1.7 });
+    for (const [cid, st] of Object.entries(guess)) for (const [stage, n] of Object.entries(st)) out.push({ id: `${cid}~${stage}`, from: `ch:${cid}`, to: `cs:${stage}`, tone: 'flow', dashed: true, weight: 1.6 + Math.log2(n + 1) * 1.7 });
     return out;
-  }, [per]);
+  }, [per, guess]);
+  const confirm = async (c) => {
+    try {
+      for (const id of guessIds[c.id] || []) await biz.current.update('leads', id, { source: c.name });
+      showToast(`${(guessIds[c.id] || []).length} leads now come from “${c.name}”`, 'success');
+      ctx.changed({ lists: true });
+    } catch (e) { showToast(e.message, 'error'); }
+  };
   const w = useWires(links);
   if (!list.rows) return <Loading />;
   const stageTotals = {};
-  for (const st of Object.values(per)) for (const [k, n] of Object.entries(st)) stageTotals[k] = (stageTotals[k] || 0) + n;
+  for (const st of [...Object.values(per), ...Object.values(guess)]) for (const [k, n] of Object.entries(st)) stageTotals[k] = (stageTotals[k] || 0) + n;
   const usedStages = LANES.filter((s) => stageTotals[s]);
-  const total = (cid) => Object.values(per[cid] || {}).reduce((a, b) => a + b, 0);
+  const total = (cid) => [...Object.values(per[cid] || {}), ...Object.values(guess[cid] || {})].reduce((a, b) => a + b, 0);
 
   return (
     <section className="bz-lens bz-channels">
@@ -263,6 +284,10 @@ export function Channels() {
                   {total(c.id) > 0 && <b className="bz-node-n">{total(c.id)} lead{total(c.id) === 1 ? '' : 's'}</b>}
                   <button type="button" className="bz-icon-btn" aria-label={`Edit ${c.name}`} onClick={() => ed.open(c)}><Pencil size={15} /></button>
                 </header>
+                {guessIds[c.id]?.length > 0 && (
+                  <p className="bz-guessline">{guessIds[c.id].length} lead{guessIds[c.id].length === 1 ? '' : 's'} matched by a shared word (dashed)
+                    <button type="button" className="bz-guess" onClick={() => confirm(c)}>Confirm link</button></p>
+                )}
                 {c.stat && <p className="bz-chan-stat">{c.stat}</p>}
                 {c.verdict && <p className="bz-text"><Chip tone={TONE_CHIP[c.tone]}>{toneLabel(c.tone)}</Chip> {c.verdict}</p>}
                 {c.audience && <p className="bz-muted">{c.audience}</p>}
@@ -294,31 +319,43 @@ export function Channels() {
 }
 
 // ───────────────────────── Fixes ─────────────────────────
-const SEV = [['P0', 'P0 · blocks money'], ['P1', 'P1 · soon'], ['P2', 'P2 · later']];
+// Fixes live in OFFER LANES: each lane is an offer, holding the fixes that block it (P0 first). Drag a fix
+// into another lane to re-link it; a guessed lane (matched by product name) shows dashed until confirmed.
+const SEV = [['P0', 'blocks money'], ['P1', 'soon'], ['P2', 'later']];
 export function Fixes() {
   const list = useBizList('fixes');
   const ctx = useBiz();
   const biz = useBizApi();
   const { showToast } = useToast();
   const ed = useEditor();
+  const [sev, setSev] = useState(() => (['P0', 'P1', 'P2'].includes(ctx.params.get('filter')) ? ctx.params.get('filter') : 'all'));
   const [showDone, setShowDone] = useState(false);
-  const [root, setRoot] = useState(null);
-  const phone = useMedia('(max-width: 900px)');
-  const focus = ctx.params.get('focus');
+  const [openId, setOpenId] = useState(() => ctx.params.get('focus'));
+  const [dragId, setDragId] = useState(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 6 } }));
   const offers = ctx.sum?.flow?.offers || [];
   const L = ctx.sum?.flow?.links?.fixOffers || {};
-  const rows = list.rows || [];
+  // lanes depend on the offer links in the summary: wait for both so lanes never re-order under you
+  if (!list.rows || !ctx.sum) return <Loading />;
+  const rows = list.rows;
   const open = rows.filter((f) => !f.done);
-  const links = useMemo(() => {
-    const out = [];
-    // P0 and confirmed links always show; suggested P1/P2 links appear while you hover the row or the offer.
-    for (const f of open) for (const oid of (f.offer_id ? [f.offer_id] : (L[f.id]?.offers || []))) out.push({ id: `${f.id}>${oid}`, from: `fr:${f.id}`, to: `fo:${oid}`, tone: f.severity === 'P0' ? 'bad' : f.severity === 'P1' ? 'warn' : 'info', dashed: !f.offer_id, hoverOnly: !f.offer_id && f.severity !== 'P0', weight: f.severity === 'P0' ? 2.8 : 1.8 });
-    return out;
-  }, [rows, L]); // eslint-disable-line react-hooks/exhaustive-deps
-  const w = useWires(links);
-  if (!list.rows) return <Loading />;
   const done = rows.filter((f) => f.done);
-  const hitOffers = offers.filter((o) => links.some((l) => l.to === `fo:${o.id}`));
+  const laneOf = (f) => f.offer_id || L[f.id]?.offers?.[0] || 'none';
+  const guessed = (f) => !f.offer_id && !!L[f.id];
+  const shown = open.filter((f) => sev === 'all' || f.severity === sev);
+  const byLane = {};
+  for (const f of shown) (byLane[laneOf(f)] ||= []).push(f);
+  for (const k of Object.keys(byLane)) byLane[k].sort((a, b) => a.severity.localeCompare(b.severity));
+  const p0 = (k) => (byLane[k] || []).filter((f) => f.severity === 'P0').length;
+  const lanes = [...offers.filter((o) => byLane[o.id]).sort((a, b) => p0(b.id) - p0(a.id) || byLane[b.id].length - byLane[a.id].length).map((o) => o.id), ...(byLane.none ? ['none'] : [])];
+  const offerOf = (id) => offers.find((o) => o.id === id);
+  const blockedOffers = lanes.filter((k) => k !== 'none' && p0(k)).length;
+
+  const relink = (f, lane) => {
+    const v = lane === 'none' ? null : lane;
+    if ((f.offer_id || null) === v && !guessed(f)) return;
+    list.update(f.id, { offer_id: v }, { undoLabel: v ? `Linked to ${offerOf(v)?.name}` : 'Unlinked from offers' }).then(() => ctx.changed()).catch(() => {});
+  };
   const toRpm = async (f) => {
     try {
       const r = await biz.current.fixToAction(f.id, { scheduled_date: todayStr() });
@@ -327,75 +364,124 @@ export function Fixes() {
       showToast(`On your RPM list: “${r.action.title}”`, 'success');
     } catch (e) { showToast(e.message, 'error'); }
   };
-  const offerOpts = [{ value: '', label: 'No offer' }, ...offers.map((o) => ({ value: o.id, label: o.name }))];
-  const row = (f) => (
-    <li key={f.id} className={`bz-fix sev-${f.severity} ${f.done ? 'done' : ''} ${focus === f.id ? 'flash' : ''}`}>
-      <button type="button" className="bz-check" aria-pressed={f.done} aria-label={f.done ? `Mark “${f.text}” not done` : `Mark “${f.text}” done`}
-        onClick={() => list.update(f.id, { done: !f.done }, { undoLabel: f.done ? 'Reopened fix' : 'Fix done' }).catch(() => {})}>
-        {f.done ? <CheckSquare size={20} /> : <Square size={20} />}
-      </button>
-      <div {...(f.done ? {} : w.bind(`fr:${f.id}`))} className={`bz-fix-body ${f.done ? '' : w.cls(`fr:${f.id}`)}`} tabIndex={f.done ? undefined : 0}>
-        <span className="bz-fix-text">{f.text}</span>
-        {f.detail && <span className="bz-muted">{f.detail}</span>}
-        <span className="bz-fix-meta">
-          {f.effort && <Chip>{f.effort}</Chip>}
-          {!f.done && (
-            <span className="bz-fix-offer"><Picker value={f.offer_id || (L[f.id] ? null : '')} header="Blocks which offer?" options={offerOpts}
-              placeholder={`Suggested: ${(L[f.id]?.offers || []).map((id) => offers.find((o) => o.id === id)?.name).filter(Boolean).join(', ')}`}
-              onChange={(v) => list.update(f.id, { offer_id: v || null }, { undoLabel: v ? 'Linked to offer' : 'Unlinked' }).then(() => ctx.changed()).catch(() => {})} /></span>
-          )}
-          {f.action_id ? <Chip tone="good"><CheckCircle2 size={13} /> In RPM</Chip>
-            : !f.done && <button type="button" className="bz-mini" onClick={() => toRpm(f)}><CalendarPlus size={13} /> To RPM today</button>}
-        </span>
-      </div>
-      <button type="button" className="bz-icon-btn" aria-label={`Edit ${f.text}`} onClick={() => ed.open(f)}><Pencil size={15} /></button>
-    </li>
-  );
+  const toggleDone = (f) => list.update(f.id, { done: !f.done }, { undoLabel: f.done ? 'Reopened fix' : 'Fix done' }).catch(() => {});
+  const opened = openId ? rows.find((f) => f.id === openId) : null;
+  const dragFix = dragId ? rows.find((f) => f.id === dragId) : null;
+
   return (
     <section className="bz-lens bz-fixes">
-      <LensHead icon={Wrench} kicker="Fixes" title={open.length ? `${open.length} open · ${open.filter((f) => f.severity === 'P0').length} block money` : 'All clear'}
-        read="P0 means it blocks money. Lines show the offer each fix blocks — link it from the row.">
+      <LensHead icon={Wrench} kicker="Fixes" title={open.length ? `${open.filter((f) => f.severity === 'P0').length} P0 fixes block ${blockedOffers} offer${blockedOffers === 1 ? '' : 's'}` : 'All clear'}
+        read="Each lane is an offer and the fixes standing between it and money. Drag a fix to another lane to re-link it; dashed = guessed from the product name.">
         <AddButton onClick={() => ed.open()} label="Add fix" />
       </LensHead>
       {rows.length === 0 ? (
         <BizEmpty icon={Wrench} title="Nothing to fix yet" text="Things that block selling — a broken checkout, a missing case study. P0 first." onAdd={() => ed.open()} addLabel="Add a fix" onTemplate={list.template} />
       ) : (
-        <div className={`bz-wired ${hitOffers.length && !phone ? 'two rev' : ''}`} ref={setRoot}>
-          {!phone && <FlowLinks root={root} links={links} active={w.hot} />}
-          <div className="bz-wired-main">
-            {SEV.map(([sev, label]) => {
-              const items = open.filter((f) => f.severity === sev);
-              if (!items.length) return null;
-              return (
-                <section key={sev} className={`bz-sevgroup sev-${sev}`} aria-label={label}>
-                  <p className="bz-sevgroup-head"><em className={`bz-sev sev-${sev}`}>{sev}</em> {label.split(' · ')[1]} <span>{items.length}</span></p>
-                  <ul className="bz-fixlist">{items.map(row)}</ul>
-                </section>
-              );
-            })}
-            {!open.length && <p className="bz-moves-clear"><CheckCircle2 size={16} /> Every fix is done.</p>}
-            {done.length > 0 && (
-              <>
-                <button type="button" className="bz-toggle" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)}>{showDone ? 'Hide' : 'Show'} {done.length} done</button>
-                {showDone && <ul className="bz-fixlist">{done.map(row)}</ul>}
-              </>
-            )}
-          </div>
-          {hitOffers.length > 0 && !phone && (
-            <div className="bz-wired-side">
-              <p className="bz-col-title"><Gift size={13} /> Blocks</p>
-              {hitOffers.map((o) => (
-                <button key={o.id} type="button" {...w.bind(`fo:${o.id}`)} className={`bz-node kind-offer ready-${o.readiness} ${w.cls(`fo:${o.id}`)}`} onClick={() => ctx.go('offers', { focus: o.id })}>
-                  <Gift size={14} aria-hidden="true" /><span className="bz-node-name">{o.name}</span>
-                  <small className="bz-node-sub">{links.filter((l) => l.to === `fo:${o.id}`).length} blocker(s)</small>
-                </button>
+        <>
+          <div className="bz-toolbar" role="toolbar" aria-label="Filter fixes">
+            <div className="ui-seg bz-seg-sm" role="radiogroup" aria-label="Severity">
+              {[['all', 'All', open.length], ...SEV.map(([k]) => [k, k, open.filter((f) => f.severity === k).length])].filter(([, , n]) => n).map(([k, l, n]) => (
+                <button key={k} type="button" role="radio" aria-checked={sev === k} className={sev === k ? 'on' : ''} onClick={() => setSev(k)}>{l} <em className="bz-seg-n">{n}</em></button>
               ))}
             </div>
+            {done.length > 0 && <button type="button" className={`bz-toggle ${showDone ? 'on' : ''}`} aria-pressed={showDone} onClick={() => setShowDone((v) => !v)}><CheckSquare size={14} /> Done · {done.length}</button>}
+          </div>
+          <DndContext sensors={sensors} onDragStart={(e) => setDragId(e.active.id)} onDragCancel={() => setDragId(null)}
+            onDragEnd={(e) => { setDragId(null); if (e.over) relink(rows.find((f) => f.id === e.active.id), e.over.id); }}>
+            <div className="bz-board bz-offerlanes">
+              {lanes.map((k) => (
+                <OfferLane key={k} id={k} offer={offerOf(k)} fixes={byLane[k]} dragging={!!dragId}>
+                  {byLane[k].map((f) => <FixCard key={f.id} f={f} guessed={guessed(f)} focus={openId === f.id} onOpen={() => setOpenId(f.id)} onDone={() => toggleDone(f)}
+                    onConfirm={() => relink(f, laneOf(f))} />)}
+                </OfferLane>
+              ))}
+              {dragId && offers.filter((o) => !byLane[o.id]).map((o) => <OfferLane key={o.id} id={o.id} offer={o} fixes={[]} dragging />)}
+              {dragId && !byLane.none && <OfferLane id="none" fixes={[]} dragging />}
+            </div>
+            <DragOverlay dropAnimation={null}>{dragFix ? <FixCard f={dragFix} guessed={guessed(dragFix)} overlay /> : null}</DragOverlay>
+          </DndContext>
+          {showDone && (
+            <section className="bz-postgroup" aria-label="Done fixes">
+              <p className="ui-kicker">Done · {done.length}</p>
+              <div className="bz-postgrid">{done.map((f) => <FixCard key={f.id} f={f} onOpen={() => setOpenId(f.id)} onDone={() => toggleDone(f)} />)}</div>
+            </section>
           )}
-        </div>
+        </>
       )}
+      {opened && <FixSheet f={opened} offers={offers} suggested={L[opened.id]?.offers || []} onClose={() => setOpenId(null)}
+        onRelink={(v) => relink(opened, v || 'none')} onRpm={() => toRpm(opened)} onDone={() => toggleDone(opened)} onEdit={() => { setOpenId(null); ed.open(opened); }} />}
       <Editor section="fixes" icon={Wrench} ed={ed} list={list} defaults={{ severity: 'P1' }} />
     </section>
+  );
+}
+
+function OfferLane({ id, offer, fixes, dragging, children }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  const counts = SEV.map(([k]) => [k, fixes.filter((f) => f.severity === k).length]).filter(([, n]) => n);
+  return (
+    <div ref={setNodeRef} className={`bz-lane bz-olane ${id === 'none' ? 'none' : `ready-${offer?.readiness}`} ${isOver ? 'over' : ''} ${dragging ? 'dropping' : ''}`}
+      role="group" aria-label={id === 'none' ? 'Not tied to an offer' : `Blocks ${offer?.name}`}>
+      <header className="bz-olane-head">
+        {id === 'none' ? <b className="bz-olane-name">Not tied to an offer</b> : (
+          <>
+            <span className="bz-olane-cap"><Gift size={12} /> blocks</span>
+            <b className="bz-olane-name">{offer?.name}</b>
+            <span className="bz-olane-meta">
+              <span className={`ui-chip ui-chip--${TONE_CHIP[offer?.readiness] || 'info'}`}>{toneLabel(offer?.readiness)}</span>
+              {counts.map(([k, n]) => <em key={k} className={`bz-sev sev-${k}`}>{n} {k}</em>)}
+            </span>
+          </>
+        )}
+      </header>
+      <div className="bz-lane-body">{children}{!fixes.length && <p className="bz-lane-empty">Drop here</p>}</div>
+    </div>
+  );
+}
+
+function FixCard({ f, guessed, focus, onOpen, onDone, onConfirm, overlay = false }) {
+  const drag = useDraggable({ id: f.id, disabled: overlay || f.done });
+  return (
+    <div ref={overlay ? undefined : drag.setNodeRef} className={`bz-fixcard sev-${f.severity} ${guessed ? 'guessed' : ''} ${f.done ? 'done' : ''} ${drag.isDragging ? 'ghost' : ''} ${overlay ? 'overlay' : ''} ${focus ? 'flash' : ''}`}>
+      <button type="button" className="bz-check" aria-pressed={!!f.done} aria-label={f.done ? `Mark “${f.text}” not done` : `Mark “${f.text}” done`} onClick={onDone}>
+        {f.done ? <CheckSquare size={18} /> : <Square size={18} />}
+      </button>
+      <button type="button" className="bz-fixcard-main" onClick={onOpen} {...(overlay || f.done ? {} : drag.listeners)} {...(overlay || f.done ? {} : drag.attributes)} aria-label={`${f.severity}: ${f.text}`}>
+        <span className="bz-fixcard-top"><em className={`bz-sev sev-${f.severity}`}>{f.severity}</em>{f.effort && <span className="bz-fixcard-eff">{f.effort}</span>}{f.action_id && <CheckCircle2 size={13} className="bz-card-rpm" aria-label="In RPM" />}</span>
+        <span className="bz-fixcard-text">{f.text}</span>
+      </button>
+      {guessed && onConfirm && <button type="button" className="bz-guess" onClick={onConfirm} title="Matched by product name — confirm this offer">guessed · Confirm</button>}
+    </div>
+  );
+}
+
+function FixSheet({ f, offers, suggested, onClose, onRelink, onRpm, onDone, onEdit }) {
+  useEffect(() => {
+    const k = (e) => { if (e.key === 'Escape' && !document.querySelector('.picker-menu')) onClose(); };
+    document.addEventListener('keydown', k);
+    return () => document.removeEventListener('keydown', k);
+  }, [onClose]);
+  const guess = !f.offer_id && suggested.length;
+  return (
+    <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal biz-modal" role="dialog" aria-modal="true" aria-label={`Fix: ${f.text}`}>
+        <ModalHead icon={Wrench} title={f.text} subtitle={`${f.severity} · ${SEV.find(([k]) => k === f.severity)?.[1]}${f.effort ? ` · ${f.effort}` : ''}${f.done ? ' · done' : ''}`} onClose={onClose} />
+        <div className="modal-body mk-body">
+          {f.detail && <p className="bz-text">{f.detail}</p>}
+          <div className="mk-field">
+            <span className="form-label">Blocks offer {guess ? <em className="bz-req">guessed — confirm or change</em> : null}</span>
+            <Picker value={f.offer_id || (guess ? suggested[0] : '')} header="Blocks which offer?" onChange={(v) => onRelink(v)}
+              options={[{ value: '', label: 'Not tied to an offer' }, ...offers.map((o) => ({ value: o.id, label: o.name, hint: suggested.includes(o.id) && !f.offer_id ? 'suggested' : '' }))]} />
+          </div>
+        </div>
+        <div className="modal-footer mk-foot">
+          <button type="button" className="btn btn-ghost bz-del" onClick={onEdit}><Pencil size={15} /> Edit all fields</button>
+          <button type="button" className="btn btn-ghost" onClick={onDone}>{f.done ? 'Reopen' : 'Mark done'}</button>
+          {f.action_id ? <span className="ui-chip ui-chip--good"><CheckCircle2 size={13} /> In RPM</span>
+            : <button type="button" className="btn btn-secondary" onClick={onRpm}><CalendarPlus size={15} /> To RPM today</button>}
+          <button type="button" className="btn btn-primary" onClick={onClose}>Done</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

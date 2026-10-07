@@ -42,6 +42,15 @@ export default function Overview({ go }) {
     catch (e) { showToast(e.message, 'error'); } finally { setBusy(false); }
   };
 
+  // A guessed source → channel match becomes a link once the lead's source is the channel's exact name.
+  const confirmSource = async (n) => {
+    try {
+      for (const id of n.guessed) await biz.current.update('leads', id, { source: n.label });
+      showToast(`${n.guessed.length} lead${n.guessed.length === 1 ? '' : 's'} now come from “${n.label}”`, 'success');
+      ctx.changed({ lists: true });
+    } catch (e) { showToast(e.message, 'error'); }
+  };
+
   if (s.empty) {
     return (
       <section className="bz-welcome">
@@ -126,35 +135,47 @@ export default function Overview({ go }) {
             <FlowLinks root={root} links={g.links} active={hot.size ? hot : null} simplify={phone} version={`${s.counts?.leads}-${phone}`} />
             <Column id="src" title="Sources" icon={Radio} onTitle={() => go('channels')}>
               {g.sources.map((n) => (
-                <button key={n.id} type="button" {...nodeProps(n.id, `kind-src ${n.count ? '' : 'quiet'}`)} onClick={() => go('channels', { focus: n.channelId })}>
-                  <i className={`bz-dot tone-${n.tone || 'info'}`} aria-hidden="true" />
-                  <span className="bz-node-name">{n.label}</span>
-                  {n.count > 0 && <b className="bz-node-n">{n.count}</b>}
-                </button>
+                <div key={n.id} className="bz-node-wrap">
+                  <button type="button" {...nodeProps(n.id, `kind-src ${n.count ? '' : 'quiet'}`)} onClick={() => go('channels', { focus: n.channelId })}>
+                    <i className={`bz-dot tone-${n.tone || 'info'}`} aria-hidden="true" />
+                    <span className="bz-node-name">{n.label}</span>
+                    {n.count > 0 && <b className="bz-node-n">{n.count}</b>}
+                  </button>
+                  {n.guessed.length > 0 && (
+                    <button type="button" className="bz-guess" onClick={() => confirmSource(n)} title={`Lead source “${n.guessedFrom.join('”, “')}” was matched to this channel by a shared word`}>
+                      {n.guessed.length} guessed · Confirm
+                    </button>
+                  )}
+                </div>
               ))}
             </Column>
             <Column id="pipe" title="Pipeline" icon={Users} onTitle={() => go('leads')}>
-              {LANES.map((st) => {
-                const n = g.stages[st] || 0;
-                return (
-                  <button key={st} type="button" {...nodeProps(`st:${st}`, `kind-stage st-${st} ${n ? '' : 'quiet'}`)} onClick={() => go('leads', { filter: st })}>
-                    <span className="bz-node-name">{stageLabel(st)}</span>
-                    {n > 0 && <b className="bz-node-n">{n}</b>}
-                    {g.stuck[st] > 0 && <em className="bz-node-flag" title={`${g.stuck[st]} stuck`}>{g.stuck[st]} stuck</em>}
-                  </button>
-                );
-              })}
+              {g.liveStages.map((st) => (
+                <button key={st} type="button" {...nodeProps(`st:${st}`, `kind-stage st-${st}`)} onClick={() => go('leads', { filter: st })}>
+                  <span className="bz-node-name">{stageLabel(st)}</span>
+                  <b className="bz-node-n">{g.stages[st]}</b>
+                  {g.stuck[st] > 0 && <em className="bz-node-flag" title={`${g.stuck[st]} stuck`}>{g.stuck[st]} stuck</em>}
+                </button>
+              ))}
+              {g.emptyStages.length > 0 && (
+                <button type="button" className="bz-quietline" onClick={() => go('leads')}>
+                  {g.liveStages.length ? 'Then ' : ''}{g.emptyStages.map(stageLabel).join(' → ')} <span>empty</span>
+                </button>
+              )}
             </Column>
             <Column id="out" title="Outcomes" icon={BarChart3} onTitle={() => go('results')}>
-              {OUTCOMES.map(([k, label]) => {
-                const n = s.funnel?.[k] || 0;
-                return (
-                  <button key={k} type="button" {...nodeProps(`out:${k}`, `kind-out ${n ? '' : 'quiet'}`)} onClick={() => go('results')}>
-                    <span className="bz-node-name">{label}</span>
-                    {n > 0 && <b className="bz-node-n">{n}</b>}
-                  </button>
-                );
-              })}
+              {g.liveOutcomes.map(([k, label]) => (
+                <button key={k} type="button" {...nodeProps(`out:${k}`, 'kind-out')} onClick={() => go('results')}>
+                  <span className="bz-node-name">{label}</span>
+                  <b className="bz-node-n">{s.funnel[k]}</b>
+                </button>
+              ))}
+              {g.liveOutcomes.length === 0 && (
+                <button type="button" {...nodeProps('out:none', 'kind-out quiet')} onClick={() => go('results', { log: 1 })}>
+                  <span className="bz-node-name">Nothing logged yet</span>
+                  <small className="bz-node-sub">Log the first message →</small>
+                </button>
+              )}
             </Column>
             <Column id="cash" title="Cash" icon={Wallet} onTitle={() => go('revenue')}>
               <button type="button" {...nodeProps('cash', 'kind-cash')} onClick={() => go('revenue')}>
@@ -182,7 +203,7 @@ export default function Overview({ go }) {
         </section>
 
         <aside className="bz-rail">
-          <NextMoves moves={s.moves} onFocus={setMoveFocus} />
+          <NextMoves moves={s.moves} onFocus={setMoveFocus} limit={3} compact={phone} />
           {(s.next?.actions?.length > 0 || s.next?.products?.length > 0) && (
             <section className="bz-rpmnext" aria-label="Next in RPM">
               <p className="ui-kicker"><ListChecks size={14} /> Next in RPM</p>
@@ -267,27 +288,46 @@ function buildGraph(s) {
   }
   // sources: every channel, plus raw lead sources that match no channel
   const bySrc = new Map();
-  for (const c of f.channels || []) bySrc.set(`ch:${c.id}`, { id: `ch:${c.id}`, channelId: c.id, label: c.name, tone: { ok: 'good', warn: 'warn', bad: 'bad' }[c.tone] || 'info', count: 0, perStage: {} });
+  for (const c of f.channels || []) bySrc.set(`ch:${c.id}`, { id: `ch:${c.id}`, channelId: c.id, label: c.name, tone: { ok: 'good', warn: 'warn', bad: 'bad' }[c.tone] || 'info', count: 0, perStage: {}, guessStage: {}, guessed: [], guessedFrom: [] });
   for (const l of open) {
     const key = L.leadChannel?.[l.id] ? `ch:${L.leadChannel[l.id]}` : `src:${(l.source || 'Unknown').trim().toLowerCase()}`;
-    if (!bySrc.has(key)) bySrc.set(key, { id: key, label: l.source || 'Unknown source', tone: 'info', count: 0, perStage: {} });
-    const n = bySrc.get(key); n.count += 1; n.perStage[l.stage] = (n.perStage[l.stage] || 0) + 1;
+    if (!bySrc.has(key)) bySrc.set(key, { id: key, label: l.source || 'No source', tone: 'info', count: 0, perStage: {}, guessStage: {}, guessed: [], guessedFrom: [] });
+    const n = bySrc.get(key); n.count += 1;
+    if (L.leadChannelGuess?.[l.id]) {
+      n.guessed.push(l.id); n.guessStage[l.stage] = (n.guessStage[l.stage] || 0) + 1;
+      if (!n.guessedFrom.includes(l.source)) n.guessedFrom.push(l.source);
+    } else n.perStage[l.stage] = (n.perStage[l.stage] || 0) + 1;
   }
   const sources = [...bySrc.values()].sort((a, b) => b.count - a.count).slice(0, 8);
   const links = [];
-  for (const src of sources) for (const [st, n] of Object.entries(src.perStage)) links.push({ id: `${src.id}>${st}`, from: src.id, to: `st:${st}`, tone: 'flow', weight: W(n) });
-  // pipeline spine (skeleton) + stage → outcome
-  for (let i = 0; i < LANES.length - 1; i++) {
-    const a = LANES[i]; const b = LANES[i + 1];
-    const live = (stages[b] || 0) > 0;
-    links.push({ id: `spine:${a}`, from: `st:${a}`, to: `st:${b}`, tone: live ? 'good' : 'dim', dashed: !live, idle: !live, weight: live ? W(stages[b]) : 1.4 });
+  // confirmed sources glow; guessed ones are dashed until the owner confirms them
+  for (const src of sources) {
+    for (const [st, n] of Object.entries(src.perStage)) links.push({ id: `${src.id}>${st}`, from: src.id, to: `st:${st}`, tone: 'flow', weight: W(n) });
+    for (const [st, n] of Object.entries(src.guessStage)) links.push({ id: `${src.id}~${st}`, from: src.id, to: `st:${st}`, tone: 'flow', dashed: true, weight: W(n) });
   }
+  // zero is silent: only stages and outcomes that hold something are nodes
+  const liveStages = LANES.filter((st) => stages[st] > 0);
+  const emptyStages = LANES.filter((st) => !stages[st]);
+  const liveOutcomes = OUTCOMES.filter(([k]) => (s.funnel?.[k] || 0) > 0);
   for (const [st, out] of Object.entries(STAGE_TO_OUTCOME)) {
     const n = s.funnel?.[out] || 0;
-    links.push({ id: `${st}>${out}`, from: `st:${st}`, to: `out:${out}`, tone: n ? 'flow' : 'dim', dashed: !n, idle: !n, weight: n ? W(n) : 1.3 });
+    if (n && stages[st]) links.push({ id: `${st}>${out}`, from: `st:${st}`, to: `out:${out}`, tone: 'flow', weight: W(n) });
   }
-  const won = s.funnel?.won || 0;
-  links.push({ id: 'won>cash', from: 'out:won', to: 'cash', tone: won || s.funnel?.cash_logged ? 'good' : 'dim', dashed: !won, idle: !won, weight: won ? W(won) + 1 : 1.4 });
+  if (!liveOutcomes.length && liveStages.length) {
+    const last = liveStages[liveStages.length - 1];
+    links.push({ id: 'pipe>none', from: `st:${last}`, to: 'out:none', tone: 'dim', dashed: true, idle: true, weight: 1.6 });
+    links.push({ id: 'none>cash', from: 'out:none', to: 'cash', tone: 'dim', dashed: true, idle: true, weight: 1.6 });
+  }
+  if (liveOutcomes.length) {
+    // the furthest outcome feeds the cash (won if any)
+    const tail = (s.funnel?.won || 0) > 0 ? 'won' : liveOutcomes[liveOutcomes.length - 1][0];
+    const won = s.funnel?.won || 0;
+    links.push({ id: 'out>cash', from: `out:${tail}`, to: 'cash', tone: won ? 'good' : 'dim', dashed: !won, idle: !won, weight: won ? W(won) + 1 : 1.6 });
+    for (let i = 0; i < liveOutcomes.length - 1; i++) {
+      const a = liveOutcomes[i][0]; const b = liveOutcomes[i + 1][0];
+      links.push({ id: `o:${a}>${b}`, from: `out:${a}`, to: `out:${b}`, tone: 'good', weight: W(s.funnel[b]) });
+    }
+  }
   const pct = s.cash?.target_value ? s.cash.current_value / s.cash.target_value : 0;
   links.push({ id: 'cash>goal', from: 'cash', to: 'goal', tone: pct > 0 ? 'flow' : 'dim', dashed: pct <= 0, idle: pct <= 0, weight: 2 + pct * 6 });
 
@@ -315,7 +355,7 @@ function buildGraph(s) {
     if (e.type === 'model') return ['cash'];
     return [];
   };
-  return { sources, stages, stuck, links, liveLinks: links.filter((l) => !l.idle), bandFixes, bandOffers, bandLinks, blockCount, nodesFor };
+  return { sources, stages, stuck, liveStages, emptyStages, liveOutcomes, links, liveLinks: links.filter((l) => !l.idle), bandFixes, bandOffers, bandLinks, blockCount, nodesFor };
 }
 
 const RUN_TONE = { queued: 'info', running: 'ai', done: 'good', failed: 'bad', cancelled: undefined };

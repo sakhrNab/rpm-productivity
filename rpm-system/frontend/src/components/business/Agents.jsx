@@ -117,15 +117,19 @@ export default function Agents() {
   const online = runner?.last_claim_at && Date.now() - Date.parse(runner.last_claim_at) < FRESH;
   const jobOf = (id) => jobs.find((j) => j.id === id);
   const opened = openId ? runs.find((r) => r.id === openId) : null;
-  const active = runs.filter((r) => r.status === 'queued' || r.status === 'running').length;
+  const running = runs.filter((r) => r.status === 'running').length;
+  const queued = runs.filter((r) => r.status === 'queued').length;
+  const headline = running || queued
+    ? [running && `${running} running`, queued && `${queued} queued${online ? '' : ' — waiting for your runner'}`].filter(Boolean).join(' · ')
+    : 'Your local agents';
 
   return (
     <section className="bz-lens bz-agents">
-      <LensHead icon={Bot} kicker="Agents" title={active ? `${active} run${active === 1 ? '' : 's'} in flight` : 'Your local agents'}
+      <LensHead icon={Bot} kicker="Agents" title={headline}
         read="RPM queues jobs and shows what comes back. Your local runner does the work — nothing runs here, nothing is sent.">
         <span className={`bz-runner ${online ? 'on' : ''}`} title={runner ? `Last claim ${new Date(runner.last_claim_at).toLocaleString()}` : 'The runner has never connected'}>
           {online ? <Wifi size={15} /> : <WifiOff size={15} />}
-          {online ? `Runner online · ${ago(runner.last_claim_at)}` : runner ? `Runner offline · seen ${ago(runner.last_claim_at)}` : 'No runner connected yet'}
+          {online ? `Runner online · checked in ${ago(runner.last_claim_at)}` : runner ? `Runner offline · last check-in ${ago(runner.last_claim_at)}` : 'No runner connected yet'}
           {runner?.runner && <em>{runner.runner}</em>}
         </span>
       </LensHead>
@@ -191,6 +195,15 @@ export default function Agents() {
               </button>
             );
           })}
+          <section className="bz-howto" aria-label="How the runner connects">
+            <p className="ui-kicker"><Wifi size={13} /> How runs reach your Mac</p>
+            <ol>
+              <li>Create an access token with <b>write</b> scope in Settings.</li>
+              <li>Your local runner polls <code>POST /api/business/agent-runs/claim</code> — each poll is a check-in.</li>
+              <li>It works the job on your machine, then reports the summary and outbox with <code>POST …/agent-runs/:id/report</code>.</li>
+            </ol>
+            <p className="bz-muted">Running runs can be cancelled here; the runner stops on its next report.</p>
+          </section>
         </div>
       </div>
 
