@@ -176,3 +176,24 @@ test('input validation: required fields, enums, length caps, bad ids, unknown se
     assert.equal(r.status, 201); assert.equal(r.body.user_id, U1);
   } finally { await close(); }
 });
+
+test('fix → offer link: a foreign offer_id is refused; a lead stage change restarts its stage clock', async () => {
+  const pool = fakePool();
+  const { call, close } = await server(pool);
+  try {
+    const theirOffer = (await call(U2, 'POST', '/offers', { name: 'Theirs' })).body.id;
+    const myOffer = (await call(U1, 'POST', '/offers', { name: 'Mine' })).body.id;
+    let r = await call(U1, 'POST', '/fixes', { text: 'x', offer_id: theirOffer });
+    assert.equal(r.status, 400); assert.match(r.body.error, /offer_id/);
+    r = await call(U1, 'POST', '/fixes', { text: 'x', severity: 'P0', offer_id: myOffer });
+    assert.equal(r.status, 201); assert.equal(r.body.offer_id, myOffer);
+
+    const lead = (await call(U1, 'POST', '/leads', { name: 'L', stage: 'identified' })).body;
+    assert.equal(lead.stage_changed_at, undefined, 'set by the database default on insert');
+    r = await call(U1, 'PUT', `/leads/${lead.id}`, { stage: 'contacted' });
+    assert.ok(r.body.stage_changed_at, 'stage change stamps the clock');
+    const stamp = String(r.body.stage_changed_at);
+    r = await call(U1, 'PUT', `/leads/${lead.id}`, { stage: 'contacted', notes: 'same stage' });
+    assert.equal(String(r.body.stage_changed_at), stamp, 'same stage leaves it alone');
+  } finally { await close(); }
+});

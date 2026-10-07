@@ -13,6 +13,7 @@ const CHECKS = {
   cash_kr_id: 'SELECT 1 FROM key_results kr JOIN projects p ON p.id = kr.project_id WHERE kr.id = $1 AND p.user_id = $2',
   action_id: 'SELECT 1 FROM actions WHERE id = $1 AND user_id = $2',
   lead_id: 'SELECT 1 FROM biz_leads WHERE id = $1 AND user_id = $2',
+  offer_id: 'SELECT 1 FROM biz_offers WHERE id = $1 AND user_id = $2',
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

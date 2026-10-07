@@ -8,6 +8,7 @@ const express = require('express');
 const { firstForeignId } = require('./ownership');
 const { TEMPLATES, templateModel } = require('./businessTemplates');
 const { ymd } = require('./ai/dates');
+const { computeMoves, buildLinks } = require('./businessMoves');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -21,7 +22,7 @@ const TONES = ['ok', 'warn', 'bad', 'info'];
 class Invalid extends Error {}
 
 // pg hands DATE columns back as local-midnight Date objects; the API always speaks YYYY-MM-DD.
-const DATE_COLS = new Set(['next_contact', 'date', 'next_date', 'deadline', 'scheduled_date', 'end_date', 'target_date']);
+const DATE_COLS = new Set(['next_contact', 'date', 'next_date', 'deadline', 'scheduled_date', 'start_date', 'end_date', 'target_date']);
 const out = (row) => {
   if (!row || typeof row !== 'object') return row;
   const o = { ...row };
@@ -139,7 +140,7 @@ const TABLES = {
     table: 'biz_fixes', order: 'done ASC, severity ASC, sort ASC, created_at ASC', required: ['text'],
     fields: {
       severity: oneOf(['P0', 'P1', 'P2']), text: text(500, { required: true }), detail: text(2000), effort: text(40), done: bool(),
-      action_id: fk(), sort: int(-100000, 100000),
+      action_id: fk(), offer_id: fk(), sort: int(-100000, 100000),
     },
   },
   docs: {
@@ -154,7 +155,7 @@ const TABLES = {
     },
   },
 };
-const LINK_FIELDS = ['lead_id', 'action_id', 'goal_project_id', 'cash_kr_id'];
+const LINK_FIELDS = ['lead_id', 'action_id', 'goal_project_id', 'cash_kr_id', 'offer_id'];
 
 const MODEL_KEYS = ['id', 'name', 'unit', 'note'];
 function validateModel(v) {
@@ -284,7 +285,7 @@ async function buildSummary(db, userId) {
   let cash = null;
   let nextActions = [];
   if (s?.goal_project_id) {
-    const p = await db.query('SELECT id, name, end_date, ultimate_result FROM projects WHERE id = $1 AND user_id = $2', [s.goal_project_id, userId]);
+    const p = await db.query('SELECT id, name, start_date, end_date, ultimate_result, created_at FROM projects WHERE id = $1 AND user_id = $2', [s.goal_project_id, userId]);
     if (p.rows[0]) {
       goal = out(p.rows[0]);
       const a = await db.query(
@@ -322,10 +323,38 @@ async function buildSummary(db, userId) {
     [userId],
   );
 
+  // The flow canvas + next best moves: the few columns they need from every lead, channel, offer and fix.
+  const q = async (sql) => (await db.query(sql, [userId])).rows;
+  const leads = outAll(await q(`SELECT id, name, source, offer, stage, fit, next_step, next_contact, action_id, stage_changed_at, created_at
+    FROM biz_leads WHERE user_id = $1 ORDER BY created_at ASC`));
+  const channels = await q('SELECT id, name, tone FROM biz_channels WHERE user_id = $1 ORDER BY sort ASC, created_at ASC');
+  const offers = await q('SELECT id, name, product, readiness FROM biz_offers WHERE user_id = $1 ORDER BY sort ASC, created_at ASC');
+  const fixes = await q('SELECT id, severity, text, detail, done, offer_id, action_id FROM biz_fixes WHERE user_id = $1 ORDER BY severity ASC, sort ASC, created_at ASC');
+  const byChannel = (await q(`SELECT type, channel, SUM(count)::int AS n, COALESCE(SUM(value_eur), 0) AS cash, COUNT(*)::int AS rows
+    FROM biz_results WHERE user_id = $1 GROUP BY type, channel`)).map((r) => ({ ...r, cash: n(r.cash) }));
+  // Agents (2026-10-08 migration). Tolerate its absence so the cockpit still loads before it runs.
+  let agents = null;
+  try {
+    const runs = await q(`SELECT id, job_id, status, summary, outbox, created_at, finished_at FROM biz_agent_runs
+      WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5`);
+    const hb = await q('SELECT runner, last_claim_at FROM biz_agent_runner WHERE user_id = $1');
+    agents = { runs, runner: hb[0] || null };
+  } catch { agents = null; }
+
+  const model = Array.isArray(s?.revenue_model) ? s.revenue_model : [];
+  const deadline = s?.deadline || goal?.end_date || null;
+  const start = goal?.start_date || ymd(goal?.created_at) || ymd(s?.created_at) || null;
+  const links = buildLinks({ leads, channels, fixes, offers, model, resultChannels: [...new Set(byChannel.map((r) => r.channel).filter(Boolean))] });
+  const moves = computeMoves({
+    today: ymd(new Date()), leads, fixes, offers, model, results: byChannel, cash, deadline, start, currency: s?.currency || 'EUR',
+  });
+
   return {
     settings: s, counts, empty: Object.values(counts).every((c) => c === 0) && !s,
-    funnel, stages, goal, cash, deadline: s?.deadline || goal?.end_date || null,
+    funnel, stages, goal, cash, deadline, start,
     next: { actions: nextActions, followUps: outAll(followUps), fixes: openFixes, products: outAll(productSteps) },
+    flow: { leads, channels, offers, fixes, results: byChannel, model, links },
+    moves, agents,
   };
 }
 
@@ -452,6 +481,11 @@ function createBusinessRouter({ pool }) {
     const row = clean(cfg.fields, req.body);
     if (!Object.keys(row).length) throw new Invalid('No valid fields to update');
     await guardLinks(req, row);
+    // A lead's stage clock restarts when its stage changes ("stuck for N days").
+    if (cfg === TABLES.leads && row.stage) {
+      const cur = await getRow(pool, cfg, req.userId, req.params.id);
+      if (cur && cur.stage !== row.stage) row.stage_changed_at = new Date();
+    }
     const updated = await updateRow(pool, cfg, req.userId, req.params.id, row);
     if (!updated) return res.status(404).json({ error: 'Not found' });
     res.json(updated);
