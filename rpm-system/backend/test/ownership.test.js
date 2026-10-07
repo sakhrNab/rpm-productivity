@@ -13,7 +13,7 @@ test('owned or absent ids pass', async () => {
 });
 
 test('any foreign id is rejected, naming the field', async () => {
-  for (const f of ['category_id', 'project_id', 'block_id', 'key_result_id', 'leverage_person_id']) {
+  for (const f of ['category_id', 'project_id', 'block_id', 'key_result_id', 'leverage_person_id', 'goal_project_id', 'cash_kr_id', 'action_id', 'lead_id']) {
     assert.equal(await firstForeignId(pool, 'u1', { [f]: THEIRS }), f);
   }
   assert.equal(await firstForeignId(pool, 'u2', { project_id: MINE }), 'project_id');
@@ -25,4 +25,9 @@ test('malformed ids are rejected without querying', async () => {
   assert.equal(await firstForeignId(p, 'u1', { project_id: "x' OR 1=1 --" }), 'project_id');
   assert.equal(await firstForeignId(p, 'u1', { block_id: 42 }), 'block_id');
   assert.equal(called, false);
+});
+
+test('`only` limits which fields are checked', async () => {
+  assert.equal(await firstForeignId(pool, 'u1', { project_id: THEIRS, lead_id: MINE }, ['lead_id']), null);
+  assert.equal(await firstForeignId(pool, 'u1', { project_id: MINE, lead_id: THEIRS }, ['lead_id']), 'lead_id');
 });

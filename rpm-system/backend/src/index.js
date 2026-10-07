@@ -26,6 +26,7 @@ const { securityEvent } = require('./securityEvent');
 const { registrationAllowed } = require('./access');
 const pat = require('./pat');
 const { firstForeignId } = require('./ownership');
+const { createBusinessRouter } = require('./business');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
 const { recordUsage, getUsageSummary } = require('./ai/usage');
@@ -2081,6 +2082,9 @@ app.post('/api/push/unsubscribe', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (error) { console.error('[push] unsubscribe:', error); res.status(500).json({ error: 'Failed' }); }
 });
+
+// Business module (leads, results, offers, products, channels, fixes, library, content). Per user.
+app.use('/api/business', authenticateToken, createBusinessRouter({ pool }));
 
 // ============================================================
 // Custom reminders (Phase 4)

@@ -39,3 +39,13 @@ test('verifyPat looks up by hash and returns scopes', async () => {
   assert.equal(await verifyPat(pool, generatePat()), null);
   assert.equal(await verifyPat(pool, 'not-a-pat'), null);
 });
+
+test('business routes: read scope reads, write scope writes', () => {
+  assert.ok(patRouteAllowed('GET', '/api/business/summary', ['read']));
+  assert.ok(patRouteAllowed('GET', '/api/business/leads', ['read']));
+  assert.ok(!patRouteAllowed('POST', '/api/business/leads', ['read']));
+  assert.ok(!patRouteAllowed('PUT', '/api/business/settings', ['read']));
+  assert.ok(patRouteAllowed('POST', '/api/business/leads', ['write']));
+  assert.ok(patRouteAllowed('DELETE', '/api/business/leads/abc', ['write']));
+  assert.ok(!patRouteAllowed('GET', '/api/businessx', ['read']), 'prefix must match a whole segment');
+});

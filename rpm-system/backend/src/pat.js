@@ -15,7 +15,7 @@ const isPat = (token) => typeof token === 'string' && token.startsWith(PREFIX);
 // Path prefixes a PAT may use. Writes additionally need the `write` scope.
 const ALLOWED = [
   '/api/projects', '/api/actions', '/api/blocks', '/api/key-results', '/api/capture-items',
-  '/api/categories', '/api/planner', '/api/forecast', '/api/roadmap', '/api/capacity',
+  '/api/categories', '/api/planner', '/api/forecast', '/api/roadmap', '/api/capacity', '/api/business',
 ];
 // Never reachable with a PAT (checked before ALLOWED).
 const DENIED = [
