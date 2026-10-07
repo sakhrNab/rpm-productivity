@@ -4,6 +4,7 @@
 // Every statement is scoped by user_id.
 
 const express = require('express');
+const { APPS, blockedCapabilities } = require('./missionCapabilities');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES = ['queued', 'running', 'done', 'failed', 'cancelled'];
@@ -96,22 +97,31 @@ function cleanOutbox(v) {
 
 // ───────── SQL (exported so the tests' fake pool can implement exactly these) ─────────
 const SQL = {
-  list: 'SELECT * FROM biz_agent_runs WHERE user_id = $1 ORDER BY created_at DESC LIMIT 30',
+  // The planner's own runs are internal to a mission and not listed.
+  list: "SELECT * FROM biz_agent_runs WHERE user_id = $1 AND job_id <> 'mission-plan' ORDER BY created_at DESC LIMIT 30",
   get: 'SELECT * FROM biz_agent_runs WHERE id = $1 AND user_id = $2',
   countQueued: "SELECT COUNT(*)::int AS c FROM biz_agent_runs WHERE user_id = $1 AND status = 'queued'",
   insert: "INSERT INTO biz_agent_runs (user_id, job_id, inputs, status) VALUES ($1, $2, $3, 'queued') RETURNING *",
   cancel: `UPDATE biz_agent_runs SET status = 'cancelled', finished_at = NOW()
             WHERE id = $1 AND user_id = $2 AND status IN ('queued', 'running') RETURNING *`,
-  runner: 'SELECT runner, last_claim_at FROM biz_agent_runner WHERE user_id = $1',
-  heartbeat: `INSERT INTO biz_agent_runner (user_id, runner, last_claim_at) VALUES ($1, $2, NOW())
-               ON CONFLICT (user_id) DO UPDATE SET runner = EXCLUDED.runner, last_claim_at = NOW()`,
-  // One statement: pick the oldest queued run of this user, lock it, skip rows another claimer holds, flip it.
-  // Two runners polling at once can never both get the same run.
+  runner: 'SELECT runner, last_claim_at, apps FROM biz_agent_runner WHERE user_id = $1',
+  // $3 = apps (jsonb) or NULL (an old runner that sends none: keep what is stored).
+  heartbeat: `INSERT INTO biz_agent_runner (user_id, runner, last_claim_at, apps) VALUES ($1, $2, NOW(), COALESCE($3::jsonb, '{}'::jsonb))
+               ON CONFLICT (user_id) DO UPDATE SET runner = EXCLUDED.runner, last_claim_at = NOW(), apps = COALESCE($3::jsonb, biz_agent_runner.apps)`,
+  // One statement: pick the oldest queued run of this user that may start, lock it, skip rows another claimer holds,
+  // flip it. Two runners polling at once can never both get the same run.
+  // May start = every step it depends on (same mission, step_key in depends_on) is done, and its capability is not
+  // in $3 (capabilities whose apps are not connected, or busy, right now).
   claim: `UPDATE biz_agent_runs SET status = 'running', started_at = NOW(), runner = $2
            WHERE user_id = $1 AND status = 'queued' AND id = (
-             SELECT id FROM biz_agent_runs WHERE user_id = $1 AND status = 'queued'
-              ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED)
+             SELECT r.id FROM biz_agent_runs r WHERE r.user_id = $1 AND r.status = 'queued'
+                AND (r.capability IS NULL OR r.capability <> ALL($3::text[]))
+                AND NOT EXISTS (SELECT 1 FROM unnest(r.depends_on) AS k WHERE NOT EXISTS (
+                      SELECT 1 FROM biz_agent_runs d WHERE d.mission_id = r.mission_id AND d.step_key = k AND d.status = 'done'))
+              ORDER BY r.created_at ASC LIMIT 1 FOR UPDATE OF r SKIP LOCKED)
            RETURNING *`,
+  // Finished steps whose output the claimed step may read (the runner copies those files into its run folder).
+  upstream: "SELECT step_key, id, capability, outbox FROM biz_agent_runs WHERE mission_id = $1 AND user_id = $2 AND status = 'done' AND step_key = ANY($3::text[])",
   report: `UPDATE biz_agent_runs SET status = $3::varchar, summary = COALESCE($4::text, summary), outbox = COALESCE($5::jsonb, outbox),
              cost_usd = COALESCE($6::numeric, cost_usd), finished_at = CASE WHEN $3::varchar IN ('done', 'failed') THEN NOW() ELSE finished_at END
            WHERE id = $1 AND user_id = $2 AND status = 'running' RETURNING *`,
@@ -120,7 +130,20 @@ const SQL = {
 const num = (v) => (v === null || v === undefined ? null : Number(v));
 const shape = (r) => (r ? { ...r, cost_usd: num(r.cost_usd), inputs: r.inputs || {}, outbox: r.outbox || [] } : r);
 
-function createAgentRunsRouter({ pool }) {
+/** apps from a runner request: undefined/null = not sent; otherwise every known app as a strict boolean. */
+function cleanApps(v) {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== 'object' || Array.isArray(v)) throw new Invalid('apps must be an object of booleans');
+  const out = {};
+  for (const a of APPS) {
+    if (v[a] !== undefined && typeof v[a] !== 'boolean') throw new Invalid(`apps.${a} must be true or false`);
+    out[a] = v[a] === true;
+  }
+  return out;
+}
+
+// `missions` = hooks from missions.js createHooks(pool) (settle / prepareReport / afterChange); null = no missions.
+function createAgentRunsRouter({ pool, missions = null }) {
   const router = express.Router();
   const wrap = (fn) => async (req, res) => {
     try { await fn(req, res); } catch (e) {
@@ -144,12 +167,35 @@ function createAgentRunsRouter({ pool }) {
     res.json({ runs: rows.map(shape), runner: await runnerOf(req.userId) });
   }));
 
+  // Heartbeat: "I am here and these apps are connected" — does NOT claim anything (the runner calls it every 30 s,
+  // also while it is busy, so a long run no longer looks offline).
+  router.post('/heartbeat', wrap(async (req, res) => {
+    if (!runnerOnly(req, res)) return;
+    const runner = typeof req.body?.runner === 'string' ? req.body.runner.trim().slice(0, 120) : '';
+    const apps = cleanApps(req.body?.apps);
+    await pool.query(SQL.heartbeat, [req.userId, runner, apps ? JSON.stringify(apps) : null]);
+    res.json({ ok: true });
+  }));
+
   router.post('/claim', wrap(async (req, res) => {
     if (!runnerOnly(req, res)) return;
     const runner = typeof req.body?.runner === 'string' ? req.body.runner.trim().slice(0, 120) : '';
-    await pool.query(SQL.heartbeat, [req.userId, runner]);
-    const { rows } = await pool.query(SQL.claim, [req.userId, runner]);
-    res.json({ run: shape(rows[0]) || null });
+    const apps = cleanApps(req.body?.apps);
+    // busy_apps: apps this runner cannot use right now although connected (e.g. the browser is held by a running step).
+    const busy = Array.isArray(req.body?.busy_apps) ? req.body.busy_apps.filter((a) => APPS.includes(a)) : [];
+    await pool.query(SQL.heartbeat, [req.userId, runner, apps ? JSON.stringify(apps) : null]);
+    if (missions) await missions.settle(req.userId);
+    // A step is only ever handed out when its apps are reported connected. A runner that sends no apps (older
+    // version) is never given a step that needs one: its stored apps (or none) decide.
+    const known = apps || (await runnerOf(req.userId))?.apps || {};
+    const blocked = blockedCapabilities(known, busy);
+    const { rows } = await pool.query(SQL.claim, [req.userId, runner, blocked]);
+    const run = shape(rows[0]) || null;
+    if (run && run.mission_id && (run.depends_on || []).length) {
+      run.upstream = (await pool.query(SQL.upstream, [run.mission_id, req.userId, run.depends_on])).rows
+        .map((u) => ({ step_key: u.step_key, run_id: u.id, capability: u.capability, outbox: u.outbox || [] }));
+    }
+    res.json({ run });
   }));
 
   router.get('/:id', wrap(async (req, res) => {
@@ -175,7 +221,10 @@ function createAgentRunsRouter({ pool }) {
   router.post('/:id/cancel', wrap(async (req, res) => {
     if (!UUID.test(req.params.id)) return res.status(404).json({ error: 'Not found' });
     const { rows } = await pool.query(SQL.cancel, [req.params.id, req.userId]);
-    if (rows[0]) return res.json(shape(rows[0]));
+    if (rows[0]) {
+      if (missions && rows[0].mission_id) await missions.afterChange(rows[0]);
+      return res.json(shape(rows[0]));
+    }
     const { rows: cur } = await pool.query(SQL.get, [req.params.id, req.userId]);
     if (!cur[0]) return res.status(404).json({ error: 'Not found' });
     res.status(409).json({ error: `This run is already ${cur[0].status}` });
@@ -193,10 +242,24 @@ function createAgentRunsRouter({ pool }) {
       cost = Number(b.cost_usd);
       if (!Number.isFinite(cost) || cost < 0 || cost > 10000) throw new Invalid('cost_usd must be a number from 0 to 10000');
     }
-    const { rows } = await pool.query(SQL.report, [req.params.id, req.userId, b.status, summary, outbox === undefined ? null : JSON.stringify(outbox), cost]);
-    if (rows[0]) return res.json(shape(rows[0]));
-    const { rows: cur } = await pool.query(SQL.get, [req.params.id, req.userId]);
-    if (!cur[0]) return res.status(404).json({ error: 'Not found' });
+    const { rows: before } = await pool.query(SQL.get, [req.params.id, req.userId]);
+    if (!before[0]) return res.status(404).json({ error: 'Not found' });
+    // The planner's report may carry a plan: validated here, before anything is stored (a bad plan fails the mission).
+    let status = b.status;
+    let finalSummary = summary;
+    let plan = null;
+    if (b.plan !== undefined && before[0].job_id !== 'mission-plan') throw new Invalid('plan is only accepted from the mission planner');
+    if (missions && before[0].job_id === 'mission-plan' && status === 'done') {
+      const checked = missions.checkPlan(b.plan);
+      if (checked.ok) plan = checked.plan;
+      else { status = 'failed'; finalSummary = `Plan rejected: ${checked.error}`; }
+    }
+    const { rows } = await pool.query(SQL.report, [req.params.id, req.userId, status, finalSummary, outbox === undefined ? null : JSON.stringify(outbox), cost]);
+    if (rows[0]) {
+      if (missions && rows[0].mission_id && status !== 'running') await missions.afterChange(rows[0], plan);
+      return res.json(shape(rows[0]));
+    }
+    const cur = before;
     // Cancelled (or already finished) in RPM: tell the runner to stop.
     res.status(409).json({ error: `This run is ${cur[0].status}`, status: cur[0].status });
   }));
@@ -204,4 +267,4 @@ function createAgentRunsRouter({ pool }) {
   return router;
 }
 
-module.exports = { createAgentRunsRouter, JOBS, SQL, cleanInputs, cleanOutbox, needsConfirm, STATUSES, TERMINAL, Invalid };
+module.exports = { createAgentRunsRouter, shape, cleanApps, MAX_QUEUED, JOBS, SQL, cleanInputs, cleanOutbox, needsConfirm, STATUSES, TERMINAL, Invalid };

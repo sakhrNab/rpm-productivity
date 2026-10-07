@@ -203,3 +203,19 @@ MIT License - Feel free to use and modify for your own productivity needs!
 ## Acknowledgments
 
 Inspired by Tony Robbins' Rapid Planning Method (RPM) - a results-focused approach to planning that emphasizes outcome clarity and emotional purpose.
+
+## Missions (Agents page)
+
+A task in plain words -> a tool-less planner run (job `mission-plan`, executed by the owner's local runner) -> a plan
+`{summary, steps:[{key, capability, inputs, why, depends_on}]}` (max 8 steps, acyclic, validated against
+`backend/src/missionCapabilities.js`) -> the owner approves -> one queued run per step, claimed by the runner only when
+every `depends_on` step is `done` and the apps it needs are connected.
+
+- Tables: `biz_agent_missions`; `biz_agent_runs` gets `mission_id, step_key, depends_on, capability`; `biz_agent_runner.apps`.
+  Migration `database/migrations/2026-10-09-missions.sql` (idempotent; also in `init.sql`).
+- Endpoints (`/api/business/missions`, browser session): `GET /capabilities`, `GET /`, `POST /` `{text}` (5-2000 chars),
+  `GET /:id`, `POST /:id/approve` `{steps:[{key, confirmed?}]}` (409 if a step needs an app that is not connected, or a
+  paid / outward-reading step is not confirmed), `POST /:id/cancel`.
+- Runner (write-scope token only): `POST /agent-runs/heartbeat {runner, apps}`; `claim` also takes `apps` and `busy_apps`.
+- A failed or cancelled dependency fails the queued steps behind it ("Skipped") and the mission rolls up from its steps.
+- Tests: `node --test test/*.test.js` (`test/missions.test.js`, shared fake pool in `test/fakePool.js`).
