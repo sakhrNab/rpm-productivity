@@ -65,7 +65,8 @@ export default function Results() {
     agg[`${key}|${role}`] = (agg[`${key}|${role}`] || 0) + n;
     src[key] = (src[key] || 0) + n;
   }
-  const sources = Object.entries(src).map(([key, n]) => ({ key, label: key === '-' ? 'No channel' : key, n })).sort((a, b) => b.n - a.n);
+  const isLine = (key) => model.some((m) => m.name === key);
+  const sources = Object.entries(src).map(([key, n]) => ({ key, label: key === '-' ? 'No channel' : key, n, line: isLine(key) })).sort((a, b) => b.n - a.n);
   const roleN = {}; for (const [k, n] of Object.entries(agg)) { const role = k.split('|')[1]; roleN[role] = (roleN[role] || 0) + n; }
   const prev = { reply: 'sent', call: 'reply', proof: 'call', won: 'proof' };
   const outs = ORDER.filter((r) => roleN[r]).map((role) => {
@@ -158,10 +159,10 @@ export default function Results() {
           <div className="bz-sankey" ref={setRoot}>
             <FlowLinks root={root} links={links} simplify={phone} version={`${list.rows.length}-${phone}`} />
             <div className="bz-sankey-col" data-node-group="from">
-              <p className="bz-col-title">From channel</p>
+              <p className="bz-col-title">From channel or revenue line</p>
               {sources.map((c) => (
                 <div key={c.key} data-node={`rc:${c.key}`} className={`bz-node kind-src ${c.key === '-' ? 'quiet' : ''}`}>
-                  <span className="bz-node-name">{c.label}</span><b className="bz-node-n">{c.n}</b>
+                  <span className="bz-node-name">{c.label}{c.line && <small className="bz-node-sub">revenue line</small>}</span><b className="bz-node-n">{c.n}</b>
                 </div>
               ))}
             </div>
@@ -190,7 +191,7 @@ export default function Results() {
                           {r.views != null && <span> · {Number(r.views).toLocaleString()} views</span>}
                           <span className="bz-tl-date">{fmtDate(r.date)}</span></span>
                         <span className="bz-tl-meta">
-                          {r.channel && <span className="bz-entry-chan">from {chanLabel(r.channel)}</span>}
+                          {r.channel && <span className="bz-entry-chan">from {chanLabel(r.channel)}{isLine(chanLabel(r.channel)) ? ' (revenue line)' : ''}</span>}
                           {r.lead_id && leadName(r.lead_id) && <span className="bz-entry-lead">→ {leadName(r.lead_id)}</span>}
                         </span>
                         {r.note && <small>{r.note}</small>}

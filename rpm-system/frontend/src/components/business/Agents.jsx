@@ -152,7 +152,7 @@ export default function Agents() {
                     {job.inputs.map((f) => (
                       <label key={f.key} className="bz-job-field"><span>{f.label}</span>
                         {f.type === 'choice'
-                          ? <Picker value={valueOf(job, f)} header={f.label} options={f.options.map((o) => ({ value: o, label: o.replace('_', ' ') }))} onChange={(v) => setVal(job, f.key, v)} />
+                          ? <Picker value={valueOf(job, f)} header={f.label} title={`${f.label}: ${String(valueOf(job, f)).replace('_', ' ')}`} options={f.options.map((o) => ({ value: o, label: o.replace('_', ' ') }))} onChange={(v) => setVal(job, f.key, v)} />
                           : <input className="bz-in" value={valueOf(job, f)} maxLength={f.max || 200} onChange={(e) => setVal(job, f.key, e.target.value)} />}
                       </label>
                     ))}

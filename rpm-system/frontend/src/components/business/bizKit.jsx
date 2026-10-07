@@ -236,7 +236,7 @@ export function BizEditor({ section, row, defaults = {}, icon, onSave, onClose, 
           </div>
           <aside className="bz-ed-preview" aria-label="Live preview">
             <p className="ui-kicker">Live preview</p>
-            <EditorPreview section={section} fields={fields} form={form} options={dyn} />
+            <EditorPreview section={section} fields={fields} form={form} options={dyn} readiness={row ? ctx?.sum?.flow?.links?.offerReadiness?.[row.id] : null} />
           </aside>
         </div>
         <div className="modal-footer mk-foot">
@@ -262,13 +262,16 @@ const SHORT = new Set(['price', 'effort', 'platform', 'source', 'product', 'repo
 const isWide = (f) => f.wide || f.hero || !(SHORT.has(f.k) || ['date', 'enum', 'bool', 'number'].includes(f.type));
 
 /** What the row will look like, as you type: the card it becomes in its lens. */
-function EditorPreview({ section, fields, form, options }) {
+function EditorPreview({ section, fields, form, options, readiness }) {
   const hero = fields.find((f) => f.hero) || fields[0];
   const label = (f) => {
     const opts = f.optionsFrom ? options[f.optionsFrom] : f.options;
     return (opts || []).find((o) => o.value === form[f.k])?.label;
   };
-  const chips = fields.filter((f) => f.type === 'enum' && label(f) && form[f.k] !== '').map((f) => ({ k: f.k, text: label(f), tone: f.k === 'readiness' || f.k === 'tone' ? TONE_CHIP[form[f.k]] : f.k === 'fit' ? FIT[form[f.k]]?.tone : f.k === 'severity' ? (form[f.k] === 'P0' ? 'bad' : form[f.k] === 'P1' ? 'warn' : undefined) : undefined }));
+  // an open P0 blocker overrides the typed readiness (backend fixBlocks), exactly as on the offer card
+  const p0 = section === 'offers' && readiness?.p0Blocked;
+  const chips = fields.filter((f) => f.type === 'enum' && label(f) && form[f.k] !== '').map((f) => (p0 && f.k === 'readiness' ? { k: f.k, text: 'Blocked by a P0', tone: 'bad' } : { k: f.k, text: label(f), tone: f.k === 'readiness' || f.k === 'tone' ? TONE_CHIP[form[f.k]] : f.k === 'fit' ? FIT[form[f.k]]?.tone : f.k === 'severity' ? (form[f.k] === 'P0' ? 'bad' : form[f.k] === 'P1' ? 'warn' : undefined) : undefined }));
+  if (p0) chips.push({ k: 'was', text: `set: ${label(fields.find((f) => f.k === 'readiness'))}`, tone: undefined });
   const text = fields.filter((f) => f.type === 'textarea' && String(form[f.k] || '').trim()).slice(0, 2);
   const ladder = section === 'offers' ? String(form.ladder || '').split('\n').filter((l) => l.trim()).map((l) => l.split('|').map((x) => x.trim())) : [];
   const stage = section === 'leads' ? STAGES.findIndex((x) => x.value === form.stage) : -1;

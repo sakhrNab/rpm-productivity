@@ -80,7 +80,7 @@ export default function Revenue() {
   return (
     <section className="bz-lens bz-revenue">
       <LensHead icon={TrendingUp} kicker="Revenue model" title={model.length ? `${money(total, cur)} ${scen} case` : 'No model yet'}
-        read={target ? `${Math.round((total / target) * 100)}% of the ${money(target, cur)} target in the ${scen} case. Expected cash per channel = volume × convert % × ticket.` : 'Link a cash key result on the mission flow to compare the model with your target.'}>
+        read={target ? `${Math.round((total / target) * 100)}% of the ${money(target, cur)} target in the ${scen} case. Each revenue line: volume × convert % × ticket (lines can span several channels).` : 'Link a cash key result on the mission flow to compare the model with your target.'}>
         {model.length > 0 && (
           <div className="ui-seg bz-seg-sm" role="radiogroup" aria-label="Scenario">
             {Object.entries(SCENARIOS).map(([k, m]) => (
@@ -88,12 +88,12 @@ export default function Revenue() {
             ))}
           </div>
         )}
-        {model.length > 0 && <button type="button" className="btn btn-secondary" onClick={() => setModel((m) => [...m, blank(m.length)])}><Plus size={16} /> Channel</button>}
+        {model.length > 0 && <button type="button" className="btn btn-secondary" onClick={() => setModel((m) => [...m, blank(m.length)])}><Plus size={16} /> Revenue line</button>}
       </LensHead>
 
       {model.length === 0 ? (
         <BizEmpty icon={TrendingUp} title="No revenue model yet" text="List the channels that could bring money, how many attempts you will make, what share converts and the ticket. You get a low / base / high forecast against your cash target."
-          onAdd={() => setModel([blank(0)])} addLabel="Add a channel" onTemplate={template} />
+          onAdd={() => setModel([blank(0)])} addLabel="Add a revenue line" onTemplate={template} />
       ) : (
         <div className="bz-rev" ref={setRoot}>
           <FlowLinks root={root} links={links} active={hot} simplify={phone} version={`${model.length}-${scen}-${phone}`} />
@@ -103,7 +103,7 @@ export default function Revenue() {
               return (
                 <article key={c.id || i} className="bz-rev-row" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
                   <header className="bz-rev-head">
-                    <textarea rows={1} className="bz-in bz-rev-name" aria-label="Channel name" placeholder="Channel name" value={c.name} onChange={(e) => set(i, 'name', e.target.value.replace(/\n/g, ' '))} />
+                    <textarea rows={1} className="bz-in bz-rev-name" aria-label="Revenue line name" placeholder="Revenue line (e.g. Upwork proposals)" value={c.name} onChange={(e) => set(i, 'name', e.target.value.replace(/\n/g, ' '))} />
                     <button type="button" className="bz-icon-btn" aria-label={`Remove ${c.name || 'channel'}`} onClick={() => setModel((m) => m.filter((_, j) => j !== i))}><Trash2 size={15} /></button>
                     <span className={`bz-rev-cash ${v > 0 ? '' : 'quiet'}`}>{money(v, cur)}</span>
                   </header>
