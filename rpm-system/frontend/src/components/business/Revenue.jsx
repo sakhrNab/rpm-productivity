@@ -103,7 +103,7 @@ export default function Revenue() {
               return (
                 <article key={c.id || i} className="bz-rev-row" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
                   <header className="bz-rev-head">
-                    <input className="bz-in bz-rev-name" aria-label="Channel name" placeholder="Channel name" value={c.name} onChange={(e) => set(i, 'name', e.target.value)} />
+                    <textarea rows={1} className="bz-in bz-rev-name" aria-label="Channel name" placeholder="Channel name" value={c.name} onChange={(e) => set(i, 'name', e.target.value.replace(/\n/g, ' '))} />
                     <button type="button" className="bz-icon-btn" aria-label={`Remove ${c.name || 'channel'}`} onClick={() => setModel((m) => m.filter((_, j) => j !== i))}><Trash2 size={15} /></button>
                     <span className={`bz-rev-cash ${v > 0 ? '' : 'quiet'}`}>{money(v, cur)}</span>
                   </header>

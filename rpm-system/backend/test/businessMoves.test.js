@@ -141,7 +141,7 @@ test('fixBlocks: one fix may block many offers; every page reads the same counts
   assert.deepEqual(offerBlockers.inbox, { fixIds: ['bison'], P0: 1, P1: 0, P2: 0 });
   assert.deepEqual(offerBlockers.proof, { fixIds: ['bison'], P0: 1, P1: 0, P2: 0 });
   assert.deepEqual(offerBlockers.pack, { fixIds: ['agp', 'pinned'], P0: 1, P1: 1, P2: 0 });
-  assert.deepEqual(stats, { openFixes: 4, p0Fixes: 3, p0Linked: 2, offersBlocked: 3, offersBlockedByP0: 3 });
+  assert.deepEqual(stats, { openFixes: 4, p0Fixes: 3, p0Linked: 2, offersBlocked: 3, offersBlockedByP0: 3, offers: 3, offersReady: 0 });
   // buildLinks and the moves use the same answer
   const links = buildLinks({ fixes, offers });
   assert.deepEqual(links.offerBlockers, offerBlockers);
@@ -149,4 +149,23 @@ test('fixBlocks: one fix may block many offers; every page reads the same counts
   const moves = computeMoves({ today: TODAY, fixes, offers });
   assert.equal(moves.find((m) => m.id === 'p0:bison').title, 'P0 blocks The 2-Minute Inbox + 48-Hour Reply Proof');
   assert.deepEqual(moves.find((m) => m.id === 'p0:bison').entity.offers, ['inbox', 'proof']);
+});
+
+test('fixBlocks: an offer with any open P0 blocker is never ready', () => {
+  const offers = [
+    { id: 'pack', name: 'Prospect List Pack', product: 'LeadWave', readiness: 'ok' },
+    { id: 'inbox', name: 'The 2-Minute Inbox', product: 'Reply Autopilot', readiness: 'ok' },
+    { id: 'proof', name: '48-Hour Reply Proof', product: 'Reply Autopilot', readiness: 'warn' },
+  ];
+  const fixes = [
+    { id: 'agp', severity: 'P0', done: false, text: 'Remove AGP section from the live LeadWave page' },
+    { id: 'p1', severity: 'P1', done: false, text: 'Reply Autopilot tenant hole' },
+    { id: 'old', severity: 'P0', done: true, text: 'Reply Autopilot old P0' },
+  ];
+  const { offerReadiness, stats } = fixBlocks(fixes, offers);
+  assert.deepEqual(offerReadiness.pack, { stored: 'ok', effective: 'bad', p0Blocked: true }, 'P0 overrides "ok"');
+  assert.deepEqual(offerReadiness.inbox, { stored: 'ok', effective: 'ok', p0Blocked: false }, 'P1 and done P0 do not');
+  assert.equal(offerReadiness.proof.effective, 'warn');
+  assert.equal(stats.offersReady, 1);
+  assert.equal(buildLinks({ fixes, offers }).blockStats.offersReady, 1, 'the summary carries the same number');
 });

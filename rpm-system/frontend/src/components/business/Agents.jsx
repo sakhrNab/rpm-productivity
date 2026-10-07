@@ -195,8 +195,8 @@ export default function Agents() {
               </button>
             );
           })}
-          <details className="bz-howto">
-            <summary className="ui-kicker"><Wifi size={13} /> Setup — connect your runner</summary>
+          <details className={`bz-howto ${online ? 'mini' : ''}`}>
+            <summary className="ui-kicker"><Wifi size={13} /> {online ? 'Runner setup' : 'Setup — connect your runner'}</summary>
             <ol>
               <li>Create an access token with <b>write</b> scope in Settings.</li>
               <li>Your local runner polls <code>POST /api/business/agent-runs/claim</code> — each poll is a check-in.</li>

@@ -42,7 +42,13 @@ const Port = ({ id, side = 'right', live = true }) => <span className={`bz-port 
 /** Blocker facts from the summary — the one backend answer every page shares (businessMoves.fixBlocks). */
 export function useBlocks() {
   const L = useBiz()?.sum?.flow?.links || {};
-  return { fixOffers: L.fixOffers || {}, offerBlockers: L.offerBlockers || {}, stats: L.blockStats || { p0Fixes: 0, offersBlockedByP0: 0, openFixes: 0, offersBlocked: 0 } };
+  return { fixOffers: L.fixOffers || {}, offerBlockers: L.offerBlockers || {}, offerReadiness: L.offerReadiness || {}, stats: L.blockStats || { p0Fixes: 0, offersBlockedByP0: 0, openFixes: 0, offersBlocked: 0, offersReady: 0 } };
+}
+/** Readiness as shown: a P0 blocker overrides what was typed (backend rule in fixBlocks). */
+export function readyOf(o, R = {}) {
+  const r = R[o?.id];
+  const value = r?.effective || o?.readiness || 'warn';
+  return { value, overridden: !!r?.p0Blocked && r.stored !== 'bad', label: r?.p0Blocked ? 'Blocked by a P0' : toneLabel(value), tone: TONE_CHIP[value] || 'info' };
 }
 
 // ───────────────────────── Offers ─────────────────────────
@@ -54,7 +60,7 @@ export function Offers() {
   const [root, setRoot] = useState(null);
   const phone = useMedia('(max-width: 900px)');
   const focus = ctx.params.get('focus');
-  const { fixOffers, offerBlockers, stats } = useBlocks();
+  const { fixOffers, offerBlockers, offerReadiness, stats } = useBlocks();
   const leads = ctx.sum?.flow?.leads || [];
 
   // deep link: /business/offers?edit=<id> opens the editor
@@ -68,7 +74,7 @@ export function Offers() {
   }))), [blockers, fixOffers]);
   const w = useWires(links);
   if (!list.rows || !fixes.rows) return <Loading />;
-  const ready = list.rows.filter((o) => o.readiness === 'ok').length;
+  const ready = list.rows.filter((o) => readyOf(o, offerReadiness).value === 'ok').length;
   const blockersOf = (oid) => (offerBlockers[oid]?.fixIds || []).map((id) => byId[id]).filter(Boolean);
   const interested = (o) => leads.filter((l) => l.offer && (shares(l.offer, o.name) || shares(l.offer, o.product))).length;
 
@@ -101,7 +107,7 @@ export function Offers() {
           )}
           <div className="bz-wired-right bz-offer-list">
             {list.rows.map((o) => (
-              <OfferSheet key={o.id} o={o} head={w.bind(`of:${o.id}`)} cls={w.cls(`of:${o.id}`)} focus={focus === o.id}
+              <OfferSheet key={o.id} o={o} ready={readyOf(o, offerReadiness)} head={w.bind(`of:${o.id}`)} cls={w.cls(`of:${o.id}`)} focus={focus === o.id}
                 blockers={blockersOf(o.id)} showBlockers={phone} interested={interested(o)} onEdit={() => ed.open(o)} />
             ))}
           </div>
@@ -112,11 +118,11 @@ export function Offers() {
   );
 }
 
-function OfferSheet({ o, head, cls, focus, blockers, showBlockers, interested, onEdit }) {
-  const pct = READINESS_PCT[o.readiness] ?? 50;
+function OfferSheet({ o, ready, head, cls, focus, blockers, showBlockers, interested, onEdit }) {
+  const pct = READINESS_PCT[ready.value] ?? 50;
   const hasMore = o.guarantee || o.bonuses?.length || o.deliverables?.length || o.first_line || o.qualify || o.weak_spots?.length || (o.value && Object.values(o.value).some(Boolean));
   return (
-    <article className={`bz-offer ready-${o.readiness} ${focus ? 'flash' : ''}`}>
+    <article className={`bz-offer ready-${ready.value} ${focus ? 'flash' : ''}`}>
       <header {...head} tabIndex={0} className={`bz-offer-head bz-node kind-offer ${cls}`}>
         <div className="bz-offer-title">
           <h3>{o.name}</h3>
@@ -126,7 +132,8 @@ function OfferSheet({ o, head, cls, focus, blockers, showBlockers, interested, o
         <button type="button" className="bz-icon-btn" aria-label={`Edit ${o.name}`} onClick={onEdit}><Pencil size={15} /></button>
       </header>
       <div className="bz-offer-meter">
-        <span className={`ui-chip ui-chip--${TONE_CHIP[o.readiness] || 'info'}`}>{toneLabel(o.readiness)}</span>
+        <span className={`ui-chip ui-chip--${ready.tone}`} title={ready.overridden ? `You set “${toneLabel(o.readiness)}”, but an open P0 fix blocks it` : undefined}>{ready.label}</span>
+        {ready.overridden && <span className="bz-ready-was">set: {toneLabel(o.readiness)}</span>}
         <div className="bz-meter" aria-label={`Readiness ${pct}%`}><i style={{ width: `${pct}%` }} /></div>
         {interested > 0 && <span className="bz-offer-int"><Users size={13} /> {interested} lead{interested === 1 ? '' : 's'}</span>}
       </div>
@@ -164,6 +171,7 @@ export function Products() {
   const [root, setRoot] = useState(null);
   const phone = useMedia('(max-width: 900px)');
   const offers = ctx.sum?.flow?.offers || [];
+  const { offerReadiness } = useBlocks();
   const today = todayStr();
   const links = useMemo(() => {
     const out = [];
@@ -219,7 +227,7 @@ export function Products() {
             <div className="bz-wired-side">
               <p className="bz-col-title"><Gift size={13} /> Powers</p>
               {powered.map((o) => (
-                <button key={o.id} type="button" {...w.bind(`po:${o.id}`)} className={`bz-node kind-offer ready-${o.readiness} ${w.cls(`po:${o.id}`)}`} onClick={() => ctx.go('offers', { focus: o.id })}>
+                <button key={o.id} type="button" {...w.bind(`po:${o.id}`)} className={`bz-node kind-offer ready-${readyOf(o, offerReadiness).value} ${w.cls(`po:${o.id}`)}`} onClick={() => ctx.go('offers', { focus: o.id })}>
                   <Gift size={14} aria-hidden="true" /><span className="bz-node-name">{o.name}</span>
                 </button>
               ))}
@@ -352,7 +360,7 @@ export function Fixes() {
   const [dragId, setDragId] = useState(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 6 } }));
   const offers = ctx.sum?.flow?.offers || [];
-  const { fixOffers, offerBlockers, stats } = useBlocks();
+  const { fixOffers, offerBlockers, offerReadiness, stats } = useBlocks();
   // lanes depend on the summary's blocker map: wait for both so lanes never re-order under you
   if (!list.rows || !ctx.sum) return <Loading />;
   const rows = list.rows;
@@ -364,8 +372,7 @@ export function Fixes() {
   const lanes = offers.filter((o) => (offerBlockers[o.id]?.fixIds || []).some((id) => pass(byId[id])))
     .sort((a, b) => (offerBlockers[b.id].P0 - offerBlockers[a.id].P0) || (offerBlockers[b.id].fixIds.length - offerBlockers[a.id].fixIds.length))
     .map((o) => ({ id: o.id, offer: o, fixes: offerBlockers[o.id].fixIds.map((id) => byId[id]).filter(pass).sort((a, b) => a.severity.localeCompare(b.severity)) }));
-  const loose = open.filter((f) => pass(f) && !fixOffers[f.id]);
-  if (loose.length) lanes.push({ id: 'none', fixes: loose });
+  const loose = open.filter((f) => pass(f) && !fixOffers[f.id]).sort((a, b) => a.severity.localeCompare(b.severity));
 
   const relink = (f, lane) => {
     const v = lane === 'none' ? null : lane;
@@ -408,14 +415,21 @@ export function Fixes() {
             onDragEnd={(e) => { setDragId(null); if (e.over) relink(byId[String(e.active.id).split('@')[0]], e.over.id); }}>
             <div className="bz-board bz-offerlanes">
               {lanes.map((ln) => (
-                <OfferLane key={ln.id} id={ln.id} offer={ln.offer} counts={ln.id === 'none' ? null : offerBlockers[ln.id]} n={ln.fixes.length} dragging={!!dragId}>
+                <OfferLane key={ln.id} id={ln.id} offer={ln.offer} ready={ln.offer ? readyOf(ln.offer, offerReadiness) : null} counts={ln.id === 'none' ? null : offerBlockers[ln.id]} n={ln.fixes.length} dragging={!!dragId}>
                   {ln.fixes.map((f) => <FixCard key={`${f.id}@${ln.id}`} dragKey={`${f.id}@${ln.id}`} f={f} guessed={!!fixOffers[f.id] && !fixOffers[f.id].explicit} also={also(f, ln.id)}
                     focus={openId === f.id} onOpen={() => setOpenId(f.id)} onDone={() => toggleDone(f)} onConfirm={() => relink(f, ln.id)} />)}
                 </OfferLane>
               ))}
               {dragId && offers.filter((o) => !lanes.some((l) => l.id === o.id)).map((o) => <OfferLane key={o.id} id={o.id} offer={o} n={0} dragging />)}
-              {dragId && !loose.length && <OfferLane id="none" n={0} dragging />}
             </div>
+            {/* fixes tied to no offer: a full-width section under the lanes, never a clipped lane */}
+            {(loose.length > 0 || dragId) && (
+              <div className="bz-loose">
+                <OfferLane id="none" counts={null} n={loose.length} dragging={!!dragId}>
+                  {loose.map((f) => <FixCard key={`${f.id}@none`} dragKey={`${f.id}@none`} f={f} focus={openId === f.id} onOpen={() => setOpenId(f.id)} onDone={() => toggleDone(f)} />)}
+                </OfferLane>
+              </div>
+            )}
             <DragOverlay dropAnimation={null}>{dragFix ? <FixCard f={dragFix} overlay /> : null}</DragOverlay>
           </DndContext>
           {touch && <p className="bz-muted">Tap a fix to change the offer it blocks.</p>}
@@ -434,10 +448,10 @@ export function Fixes() {
   );
 }
 
-function OfferLane({ id, offer, counts, n, dragging, children }) {
+function OfferLane({ id, offer, ready, counts, n, dragging, children }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className={`bz-lane bz-olane ${id === 'none' ? 'none' : `ready-${offer?.readiness}`} ${isOver ? 'over' : ''} ${dragging ? 'dropping' : ''}`}
+    <div ref={setNodeRef} className={`bz-lane bz-olane ${id === 'none' ? 'none' : `ready-${ready?.value}`} ${isOver ? 'over' : ''} ${dragging ? 'dropping' : ''}`}
       role="group" aria-label={id === 'none' ? 'Not tied to an offer' : `Blocks ${offer?.name}`}>
       <header className="bz-olane-head">
         {id === 'none' ? <><span className="bz-olane-cap"><Layers size={12} /> loose</span><b className="bz-olane-name">Not tied to an offer</b><span className="bz-olane-meta"><em className="bz-olane-n">{n}</em></span></> : (
@@ -445,7 +459,7 @@ function OfferLane({ id, offer, counts, n, dragging, children }) {
             <span className="bz-olane-cap"><Gift size={12} /> blocks</span>
             <b className="bz-olane-name">{offer?.name}</b>
             <span className="bz-olane-meta">
-              <span className={`ui-chip ui-chip--${TONE_CHIP[offer?.readiness] || 'info'}`}>{toneLabel(offer?.readiness)}</span>
+              {ready && <span className={`ui-chip ui-chip--${ready.tone}`}>{ready.label}</span>}
               {counts && SEV.map(([k]) => counts[k] > 0 && <em key={k} className={`bz-sev sev-${k}`}>{counts[k]} {k}</em>)}
             </span>
           </>

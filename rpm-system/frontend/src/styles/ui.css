@@ -206,3 +206,7 @@ body:has(.vorb-root) .main-content:not(:has(.asst)) { padding-bottom: calc(var(-
 @media (max-width: 640px) {
   body:has(.vorb-root) .main-content:not(:has(.asst)) { padding-bottom: calc(var(--spacing-md) + 76px + var(--tabbar-h, 0px)); }
 }
+
+/* dev-only: components/LayoutAudit.jsx */
+[data-layout-issue] { outline: 2px dashed #ff2d2d !important; outline-offset: 1px; }
+.ui-layout-audit { position: fixed; left: 12px; bottom: 12px; z-index: 4000; padding: 4px 10px; border-radius: 8px; background: #ff2d2d; color: #fff; font: 700 0.78rem 'Space Grotesk', sans-serif; }

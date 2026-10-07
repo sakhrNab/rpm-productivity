@@ -88,7 +88,16 @@ function fixBlocks(fixes = [], offers = []) {
   }
   stats.offersBlocked = Object.keys(offerBlockers).length;
   stats.offersBlockedByP0 = Object.values(offerBlockers).filter((b) => b.P0 > 0).length;
-  return { fixOffers, offerBlockers, stats };
+  // Readiness the pages show: an offer with any open P0 blocker is never ready, whatever was typed in.
+  // effective: 'bad' when a P0 blocks it, else the stored readiness. ready = effective === 'ok'.
+  const offerReadiness = {};
+  for (const o of offers) {
+    const p0 = offerBlockers[o.id]?.P0 || 0;
+    offerReadiness[o.id] = { stored: o.readiness || 'warn', effective: p0 ? 'bad' : (o.readiness || 'warn'), p0Blocked: p0 > 0 };
+  }
+  stats.offers = offers.length;
+  stats.offersReady = Object.values(offerReadiness).filter((r) => r.effective === 'ok').length;
+  return { fixOffers, offerBlockers, offerReadiness, stats };
 }
 
 /** All link maps the flow canvas needs. */
@@ -102,10 +111,10 @@ function buildLinks({ leads = [], channels = [], fixes = [], offers = [], model 
     leadChannel[l.id] = c;
     if (norm(l.source) !== norm(channels.find((x) => x.id === c)?.name)) leadChannelGuess[l.id] = true;
   }
-  const { fixOffers, offerBlockers, stats: blockStats } = fixBlocks(fixes, offers);
+  const { fixOffers, offerBlockers, offerReadiness, stats: blockStats } = fixBlocks(fixes, offers);
   const resultModel = {};
   for (const ch of resultChannels) { const m = matchModel(ch, model); if (m) resultModel[ch] = m; }
-  return { leadChannel, leadChannelGuess, fixOffers, offerBlockers, blockStats, resultModel };
+  return { leadChannel, leadChannelGuess, fixOffers, offerBlockers, offerReadiness, blockStats, resultModel };
 }
 
 // ───────── next best moves ─────────

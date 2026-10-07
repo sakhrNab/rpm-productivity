@@ -4,6 +4,7 @@ import {
   Workflow, Users, Gift, TrendingUp, Package, Radio, Wrench, Library, BarChart3, CalendarDays, Bot, Plus,
 } from 'lucide-react';
 import Picker from '../components/Picker';
+import LayoutAudit from '../components/LayoutAudit';
 import { useToast } from '../components/ToastProvider';
 import ModalHead from '../components/modals/ModalHead';
 import Overview from '../components/business/Overview';
@@ -172,6 +173,7 @@ export default function BusinessPage() {
         {state.err && !sum ? <p className="biz-err">{state.err}</p> : <View key={view.id} go={go} />}
         {quick && <QuickAdd section={quick} onClose={() => setQuick(null)} />}
         {undo.view}
+        <LayoutAudit selector=".biz-page" version={`${view.id}-${state.version}-${!!sum}`} />
       </div>
     </BizContext.Provider>
   );

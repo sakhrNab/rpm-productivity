@@ -174,8 +174,8 @@ export default function Overview({ go }) {
               ))}
               {g.liveOutcomes.length === 0 && (
                 <button type="button" {...nodeProps('out:none', 'kind-out quiet')} onClick={() => go('results', { log: 1 })}>
-                  <span className="bz-node-name">Nothing logged yet</span>
-                  <small className="bz-node-sub">Log the first message →</small>
+                  <span className="bz-node-name">No funnel outcomes yet</span>
+                  <small className="bz-node-sub">{s.counts?.results ? `${s.counts.results} other entr${s.counts.results === 1 ? 'y' : 'ies'} logged (notes, posts) · ` : ''}log a message →</small>
                 </button>
               )}
             </Column>
@@ -205,7 +205,7 @@ export default function Overview({ go }) {
         </section>
 
         <aside className="bz-rail" id="bz-moves">
-          <NextMoves moves={s.moves} onFocus={setMoveFocus} limit={3} compact={phone} />
+          <NextMoves moves={s.moves} onFocus={setMoveFocus} limit={phone ? 3 : 4} compact={phone} />
           {(s.next?.actions?.length > 0 || s.next?.products?.length > 0) && (
             <section className="bz-rpmnext" aria-label="Next in RPM">
               <p className="ui-kicker"><ListChecks size={14} /> Next in RPM</p>
@@ -246,7 +246,7 @@ export default function Overview({ go }) {
             </div>
             <div className="bz-band-col" data-node-group="offers">
               {g.bandOffers.map((o) => (
-                <button key={o.id} type="button" {...nodeProps(`offer:${o.id}`, `kind-offer ready-${o.readiness}`)} onClick={() => go('offers', { focus: o.id })}>
+                <button key={o.id} type="button" {...nodeProps(`offer:${o.id}`, `kind-offer ready-${s.flow?.links?.offerReadiness?.[o.id]?.effective || o.readiness}`)} onClick={() => go('offers', { focus: o.id })}>
                   <Gift size={14} aria-hidden="true" />
                   <span className="bz-node-name">{o.name}</span>
                   <small className="bz-node-sub">{g.blockCount[o.id]} blocker{g.blockCount[o.id] === 1 ? '' : 's'}</small>
