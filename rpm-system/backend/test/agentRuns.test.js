@@ -3,74 +3,16 @@
 // executing each one atomically — as Postgres does for a single UPDATE … FOR UPDATE SKIP LOCKED.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const express = require('express');
-const crypto = require('crypto');
-const { createAgentRunsRouter, SQL, JOBS } = require('../src/agentRuns');
+const { SQL, JOBS } = require('../src/agentRuns');
 
 const U1 = 'aaaaaaaa-0000-4000-8000-000000000001';
 const U2 = 'aaaaaaaa-0000-4000-8000-000000000002';
-const norm = (s) => s.replace(/\s+/g, ' ').trim();
-const S = Object.fromEntries(Object.entries(SQL).map(([k, v]) => [norm(v), k]));
-
-function fakePool() {
-  const runs = [];
-  const runner = {};
-  let clock = 0;
-  const tick = () => new Date(Date.UTC(2026, 9, 8, 9, 0, clock++));
-  const handlers = {
-    list: ([u]) => runs.filter((r) => r.user_id === u).sort((a, b) => b.created_at - a.created_at).slice(0, 30),
-    get: ([id, u]) => runs.filter((r) => r.id === id && r.user_id === u),
-    countQueued: ([u]) => [{ c: runs.filter((r) => r.user_id === u && r.status === 'queued').length }],
-    insert: ([u, job, inputs]) => {
-      const r = { id: crypto.randomUUID(), user_id: u, job_id: job, inputs: JSON.parse(inputs), status: 'queued', runner: '', summary: '', outbox: [], cost_usd: null, created_at: tick(), started_at: null, finished_at: null };
-      runs.push(r); return [r];
-    },
-    cancel: ([id, u]) => runs.filter((r) => r.id === id && r.user_id === u && ['queued', 'running'].includes(r.status))
-      .map((r) => Object.assign(r, { status: 'cancelled', finished_at: tick() })),
-    runner: ([u]) => (runner[u] ? [runner[u]] : []),
-    heartbeat: ([u, name]) => { runner[u] = { runner: name, last_claim_at: tick() }; return []; },
-    claim: ([u, name]) => {
-      const next = runs.filter((r) => r.user_id === u && r.status === 'queued').sort((a, b) => a.created_at - b.created_at)[0];
-      if (!next) return [];
-      return [Object.assign(next, { status: 'running', started_at: tick(), runner: name })];
-    },
-    report: ([id, u, status, summary, outbox, cost]) => runs.filter((r) => r.id === id && r.user_id === u && r.status === 'running')
-      .map((r) => Object.assign(r, {
-        status, summary: summary ?? r.summary, outbox: outbox ? JSON.parse(outbox) : r.outbox, cost_usd: cost ?? r.cost_usd,
-        finished_at: ['done', 'failed'].includes(status) ? tick() : r.finished_at,
-      })),
-  };
-  return {
-    runs, runner, statements: [],
-    async query(sql, params = []) {
-      const key = S[norm(sql)];
-      if (!key) throw new Error(`fake pool: unsupported SQL ${norm(sql)}`);
-      this.statements.push(key);
-      await new Promise((r) => setImmediate(r)); // let other requests interleave between statements
-      return { rows: handlers[key](params) };
-    },
-  };
-}
-
-// x-user = user id; x-auth = 'jwt' | 'pat:read' | 'pat:write' (what authenticateToken would have set).
-async function server(pool) {
-  const app = express();
-  app.use(express.json());
-  app.use((req, _res, next) => {
-    req.userId = req.headers['x-user'];
-    const a = req.headers['x-auth'] || 'jwt';
-    if (a.startsWith('pat:')) { req.authKind = 'pat'; req.patScopes = a === 'pat:write' ? ['read', 'write'] : ['read']; }
-    next();
-  });
-  app.use('/api/business/agent-runs', createAgentRunsRouter({ pool }));
-  const srv = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
-  const base = `http://127.0.0.1:${srv.address().port}/api/business/agent-runs`;
-  const call = async (user, method, path, body, auth = 'jwt') => {
-    const r = await fetch(base + path, { method, headers: { 'content-type': 'application/json', 'x-user': user, 'x-auth': auth }, body: body ? JSON.stringify(body) : undefined });
-    return { status: r.status, body: await r.json().catch(() => null) };
-  };
-  return { call, close: () => new Promise((r) => srv.close(r)) };
-}
+const { fakePool, server: baseServer, norm } = require('./fakePool');
+// agent-runs paths relative to /api/business/agent-runs
+const server = async (pool) => {
+  const s = await baseServer(pool);
+  return { call: (u, m, p, b, a) => s.call(u, m, `/agent-runs${p === '/' ? '' : p}`, b, a), close: s.close };
+};
 
 test('runs are user-scoped: list, get and cancel never reach another user\'s run', async () => {
   const pool = fakePool();
@@ -141,7 +83,7 @@ test('claim is atomic: parallel claims hand out each queued run exactly once, ol
     assert.deepEqual([...got].sort(), [...ids].sort());
     assert.equal(pool.runs.find((r) => r.user_id === U2).status, 'queued');
     // the claim is ONE statement (lock + flip together), never a SELECT followed by an UPDATE
-    assert.match(norm(SQL.claim), /FOR UPDATE SKIP LOCKED/);
+    assert.match(norm(SQL.claim), /FOR UPDATE OF r SKIP LOCKED/);
     assert.match(norm(SQL.claim), /^UPDATE .* WHERE user_id = \$1 AND status = 'queued' AND id = \(/);
     // oldest first
     const pool2 = fakePool();

@@ -1,10 +1,11 @@
 // Agents: the control centre for the owner's LOCAL agents. RPM never runs a job — it queues one, the local
 // runner (an access token with write scope) claims it and reports back, and this page shows the result:
 // job → run → outbox → leads / results, wired. Runs refresh every 5 s.
+// On top: Missions (components/business/Missions.jsx) — a plain-words task, a tool-less planner, a plan you approve.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bot, Sunrise, Search, Users, MessagesSquare, Inbox, RefreshCw, CalendarDays, Play, XCircle, FileText, UserPlus,
-  BarChart3, ShieldAlert, Clock, Check, Wifi, WifiOff,
+  BarChart3, ShieldAlert, Clock, Check, Wifi, WifiOff, X,
 } from 'lucide-react';
 import Picker from '../Picker';
 import ModalHead from '../modals/ModalHead';
@@ -13,6 +14,7 @@ import FlowLinks, { connected, useMedia } from '../FlowLinks';
 import { useToast } from '../ToastProvider';
 import { LensHead, Loading, useBiz, useBizApi } from './bizKit';
 import { fmtDate } from './bizConfig';
+import MissionDeck from './Missions';
 
 const ICON = { sunrise: Sunrise, search: Search, users: Users, messages: MessagesSquare, inbox: Inbox, refresh: RefreshCw, calendar: CalendarDays };
 const STATUS_TONE = { queued: 'info', running: 'ai', done: 'good', failed: 'bad', cancelled: '' };
@@ -59,6 +61,8 @@ export default function Agents() {
   const [jobs, setJobs] = useState(null);
   const [runs, setRuns] = useState(null);
   const [runner, setRunner] = useState(null);
+  const [caps, setCaps] = useState(null);
+  const [extraRun, setExtraRun] = useState(null);
   const [inputs, setInputs] = useState({});
   const [confirmJob, setConfirmJob] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -75,6 +79,7 @@ export default function Agents() {
   }, [biz]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     biz.current.agentJobs().then((r) => { setJobs(r.jobs); setRunner(r.runner); }).catch((e) => { setJobs([]); showToast(e.message, 'error'); });
+    biz.current.missionCaps().then((r) => setCaps(r.capabilities)).catch(() => setCaps([]));
     load();
     const t = setInterval(() => { if (!document.hidden) load(); tick((n) => n + 1); }, 5000);
     return () => clearInterval(t);
@@ -115,8 +120,9 @@ export default function Agents() {
   if (!jobs || !runs) return <Loading />;
 
   const online = runner?.last_claim_at && Date.now() - Date.parse(runner.last_claim_at) < FRESH;
-  const jobOf = (id) => jobs.find((j) => j.id === id);
-  const opened = openId ? runs.find((r) => r.id === openId) : null;
+  // mission steps may run jobs that have no card here (draft-emails / draft-posts): name them from the capability list
+  const jobOf = (id) => jobs.find((j) => j.id === id) || (caps || []).find((c) => c.job === id);
+  const opened = openId ? runs.find((r) => r.id === openId) || (extraRun?.id === openId ? extraRun : null) : null;
   const running = runs.filter((r) => r.status === 'running').length;
   const queued = runs.filter((r) => r.status === 'queued').length;
   const headline = running || queued
@@ -131,8 +137,15 @@ export default function Agents() {
           {online ? <Wifi size={15} /> : <WifiOff size={15} />}
           {online ? `Runner online · checked in ${ago(runner.last_claim_at)}` : runner ? `Runner offline · last check-in ${ago(runner.last_claim_at)}` : 'No runner connected yet'}
           {runner?.runner && <em>{runner.runner}</em>}
+          {runner && ['leadwave', 'raven', 'browser'].map((a) => {
+            const on = !!runner.apps?.[a];
+            const name = { leadwave: 'LeadWave', raven: 'Raven', browser: 'Browser' }[a];
+            return <span key={a} className={`bz-app ${on ? 'on' : ''}`} title={`${name} is ${on ? 'connected' : 'not connected'} on your runner`}>{on ? <Check size={12} /> : <X size={12} />} {name}</span>;
+          })}
         </span>
       </LensHead>
+
+      <MissionDeck caps={caps || []} runner={runner} onOpenRun={(run) => { setExtraRun(run); setOpenId(run.id); }} />
 
       <div className={`bz-agents-grid ${phone ? '' : 'wired'}`} ref={setRoot}>
         {!phone && <FlowLinks root={root} links={links} active={hot && hot.size ? hot : null} />}
@@ -188,7 +201,7 @@ export default function Agents() {
                 <span className={`bz-run-pill ${STATUS_TONE[r.status]}`}>{r.status}</span>
                 <span className="bz-run-body">
                   <b>{job?.title || r.job_id}</b>
-                  <small>{inp || 'no inputs'} · {ago(r.finished_at || r.started_at || r.created_at)}</small>
+                  <small title={`${inp || 'no inputs'} · ${ago(r.finished_at || r.started_at || r.created_at)}`}>{inp || 'no inputs'} · {ago(r.finished_at || r.started_at || r.created_at)}</small>
                 </span>
                 {(r.outbox || []).length > 0 && <span className="bz-run-out"><FileText size={13} /> {r.outbox.length}</span>}
                 {r.cost_usd != null && <span className="bz-run-cost">${Number(r.cost_usd).toFixed(2)}</span>}

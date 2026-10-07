@@ -424,6 +424,13 @@ const createApi = (getToken, refreshTokenFn, logout) => {
         agentRun: (id) => call(`/agent-runs/${id}`),
         queueRun: (jobId, inputs = {}, confirmed = false) => call('/agent-runs', 'POST', { job_id: jobId, inputs, confirmed }),
         cancelRun: (id) => call(`/agent-runs/${id}/cancel`, 'POST', {}),
+        // Missions: a plain-words task -> tool-less planner -> plan you approve -> steps the runner works.
+        missionCaps: () => call('/missions/capabilities'),
+        missions: () => call('/missions'),
+        mission: (id) => call(`/missions/${id}`),
+        createMission: (text) => call('/missions', 'POST', { text }),
+        approveMission: (id, steps) => call(`/missions/${id}/approve`, 'POST', { steps }),
+        cancelMission: (id) => call(`/missions/${id}/cancel`, 'POST', {}),
       };
     })(),
 
