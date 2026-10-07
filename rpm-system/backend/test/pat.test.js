@@ -49,3 +49,10 @@ test('business routes: read scope reads, write scope writes', () => {
   assert.ok(patRouteAllowed('DELETE', '/api/business/leads/abc', ['write']));
   assert.ok(!patRouteAllowed('GET', '/api/businessx', ['read']), 'prefix must match a whole segment');
 });
+
+test('AI-spending routes under allowed prefixes are refused', () => {
+  assert.ok(!patRouteAllowed('POST', '/api/actions/triage', ['write']));
+  assert.ok(!patRouteAllowed('POST', '/api/forecast/fix', ['write']));
+  assert.ok(patRouteAllowed('GET', '/api/forecast', ['read']));
+  assert.ok(patRouteAllowed('POST', '/api/actions', ['write']));
+});

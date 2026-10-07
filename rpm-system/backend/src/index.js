@@ -167,7 +167,12 @@ const authLimiter = rateLimit({
   // req.ip is the address the limiter itself keys on (trust proxy = 1)
   onLimit: (req) => securityEvent('login_rate_limited', { user: req.body?.email, ip: req.ip, reason: /register/.test(req.path) ? 'register' : 'login' }),
 });
-const aiLimiter = rateLimit({ name: 'ai', windowMs: 60 * 1000, max: 30, message: 'Too many AI requests in a minute — slow down a little.' });
+const aiRateLimit = rateLimit({ name: 'ai', windowMs: 60 * 1000, max: 30, message: 'Too many AI requests in a minute — slow down a little.' });
+// Every route that spends AI credit uses this limiter, so it also keeps access tokens out of them.
+const aiLimiter = (req, res, next) => {
+  if (req.patScopes) return res.status(403).json({ error: 'This route is not available to access tokens' });
+  return aiRateLimit(req, res, next);
+};
 
 // Passport Strategies
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {

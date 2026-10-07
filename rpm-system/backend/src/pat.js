@@ -21,6 +21,8 @@ const ALLOWED = [
 const DENIED = [
   '/api/ai', '/api/coaches', '/api/persons', '/api/leverage-requests', '/api/telegram',
   '/api/notifications', '/api/push', '/api/settings', '/api/upload', '/api/pat',
+  // AI-spending routes under allowed prefixes (index.js aiLimiter also refuses PATs).
+  '/api/actions/triage', '/api/forecast/fix',
 ];
 
 const startsWithSegment = (path, prefix) => path === prefix || path.startsWith(prefix + '/');
