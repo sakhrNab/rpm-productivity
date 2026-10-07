@@ -25,6 +25,7 @@ const { rateLimit } = require('./ratelimit');
 const { securityEvent } = require('./securityEvent');
 const { registrationAllowed } = require('./access');
 const pat = require('./pat');
+const { firstForeignId } = require('./ownership');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
 const { recordUsage, getUsageSummary } = require('./ai/usage');
@@ -639,6 +640,8 @@ app.get('/api/actions/:id', authenticateToken, async (req, res) => {
 app.post('/api/actions', authenticateToken, async (req, res) => {
   try {
     const { category_id, project_id, block_id, leverage_person_id, title, notes, duration_hours, duration_minutes, scheduled_date, scheduled_time, end_date, is_starred, is_this_week, priority } = req.body;
+    const bad = await firstForeignId(pool, req.userId, req.body || {});
+    if (bad) return res.status(400).json({ error: `Invalid ${bad}` });
     const result = await pool.query(
       `INSERT INTO actions (user_id, category_id, project_id, block_id, leverage_person_id, title, notes, duration_hours, duration_minutes, scheduled_date, scheduled_time, end_date, is_starred, is_this_week, priority, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM actions WHERE user_id = $1)) RETURNING *`,
       [req.userId, category_id || null, project_id || null, block_id || null, leverage_person_id || null, title, notes || '', duration_hours || 0, duration_minutes || 5, scheduled_date || null, scheduled_time || null, end_date || null, is_starred || false, is_this_week || false, priority || 0]
@@ -724,6 +727,8 @@ app.put('/api/actions/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
+    const bad = await firstForeignId(pool, req.userId, req.body || {});
+    if (bad) return res.status(400).json({ error: `Invalid ${bad}` });
     const fields = [], values = [];
     let paramCount = 1;
     const allowedFields = ['category_id', 'project_id', 'block_id', 'leverage_person_id', 'title', 'notes', 'duration_hours', 'duration_minutes', 'scheduled_date', 'scheduled_time', 'end_date', 'is_starred', 'is_this_week', 'is_completed', 'is_cancelled', 'sort_order', 'priority'];
@@ -810,6 +815,8 @@ app.get('/api/blocks/:id', authenticateToken, async (req, res) => {
 app.post('/api/blocks', authenticateToken, async (req, res) => {
   try {
     const { category_id, project_id, key_result_id, result_title, result_description, purpose, target_date, action_ids } = req.body;
+    const bad = await firstForeignId(pool, req.userId, req.body || {});
+    if (bad) return res.status(400).json({ error: `Invalid ${bad}` });
     const result = await pool.query(
       `INSERT INTO rpm_blocks (user_id, category_id, project_id, key_result_id, result_title, result_description, purpose, target_date, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM rpm_blocks WHERE user_id = $1)) RETURNING *`,
       [req.userId, category_id || null, project_id || null, key_result_id || null, result_title, result_description || '', purpose || '', target_date || null]
@@ -822,6 +829,8 @@ app.post('/api/blocks', authenticateToken, async (req, res) => {
 app.put('/api/blocks/:id', authenticateToken, async (req, res) => {
   try {
     const { category_id, project_id, key_result_id, result_title, result_description, purpose, target_date, is_completed, is_in_progress, action_ids } = req.body;
+    const bad = await firstForeignId(pool, req.userId, req.body || {});
+    if (bad) return res.status(400).json({ error: `Invalid ${bad}` });
     // the date column rejects '' — coerce empty string to NULL (COALESCE then keeps the existing value)
     const targetDate = target_date === '' ? null : target_date;
     // key_result_id: '' clears the link, a uuid sets it, and undefined (not sent) keeps it
@@ -931,6 +940,8 @@ app.get('/api/capture-items', authenticateToken, async (req, res) => {
 app.post('/api/capture-items', authenticateToken, async (req, res) => {
   try {
     const { project_id, title, notes } = req.body;
+    const bad = await firstForeignId(pool, req.userId, req.body || {});
+    if (bad) return res.status(400).json({ error: `Invalid ${bad}` });
     const result = await pool.query(
       `INSERT INTO capture_items (user_id, project_id, title, notes, sort_order) VALUES ($1, $2, $3, $4, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM capture_items WHERE user_id = $1)) RETURNING *`,
       [req.userId, project_id || null, title, notes || '']
