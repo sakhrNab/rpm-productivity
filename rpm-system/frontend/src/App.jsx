@@ -10,6 +10,7 @@ import WeekPage from './pages/WeekPage';
 import PlanPage from './pages/PlanPage';
 import CoachHubPage from './pages/CoachHubPage';
 import PlanImportPage from './pages/PlanImportPage';
+import BusinessPage from './pages/BusinessPage';
 import VoiceOrb from './components/VoiceOrb';
 import GlobalFileDrop from './components/GlobalFileDrop';
 import SettingsPage from './pages/SettingsPage';
@@ -396,6 +397,30 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       return res.json();
     },
 
+    // Business module (/api/business). Unlike most helpers these throw on an error status,
+    // so pages can show the server's validation message.
+    biz: (() => {
+      const call = (path, method = 'GET', body) => authFetch(`${API_BASE}/business${path}`, {
+        method, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      }).then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
+        return data;
+      });
+      return {
+        summary: () => call('/summary'),
+        settings: () => call('/settings'),
+        saveSettings: (data) => call('/settings', 'PUT', data),
+        template: (section = 'all') => call('/template', 'POST', { section }),
+        list: (section) => call(`/${section}`),
+        create: (section, data) => call(`/${section}`, 'POST', data),
+        update: (section, id, data) => call(`/${section}/${id}`, 'PUT', data),
+        remove: (section, id) => call(`/${section}/${id}`, 'DELETE'),
+        followUp: (leadId, data = {}) => call(`/leads/${leadId}/follow-up`, 'POST', data),
+        fixToAction: (fixId, data = {}) => call(`/fixes/${fixId}/action`, 'POST', data),
+      };
+    })(),
+
     // Planner
     getPlanner: (startDate, endDate) => authFetch(`${API_BASE}/planner?start_date=${startDate}&end_date=${endDate}`).then(r => r.json()),
   };
@@ -636,6 +661,8 @@ function AppContent() {
           <Route path="/reminders" element={<RemindersPage />} />
           <Route path="/people" element={<PeoplePage />} />
           <Route path="/import" element={<PlanImportPage />} />
+          <Route path="/business" element={<BusinessPage />} />
+          <Route path="/business/:view" element={<BusinessPage />} />
           {/* Old routes (bookmarks, emails, push links) */}
           <Route path="/my-day" element={<RedirectTo to="/today" />} />
           <Route path="/compass" element={<RedirectTo to="/today" />} />

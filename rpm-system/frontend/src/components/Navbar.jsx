@@ -2,7 +2,7 @@ import { useState, useContext, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Target, Sun, CalendarDays, Map as MapIcon, MessagesSquare, Sparkles, ChevronDown,
-  Zap, Blocks, FolderPlus, Tag, UserPlus, FileUp, Settings, Users, AlarmClock, LogOut, X, Check
+  Zap, Blocks, FolderPlus, Tag, UserPlus, FileUp, Settings, Users, AlarmClock, LogOut, X, Check, Briefcase
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from './modals/CreateActionModal';
@@ -21,6 +21,8 @@ const TABS = [
   { path: '/plan', label: 'Plan', icon: MapIcon, match: ['/plan', '/categories', '/projects', '/import'] },
   { path: '/coach', label: 'Coach', icon: MessagesSquare, match: ['/coach'] },
 ];
+// Header-only tab (desktop). Phones reach it from the account menu: the bottom bar stays at four.
+const BUSINESS_TAB = { path: '/business', label: 'Business', icon: Briefcase, match: ['/business'] };
 const isActive = (tab, pathname) => tab.match.some(m => pathname === m || pathname.startsWith(`${m}/`));
 
 const CREATE_OPTIONS = [
@@ -142,6 +144,7 @@ function Navbar() {
 
         <nav className="tn-tabs" aria-label="Main">
           {TABS.map(t => tabLink(t, 'tn-tab'))}
+          {tabLink(BUSINESS_TAB, 'tn-tab')}
         </nav>
 
         <div className="tn-right">
@@ -207,6 +210,10 @@ function Navbar() {
                 <Link to="/settings" role="menuitem" className="tn-menu-item" onClick={() => setShowUserMenu(false)}>
                   <Settings size={16} /> <span>Settings &amp; API keys</span>
                   {location.pathname === '/settings' && <Check size={14} className="tn-menu-cur" />}
+                </Link>
+                <Link to="/business" role="menuitem" className="tn-menu-item tn-menu-phone" onClick={() => setShowUserMenu(false)}>
+                  <Briefcase size={16} /> <span>Business</span>
+                  {location.pathname.startsWith('/business') && <Check size={14} className="tn-menu-cur" />}
                 </Link>
                 <Link to="/people" role="menuitem" className="tn-menu-item" onClick={() => setShowUserMenu(false)}>
                   <Users size={16} /> <span>People</span>

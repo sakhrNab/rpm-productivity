@@ -315,3 +315,6 @@
 @media (max-width: 860px) {
   .app-container .main-content { padding-bottom: calc(var(--spacing-md) + var(--tabbar-h)); }
 }
+
+/* Business lives in the header tabs on wide screens; phones reach it from the account menu. */
+@media (min-width: 861px) { .tn-menu-item.tn-menu-phone { display: none; } }
