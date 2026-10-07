@@ -20,6 +20,15 @@
   --ui-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 20px 60px -24px rgba(0, 0, 0, 0.7);
   --ui-grad: linear-gradient(90deg, #4ecdc4, #7ee0d8);
   --ui-grad-ai: linear-gradient(90deg, #4ecdc4, #ff69b4);
+  /* flow language (Business "mission flow", connectors everywhere): node surface, wire colours, motion */
+  --ui-node: linear-gradient(180deg, rgba(26, 45, 74, 0.92), rgba(12, 24, 52, 0.92));
+  --ui-node-hi: linear-gradient(180deg, rgba(36, 58, 94, 0.95), rgba(16, 32, 66, 0.95));
+  --ui-wire-a: #4ecdc4;
+  --ui-wire-b: #ff69b4;
+  --ui-wire-dim: rgba(168, 181, 200, 0.16);
+  --ui-glow: 0 0 0 1px rgba(78, 205, 196, 0.45), 0 0 24px -4px rgba(78, 205, 196, 0.55);
+  --ui-ease: cubic-bezier(0.2, 0.9, 0.3, 1);
+  --ui-dur: 0.22s;
 }
 
 /* ---------- primitives ---------- */
@@ -78,6 +87,27 @@
 }
 .ui-seg > button:hover { color: var(--text-primary); }
 .ui-seg > button.on, .ui-seg > button[aria-selected="true"] { background: var(--bg-card-hover); color: var(--text-primary); box-shadow: inset 0 0 0 1px rgba(78, 205, 196, 0.45); }
+
+/* ---------- connectors (components/FlowLinks.jsx): glowing animated wires between [data-node]s ---------- */
+.ui-links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 0; }
+.ui-links .ui-wire-glow { fill: none; stroke-width: calc(var(--w, 2px) + 6px); stroke-linecap: round; opacity: 0.16; filter: blur(3px); transition: opacity var(--ui-dur); }
+.ui-links .ui-wire { fill: none; stroke-width: var(--w, 2px); stroke-linecap: round; opacity: 0.85; transition: opacity var(--ui-dur), stroke-width var(--ui-dur); }
+.ui-links .ui-wire.dashed { stroke-dasharray: 5 6; }
+.ui-links .ui-wire-flow { fill: none; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 2 26; opacity: 0.7; animation: ui-wire-flow 1.4s linear infinite; }
+.ui-links .ui-wire-end { fill: #fff; opacity: 0.9; }
+.ui-links .dim .ui-wire, .ui-links .dim .ui-wire-end { opacity: 0.12; }
+.ui-links .dim .ui-wire-glow, .ui-links .dim .ui-wire-flow { opacity: 0; }
+.ui-links .hot .ui-wire { opacity: 1; }
+.ui-links .hot .ui-wire-glow { opacity: 0.55; }
+.ui-links .hot .ui-wire-flow { opacity: 1; animation-duration: 0.9s; }
+.ui-links .idle .ui-wire-flow { display: none; }
+@keyframes ui-wire-flow { to { stroke-dashoffset: -28; } }
+/* dev-only invariant from FlowLinks: a wire that runs under another card */
+.ui-links .occluded .ui-wire { stroke: #ff2d2d !important; stroke-width: 4px; opacity: 1; }
+.ui-links-occluded { position: absolute; top: 4px; right: 4px; z-index: 5; padding: 2px 8px; border-radius: 6px; background: #ff2d2d; color: #fff; font: 700 0.72rem 'Space Grotesk', sans-serif; }
+/* a node that has links: hover/focus lights its paths (FlowLinks reads data-node) */
+[data-node].is-hot { box-shadow: var(--ui-glow); }
+[data-node].is-dim { opacity: 0.45; }
 
 /* ---------- modal shell (every modal) ---------- */
 .modal-overlay {
@@ -161,6 +191,7 @@
 @keyframes ui-breathe { 50% { transform: scale(0.55); opacity: 0.6; } }
 
 @media (prefers-reduced-motion: reduce) {
+  .ui-links .ui-wire-flow { animation: none; opacity: 0; }
   .spinner { animation-duration: 2.4s; }
   .loading::after { animation: none; }
   .modal { animation: none; }
@@ -175,3 +206,7 @@ body:has(.vorb-root) .main-content:not(:has(.asst)) { padding-bottom: calc(var(-
 @media (max-width: 640px) {
   body:has(.vorb-root) .main-content:not(:has(.asst)) { padding-bottom: calc(var(--spacing-md) + 76px + var(--tabbar-h, 0px)); }
 }
+
+/* dev-only: components/LayoutAudit.jsx */
+[data-layout-issue] { outline: 2px dashed #ff2d2d !important; outline-offset: 1px; }
+.ui-layout-audit { position: fixed; left: 12px; bottom: 12px; z-index: 4000; padding: 4px 10px; border-radius: 8px; background: #ff2d2d; color: #fff; font: 700 0.78rem 'Space Grotesk', sans-serif; }

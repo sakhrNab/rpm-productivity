@@ -27,6 +27,7 @@ const { registrationAllowed } = require('./access');
 const pat = require('./pat');
 const { firstForeignId } = require('./ownership');
 const { createBusinessRouter } = require('./business');
+const { createAgentRunsRouter } = require('./agentRuns');
 const { runCompass, runPlanSuggestions } = require('./ai/coach');
 const { generatePlan, applyPlan, draftFix, triageOverdue } = require('./ai/braindump');
 const { recordUsage, getUsageSummary } = require('./ai/usage');
@@ -2089,6 +2090,8 @@ app.post('/api/push/unsubscribe', authenticateToken, async (req, res) => {
 });
 
 // Business module (leads, results, offers, products, channels, fixes, library, content). Per user.
+// Agent runs first: the business router's generic /:table route would otherwise answer /agent-runs.
+app.use('/api/business/agent-runs', authenticateToken, createAgentRunsRouter({ pool }));
 app.use('/api/business', authenticateToken, createBusinessRouter({ pool }));
 
 // ============================================================

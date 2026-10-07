@@ -35,68 +35,69 @@ export const toneLabel = (v) => TONE_OPTS.find((t) => t.value === v)?.label || v
 // types: text | textarea | date | number | enum | bool | list (one per line) | rows (a | b | c per line) | pairs (object)
 export const FIELDS = {
   leads: [
-    { k: 'name', label: 'Name', type: 'text', required: true },
+    { k: 'name', label: 'Name', type: 'text', required: true, hero: true, wide: true },
     { k: 'stage', label: 'Stage', type: 'enum', options: STAGES },
     { k: 'fit', label: 'Fit', type: 'enum', options: [{ value: 3, label: 'Strong fit' }, { value: 2, label: 'Maybe' }, { value: 1, label: 'Long shot' }] },
     { k: 'source', label: 'Source', type: 'text' },
     { k: 'offer', label: 'Offer', type: 'text' },
     { k: 'next_contact', label: 'Next contact', type: 'date' },
-    { k: 'why', label: 'Why them', type: 'textarea', wide: true },
-    { k: 'next_step', label: 'Next step', type: 'textarea', wide: true },
-    { k: 'notes', label: 'Notes', type: 'textarea', wide: true },
+    { k: 'next_step', label: 'Next step', type: 'textarea', wide: true, group: 'Next move' },
+    { k: 'why', label: 'Why them', type: 'textarea', wide: true, group: 'Context' },
+    { k: 'notes', label: 'Notes', type: 'textarea', wide: true, group: 'Context' },
   ],
   offers: [
-    { k: 'name', label: 'Name', type: 'text', required: true },
+    { k: 'name', label: 'Name', type: 'text', required: true, hero: true, wide: true },
     { k: 'readiness', label: 'Readiness', type: 'enum', options: TONE_OPTS },
     { k: 'product', label: 'Product', type: 'text' },
-    { k: 'for_who', label: 'For who', type: 'text' },
+    { k: 'for_who', label: 'For who', type: 'textarea' },
     { k: 'tagline', label: 'Promise', type: 'textarea', wide: true },
-    { k: 'readiness_note', label: 'Readiness note', type: 'text', wide: true },
-    { k: 'value', label: 'Value equation', type: 'pairs', keys: [['dream', 'Dream outcome'], ['likelihood', 'Likelihood'], ['time', 'Time to result'], ['effort', 'Effort for them']], wide: true },
+    { k: 'readiness_note', label: 'Readiness note', type: 'textarea', wide: true },
+    { k: 'value', group: 'The offer', label: 'Value equation', type: 'pairs', keys: [['dream', 'Dream outcome'], ['likelihood', 'Likelihood'], ['time', 'Time to result'], ['effort', 'Effort for them']], wide: true },
     { k: 'ladder', label: 'Price ladder', type: 'rows', keys: ['step', 'price', 'note'], hint: 'One step per line: step | price | note', wide: true },
-    { k: 'guarantee', label: 'Guarantee', type: 'textarea', wide: true },
+    { k: 'guarantee', group: 'Risk reversal', label: 'Guarantee', type: 'textarea', wide: true },
     { k: 'bonuses', label: 'Bonuses', type: 'list', hint: 'One per line', wide: true },
-    { k: 'scarcity', label: 'Scarcity', type: 'text', wide: true },
+    { k: 'scarcity', label: 'Scarcity', type: 'textarea', wide: true },
     { k: 'deliverables', label: 'Deliverables', type: 'rows', keys: ['when', 'what', 'form'], hint: 'One per line: when | what | form', wide: true },
-    { k: 'first_line', label: 'First line', type: 'textarea', wide: true },
-    { k: 'qualify', label: 'Qualify question', type: 'text', wide: true },
+    { k: 'first_line', group: 'Selling it', label: 'First line', type: 'textarea', wide: true },
+    { k: 'qualify', label: 'Qualify question', type: 'textarea', wide: true },
     { k: 'weak_spots', label: 'Weak spots', type: 'list', hint: 'One per line', wide: true },
   ],
   products: [
-    { k: 'name', label: 'Name', type: 'text', required: true },
+    { k: 'name', label: 'Name', type: 'text', required: true, hero: true, wide: true },
     { k: 'role', label: 'Role', type: 'enum', options: ['paid', 'gift', 'service', 'open-source', 'park'].map((v) => ({ value: v, label: v })) },
     { k: 'what', label: 'What it does', type: 'textarea', wide: true },
-    { k: 'status', label: 'Status', type: 'text', wide: true },
+    { k: 'status', label: 'Status', type: 'textarea', wide: true },
     { k: 'price', label: 'Price', type: 'text' },
     { k: 'promised', label: 'Promised to someone', type: 'bool' },
-    { k: 'blocker', label: 'Blocker', type: 'textarea', wide: true },
-    { k: 'next_step', label: 'Next step', type: 'text', wide: true },
+    { k: 'blocker', label: 'Blocker', type: 'textarea', wide: true, group: 'Moving it' },
+    { k: 'next_step', label: 'Next step', type: 'textarea', wide: true },
     { k: 'next_date', label: 'Next step date', type: 'date' },
     { k: 'repo', label: 'Repo / link', type: 'text' },
   ],
   channels: [
-    { k: 'name', label: 'Name', type: 'text', required: true },
+    { k: 'name', label: 'Name', type: 'text', required: true, hero: true, wide: true },
     { k: 'tone', label: 'Verdict colour', type: 'enum', options: TONE_OPTS },
-    { k: 'stat', label: 'Numbers today', type: 'text', wide: true },
-    { k: 'audience', label: 'Audience', type: 'text', wide: true },
-    { k: 'verdict', label: 'Verdict', type: 'text', wide: true },
-    { k: 'gaps', label: 'Gaps', type: 'list', hint: 'One per line', wide: true },
+    { k: 'stat', label: 'Numbers today', type: 'textarea', wide: true },
+    { k: 'audience', label: 'Audience', type: 'textarea', wide: true },
+    { k: 'verdict', label: 'Verdict', type: 'textarea', wide: true },
+    { k: 'gaps', group: 'Gaps & moves', label: 'Gaps', type: 'list', hint: 'One per line', wide: true },
     { k: 'moves', label: 'Moves', type: 'list', hint: 'One per line', wide: true },
   ],
   fixes: [
-    { k: 'text', label: 'Fix', type: 'text', required: true, wide: true },
+    { k: 'text', label: 'Fix', type: 'text', required: true, wide: true, hero: true },
     { k: 'severity', label: 'Severity', type: 'enum', options: [{ value: 'P0', label: 'P0 · blocks money' }, { value: 'P1', label: 'P1 · soon' }, { value: 'P2', label: 'P2 · later' }] },
     { k: 'effort', label: 'Effort', type: 'text' },
+    { k: 'offer_id', label: 'Blocks offer', type: 'enum', optionsFrom: 'offers' },
     { k: 'detail', label: 'Detail', type: 'textarea', wide: true },
   ],
   docs: [
-    { k: 'path', label: 'Path or URL', type: 'text', required: true, wide: true },
+    { k: 'path', label: 'Path or URL', type: 'text', required: true, wide: true, hero: true },
     { k: 'status', label: 'Status', type: 'enum', options: ['current', 'superseded', 'obsolete', 'archive'].map((v) => ({ value: v, label: v })) },
     { k: 'date', label: 'Date', type: 'date' },
     { k: 'note', label: 'Note', type: 'textarea', wide: true },
   ],
   content: [
-    { k: 'title', label: 'Post idea', type: 'text', required: true, wide: true },
+    { k: 'title', label: 'Post idea', type: 'text', required: true, wide: true, hero: true },
     { k: 'date', label: 'Date', type: 'date' },
     { k: 'platform', label: 'Platform', type: 'text' },
     { k: 'status', label: 'Status', type: 'enum', options: ['idea', 'draft', 'ready', 'published'].map((v) => ({ value: v, label: v })) },
@@ -131,3 +132,31 @@ export const SCENARIOS = { low: 0.4, base: 1, high: 2.2 };
 /** Expected cash per model channel: volume × convert% × ticket. */
 export const channelCash = (c) => (Number(c.volume) || 0) * ((Number(c.convert) || 0) / 100) * (Number(c.ticket) || 0);
 export const modelTotal = (model, mult = 1) => (model || []).reduce((s, c) => s + channelCash(c) * mult, 0);
+
+// ───── flow helpers (Business "mission flow") ─────
+export const OPEN_STAGES = ['identified', 'contacted', 'replied', 'call', 'pilot'];
+export const LANES = ['identified', 'contacted', 'replied', 'call', 'pilot', 'paid'];
+export const STUCK_DAYS = { identified: 7, contacted: 5, replied: 3, call: 4, pilot: 14 };
+export const FIT = { 3: { label: 'Strong fit', tone: 'good', c: '#4ecdc4' }, 2: { label: 'Maybe', tone: 'warn', c: '#ffb74d' }, 1: { label: 'Long shot', tone: 'info', c: '#9575cd' } };
+/** Days since the lead entered its stage (stage_changed_at, else created_at). */
+export const stageAge = (l, today = todayStr()) => {
+  const since = String(l.stage_changed_at || l.created_at || '').slice(0, 10);
+  return since ? daysBetween(since, today) : 0;
+};
+/** Signals for one lead: overdue | today | stuck | nodate (only for open leads). */
+export function leadSignals(l, today = todayStr()) {
+  const s = {};
+  if (!OPEN_STAGES.includes(l.stage)) return s;
+  if (l.next_contact) {
+    const d = daysBetween(today, l.next_contact);
+    if (d < 0) s.overdue = -d; else if (d === 0) s.today = true;
+  } else if (l.stage !== 'identified') s.nodate = true;
+  const age = stageAge(l, today);
+  if (age > (STUCK_DAYS[l.stage] ?? 7)) s.stuck = age;
+  return s;
+}
+export const needsAttention = (l, today) => { const s = leadSignals(l, today); return !!(s.overdue || s.today || s.stuck || s.nodate); };
+export const addDaysStr = (iso, n) => {
+  const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
+};
+export const READINESS_PCT = { ok: 100, info: 70, warn: 55, bad: 20 };
