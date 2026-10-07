@@ -195,15 +195,15 @@ export default function Agents() {
               </button>
             );
           })}
-          <section className="bz-howto" aria-label="How the runner connects">
-            <p className="ui-kicker"><Wifi size={13} /> How runs reach your Mac</p>
+          <details className="bz-howto">
+            <summary className="ui-kicker"><Wifi size={13} /> Setup — connect your runner</summary>
             <ol>
               <li>Create an access token with <b>write</b> scope in Settings.</li>
               <li>Your local runner polls <code>POST /api/business/agent-runs/claim</code> — each poll is a check-in.</li>
               <li>It works the job on your machine, then reports the summary and outbox with <code>POST …/agent-runs/:id/report</code>.</li>
             </ol>
             <p className="bz-muted">Running runs can be cancelled here; the runner stops on its next report.</p>
-          </section>
+          </details>
         </div>
       </div>
 

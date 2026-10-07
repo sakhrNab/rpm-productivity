@@ -64,6 +64,33 @@ function matchModel(channel, model) {
   return best ? best.id : null;
 }
 
+/**
+ * THE source of truth for "which offers does each fix block" (a fix may block many offers). Overview,
+ * Offers, Fixes and the next best moves all read this, so every page states the same counts.
+ * Returns { fixOffers: {fixId: {offers, explicit}}, offerBlockers: {offerId: {fixIds, P0, P1, P2}},
+ *           stats: {openFixes, p0Fixes, p0Linked, offersBlocked, offersBlockedByP0} } — open fixes only
+ * count as blockers; fixOffers also covers done fixes so their history still reads.
+ */
+function fixBlocks(fixes = [], offers = []) {
+  const known = new Set(offers.map((o) => o.id));
+  const fixOffers = {}; const offerBlockers = {};
+  const stats = { openFixes: 0, p0Fixes: 0, p0Linked: 0, offersBlocked: 0, offersBlockedByP0: 0 };
+  for (const f of fixes) {
+    const ids = suggestOffers(f, offers).filter((id) => known.has(id));
+    if (ids.length) fixOffers[f.id] = { offers: ids, explicit: !!f.offer_id };
+    if (f.done) continue;
+    stats.openFixes += 1;
+    if (f.severity === 'P0') { stats.p0Fixes += 1; if (ids.length) stats.p0Linked += 1; }
+    for (const id of ids) {
+      const b = (offerBlockers[id] ||= { fixIds: [], P0: 0, P1: 0, P2: 0 });
+      b.fixIds.push(f.id); b[f.severity] = (b[f.severity] || 0) + 1;
+    }
+  }
+  stats.offersBlocked = Object.keys(offerBlockers).length;
+  stats.offersBlockedByP0 = Object.values(offerBlockers).filter((b) => b.P0 > 0).length;
+  return { fixOffers, offerBlockers, stats };
+}
+
 /** All link maps the flow canvas needs. */
 function buildLinks({ leads = [], channels = [], fixes = [], offers = [], model = [], resultChannels = [] }) {
   // A lead whose source IS a channel's name is linked; any other word match is only a guess the owner confirms.
@@ -75,11 +102,10 @@ function buildLinks({ leads = [], channels = [], fixes = [], offers = [], model 
     leadChannel[l.id] = c;
     if (norm(l.source) !== norm(channels.find((x) => x.id === c)?.name)) leadChannelGuess[l.id] = true;
   }
-  const fixOffers = {};
-  for (const f of fixes) { const o = suggestOffers(f, offers); if (o.length) fixOffers[f.id] = { offers: o, explicit: !!f.offer_id }; }
+  const { fixOffers, offerBlockers, stats: blockStats } = fixBlocks(fixes, offers);
   const resultModel = {};
   for (const ch of resultChannels) { const m = matchModel(ch, model); if (m) resultModel[ch] = m; }
-  return { leadChannel, leadChannelGuess, fixOffers, resultModel };
+  return { leadChannel, leadChannelGuess, fixOffers, offerBlockers, blockStats, resultModel };
 }
 
 // ───────── next best moves ─────────
@@ -190,8 +216,9 @@ function computeMoves(data) {
   const offersById = Object.fromEntries((data.offers || []).map((o) => [o.id, o]));
   const p0 = (data.fixes || []).filter((f) => !f.done && f.severity === 'P0');
   const p0Linked = [];
+  const { fixOffers } = fixBlocks(data.fixes || [], data.offers || []);
   for (const f of p0) {
-    const offerIds = suggestOffers(f, data.offers || []).filter((id) => offersById[id]);
+    const offerIds = fixOffers[f.id]?.offers || [];
     if (offerIds.length) p0Linked.push({ f, offers: offerIds.map((id) => offersById[id]) });
   }
   for (const { f, offers } of p0Linked.slice(0, 3)) {
@@ -283,4 +310,4 @@ function computeMoves(data) {
   return moves.filter((m) => (seen.has(m.id) ? false : seen.add(m.id))).sort((a, b) => b.score - a.score);
 }
 
-module.exports = { computeMoves, buildLinks, matchChannel, suggestOffers, matchModel, tokens, addDays, STUCK_DAYS };
+module.exports = { computeMoves, buildLinks, fixBlocks, matchChannel, suggestOffers, matchModel, tokens, addDays, STUCK_DAYS };

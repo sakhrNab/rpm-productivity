@@ -100,3 +100,21 @@ Measured on the BEFORE shots (`before/*.png`, real owner data: 13 leads, 4 offer
 Independent critic receives before + after + this brief and answers first: *redesign or touch-up?*
 Exit: gate passed + two consecutive rounds with no must-fix; no horizontal overflow at 390/1440; no native
 select; visible keyboard focus; AA contrast on text.
+
+## 8 · Lens structures (critic rounds 2–3) — every lens is a different cut of the same circuit
+
+Concept A's rule is "light = relationship". Lenses that were still lists after round 2 were rebuilt so the
+relationship *is* the layout:
+
+| Lens | Structure | Why this, not a list |
+|---|---|---|
+| Fixes | **Offer lanes** — each lane an offer, holding the fixes that block it; a fix that blocks several offers sits in each lane ("also blocks …"); drag to pin | the question is "what stands between this offer and money", so the offer is the container |
+| Results | **From → Became flow + timeline spine** — channels wired into the outcome each produced (weight = count, zero silent), and every entry on one week-marked spine | answers "where do results come from" by wire, "when" by spine |
+| Library | **Knowledge map** — branches per product/offer a document feeds (matched by name, flagged), twigs per document, status cycles in place | a document matters for what it feeds, not for its path |
+| Content | **Channel × day board** — rows = channels, columns = next 14 days, every cell a slot you click to plan there | content is "which channel, which day"; empty slots invite the next post |
+| Products / Channels | **Ported rows** — one column of cards, a visible port on the right edge, wires only in the gutter to the offers / stages they feed | wires under cards made the source unreadable |
+| Editor | **Two-pane builder** — grouped sections with a section index and fill count, the value equation as a fraction of four labelled levers, live preview of the card it becomes | the form was a flat list with unlabeled inputs |
+
+Invariants added: one backend function (`fixBlocks`) states every blocker count (tested); in dev builds
+FlowLinks samples each wire and paints it red + shows a badge if it runs under any card that is not one of
+its ends; the voice orb gets its own right gutter on desktop and steps aside on phones (Coach-hub precedent).

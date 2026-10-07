@@ -12,6 +12,7 @@ import ModalHead from '../modals/ModalHead';
 import FlowLinks, { connected, useMedia } from '../FlowLinks';
 import { useToast } from '../ToastProvider';
 import NextMoves from './Moves';
+import { blockLine } from './Sections';
 import DatePick from './DatePick';
 import { Loading, useBiz, useBizApi } from './bizKit';
 import { LANES, daysBetween, fmtDate, money, stageLabel, todayStr } from './bizConfig';
@@ -101,6 +102,7 @@ export default function Overview({ go }) {
           {s.goal ? <Link to={`/projects/${s.goal.id}`} className="bz-hero-title ui-title-grad">{s.goal.name}</Link>
             : <button type="button" className="bz-hero-title bz-hero-link" onClick={() => setSettings(true)}>Link your goal project</button>}
           {s.goal?.ultimate_result && <p className="bz-hero-sub">{s.goal.ultimate_result}</p>}
+          {phone && s.moves?.length > 0 && <a href="#bz-moves" className="bz-hero-moves">{s.moves.length} next best moves ↓</a>}
         </div>
         <div className="bz-hero-cash">
           {cash ? (
@@ -202,7 +204,7 @@ export default function Overview({ go }) {
           </p>
         </section>
 
-        <aside className="bz-rail">
+        <aside className="bz-rail" id="bz-moves">
           <NextMoves moves={s.moves} onFocus={setMoveFocus} limit={3} compact={phone} />
           {(s.next?.actions?.length > 0 || s.next?.products?.length > 0) && (
             <section className="bz-rpmnext" aria-label="Next in RPM">
@@ -228,7 +230,8 @@ export default function Overview({ go }) {
       {g.bandFixes.length > 0 && (
         <section className="bz-band" aria-label="What blocks the money">
           <header className="bz-band-head">
-            <p className="ui-kicker"><AlertTriangle size={14} /> What blocks the money</p>
+            <p className="ui-kicker"><AlertTriangle size={14} /> What blocks the money
+              {s.flow?.links?.blockStats && <span className="bz-band-stat">{blockLine(s.flow.links.blockStats)}</span>}</p>
             <button type="button" className="btn btn-ghost bz-small" onClick={() => go('fixes')}>All fixes <ArrowRight size={14} /></button>
           </header>
           <div className="bz-band-flow" ref={setBand}>
@@ -333,16 +336,17 @@ function buildGraph(s) {
 
   // blockers band: open P0/P1 fixes that wire to an offer
   const offers = Object.fromEntries((f.offers || []).map((o) => [o.id, o]));
+  // blocker counts come from the backend's fixBlocks (same numbers as Offers and Fixes)
   const bandFixes = (f.fixes || []).filter((x) => !x.done && x.severity !== 'P2' && L.fixOffers?.[x.id]).slice(0, 6);
   const bandLinks = []; const blockCount = {};
+  for (const [oid, b] of Object.entries(L.offerBlockers || {})) if (offers[oid]) blockCount[oid] = b.fixIds.length;
   for (const x of bandFixes) {
     for (const oid of L.fixOffers[x.id].offers) {
       if (!offers[oid]) continue;
-      blockCount[oid] = (blockCount[oid] || 0) + 1;
       bandLinks.push({ id: `fix:${x.id}>offer:${oid}`, from: `fix:${x.id}`, to: `offer:${oid}`, tone: x.severity === 'P0' ? 'bad' : 'warn', dashed: !L.fixOffers[x.id].explicit, weight: x.severity === 'P0' ? 3 : 2 });
     }
   }
-  const bandOffers = Object.keys(blockCount).map((id) => offers[id]);
+  const bandOffers = [...new Set(bandLinks.map((l) => l.to.slice(6)))].map((id) => offers[id]);
 
   const leadsById = Object.fromEntries((f.leads || []).map((l) => [l.id, l]));
   const nodesFor = (e) => {

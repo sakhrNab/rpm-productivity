@@ -1,7 +1,7 @@
 // Next best moves + link matching (pure functions behind /api/business/summary).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { computeMoves, buildLinks, matchChannel, suggestOffers, matchModel } = require('../src/businessMoves');
+const { computeMoves, buildLinks, fixBlocks, matchChannel, suggestOffers, matchModel } = require('../src/businessMoves');
 
 const TODAY = '2026-10-08';
 const lead = (o) => ({ id: o.name, fit: 2, stage: 'contacted', next_contact: null, stage_changed_at: '2026-10-07T10:00:00Z', created_at: '2026-10-01T10:00:00Z', ...o });
@@ -119,4 +119,34 @@ test('lead → channel: an exact channel name is a link, a word match is a guess
   const { leadChannel, leadChannelGuess } = buildLinks({ leads, channels });
   assert.deepEqual(leadChannel, { a: 'c1', b: 'c3' });
   assert.deepEqual(leadChannelGuess, { a: true });
+});
+
+test('fixBlocks: one fix may block many offers; every page reads the same counts', () => {
+  const offers = [
+    { id: 'inbox', name: 'The 2-Minute Inbox', product: 'Reply Autopilot' },
+    { id: 'proof', name: '48-Hour Reply Proof', product: 'Reply Autopilot' },
+    { id: 'pack', name: 'Prospect List Pack', product: 'LeadWave (as a service)' },
+  ];
+  const fixes = [
+    { id: 'bison', severity: 'P0', done: false, text: 'One real EmailBison auto-reply in production' },   // reply → inbox + proof
+    { id: 'agp', severity: 'P0', done: false, text: 'Remove AGP section from the live LeadWave page' },   // leadwave → pack
+    { id: 'stripe', severity: 'P0', done: false, text: 'One real €1 Stripe charge' },                     // nothing
+    { id: 'pinned', severity: 'P1', done: false, text: 'Anything', offer_id: 'pack' },                     // explicit
+    { id: 'old', severity: 'P0', done: true, text: 'Old LeadWave fix' },                                   // done: not a blocker
+  ];
+  const { fixOffers, offerBlockers, stats } = fixBlocks(fixes, offers);
+  assert.deepEqual(fixOffers.bison, { offers: ['inbox', 'proof'], explicit: false });
+  assert.deepEqual(fixOffers.pinned, { offers: ['pack'], explicit: true });
+  assert.equal(fixOffers.stripe, undefined);
+  assert.deepEqual(offerBlockers.inbox, { fixIds: ['bison'], P0: 1, P1: 0, P2: 0 });
+  assert.deepEqual(offerBlockers.proof, { fixIds: ['bison'], P0: 1, P1: 0, P2: 0 });
+  assert.deepEqual(offerBlockers.pack, { fixIds: ['agp', 'pinned'], P0: 1, P1: 1, P2: 0 });
+  assert.deepEqual(stats, { openFixes: 4, p0Fixes: 3, p0Linked: 2, offersBlocked: 3, offersBlockedByP0: 3 });
+  // buildLinks and the moves use the same answer
+  const links = buildLinks({ fixes, offers });
+  assert.deepEqual(links.offerBlockers, offerBlockers);
+  assert.deepEqual(links.blockStats, stats);
+  const moves = computeMoves({ today: TODAY, fixes, offers });
+  assert.equal(moves.find((m) => m.id === 'p0:bison').title, 'P0 blocks The 2-Minute Inbox + 48-Hour Reply Proof');
+  assert.deepEqual(moves.find((m) => m.id === 'p0:bison').entity.offers, ['inbox', 'proof']);
 });

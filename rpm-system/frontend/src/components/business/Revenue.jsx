@@ -104,8 +104,8 @@ export default function Revenue() {
                 <article key={c.id || i} className="bz-rev-row" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
                   <header className="bz-rev-head">
                     <input className="bz-in bz-rev-name" aria-label="Channel name" placeholder="Channel name" value={c.name} onChange={(e) => set(i, 'name', e.target.value)} />
-                    <span data-node={`rm:${i}`} className={`bz-rev-cash ${v > 0 ? '' : 'quiet'}`}>{money(v, cur)}</span>
                     <button type="button" className="bz-icon-btn" aria-label={`Remove ${c.name || 'channel'}`} onClick={() => setModel((m) => m.filter((_, j) => j !== i))}><Trash2 size={15} /></button>
+                    <span className={`bz-rev-cash ${v > 0 ? '' : 'quiet'}`}>{money(v, cur)}</span>
                   </header>
                   <div className="bz-rev-eq">
                     <label><span>Volume</span><input className="bz-in" type="number" min="0" inputMode="decimal" value={c.volume} onChange={(e) => set(i, 'volume', num(e.target.value))} /></label>
@@ -123,8 +123,9 @@ export default function Revenue() {
                         <b>{actual[c.id] || 0}</b> / {c.volume} {c.unit} logged
                       </span>
                     )}
-                    <input className="bz-in bz-rev-note" aria-label="Note" placeholder="Where the numbers come from" value={c.note} onChange={(e) => set(i, 'note', e.target.value)} />
+                    <textarea className="bz-in bz-rev-note" rows={1} aria-label="Note" placeholder="Where the numbers come from" value={c.note} onChange={(e) => set(i, 'note', e.target.value)} />
                   </div>
+                  {!phone && <span className={`bz-port right ${v > 0 ? '' : 'idle'}`} data-node={`rm:${i}`} aria-hidden="true" />}
                 </article>
               );
             })}

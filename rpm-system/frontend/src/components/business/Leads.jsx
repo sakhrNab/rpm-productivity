@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import Picker from '../Picker';
 import ModalHead from '../modals/ModalHead';
-import FlowLinks from '../FlowLinks';
+import FlowLinks, { useMedia } from '../FlowLinks';
 import { useToast } from '../ToastProvider';
 import DatePick from './DatePick';
 import { AddButton, BizEmpty, Chip, Editor, LensHead, Loading, useBiz, useBizApi, useBizList, useEditor } from './bizKit';
@@ -32,6 +32,7 @@ export default function Leads() {
   const [openId, setOpenId] = useState(() => params.get('focus') || null);
   const [dragId, setDragId] = useState(null);
   const [focusId, setFocusId] = useState(null);
+  const phone = useMedia('(max-width: 900px)');
   const flashStage = LANES.includes(params.get('filter')) ? params.get('filter') : null;
   const boardRef = useRef(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 6 } }));
@@ -100,7 +101,8 @@ export default function Leads() {
   return (
     <section className="bz-lens bz-leads">
       <LensHead icon={Users} kicker="Pipeline" title={`${open} open lead${open === 1 ? '' : 's'}`}
-        read={attention ? `${attention} need attention — overdue, due today, stuck or without a next date.` : 'Drag a card to move it. Shift + arrow keys move the focused card.'}>
+        read={attention ? `${attention} need attention — overdue, due today, stuck or without a next date.` : 'Drag a card to move it. Shift + arrow keys move the focused card.'}
+        readTouch={`${attention ? `${attention} need attention. ` : ''}Tap a lead to open it — move it with the stage steps at the top of its sheet.`}>
         <AddButton onClick={() => ed.open()} label="Add lead" />
       </LensHead>
 
@@ -127,7 +129,8 @@ export default function Leads() {
 
           <DndContext sensors={sensors} onDragStart={(e) => setDragId(e.active.id)} onDragCancel={() => setDragId(null)}
             onDragEnd={(e) => { setDragId(null); if (e.over) move(list.rows.find((l) => l.id === e.active.id), e.over.id); }}>
-            <div className="bz-board" ref={boardRef}>
+            {/* empty lanes shrink to a slim drop strip; they open up while you drag */}
+            <div className="bz-board" ref={boardRef} style={phone ? undefined : { gridTemplateColumns: lanes.map((st) => (byLane[st].length || dragId ? 'minmax(200px, 1fr)' : '64px')).join(' '), gridAutoFlow: 'row' }}>
               {lanes.map((st, i) => (
                 <Lane key={st} stage={st} index={i} leads={byLane[st]} flash={flashStage === st} dragging={!!dragId}>
                   {byLane[st].map((l) => (
@@ -152,7 +155,7 @@ export default function Leads() {
 function Lane({ stage, index, leads, flash, dragging, children }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   return (
-    <div ref={setNodeRef} data-lane={stage} className={`bz-lane st-${stage} ${isOver ? 'over' : ''} ${flash ? 'flash' : ''} ${dragging ? 'dropping' : ''}`} style={{ '--i': index }}
+    <div ref={setNodeRef} data-lane={stage} className={`bz-lane st-${stage} ${isOver ? 'over' : ''} ${flash ? 'flash' : ''} ${dragging ? 'dropping' : ''} ${!leads.length && !dragging ? 'slim' : ''}`} style={{ '--i': index }}
       role="group" aria-label={`${stageLabel(stage)}: ${leads.length} lead${leads.length === 1 ? '' : 's'}`}>
       <header className="bz-lane-head">
         <i className="bz-lane-pip" aria-hidden="true" />

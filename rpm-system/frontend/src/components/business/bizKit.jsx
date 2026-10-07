@@ -8,7 +8,8 @@ import { useToast } from '../ToastProvider';
 import ModalHead from '../modals/ModalHead';
 import Picker from '../Picker';
 import DatePick from './DatePick';
-import { FIELDS, SINGULAR } from './bizConfig';
+import { useMedia } from '../FlowLinks';
+import { FIELDS, SINGULAR, STAGES, TONE_CHIP, FIT } from './bizConfig';
 
 export function useBizApi() {
   const { api } = useContext(AuthContext);
@@ -206,26 +207,37 @@ export function BizEditor({ section, row, defaults = {}, icon, onSave, onClose, 
     groups[groups.length - 1].fields.push(f);
   }
   const noun = SINGULAR[section] || 'item';
+  const filled = fields.filter((f) => !['bool'].includes(f.type) && String(typeof form[f.k] === 'object' ? Object.values(form[f.k] || {}).join('') : form[f.k] ?? '').trim()).length;
   return (
     <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <form className="modal biz-modal" onSubmit={submit} role="dialog" aria-modal="true" aria-label={row ? `Edit ${noun}` : `New ${noun}`}>
+      <form className="modal biz-modal bz-editor" onSubmit={submit} role="dialog" aria-modal="true" aria-label={row ? `Edit ${noun}` : `New ${noun}`}>
         <ModalHead icon={icon} title={row ? `Edit ${noun}` : `New ${noun}`} subtitle={row ? 'Changes save to your business cockpit.' : 'Only the name is required — fill the rest when you know it.'} onClose={onClose} />
-        <div className="modal-body mk-body">
-          {groups.map((g) => (
-            <section key={g.name || 'head'} className="mk-section bz-ed-group">
-              {g.name && <div className="mk-section-head"><p className="ui-kicker">{g.name}</p></div>}
-              <div className="mk-grid mk-grid-2">
-                {g.fields.map((f) => (
-                  <div key={f.k} className={`mk-field ${f.wide ? 'biz-wide' : ''}`}>
-                    <label className="form-label" htmlFor={`biz-${f.k}`}>{f.label}{f.required && <span className="bz-req">required</span>}</label>
-                    <FieldInput f={f} value={form[f.k]} options={f.optionsFrom ? dyn[f.optionsFrom] : f.options} onChange={(v) => set(f.k, v)} autoFocus={f.hero && !row} />
-                    {f.hint && <p className="mk-help">{f.hint}</p>}
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-          {err && <p className="biz-err" role="alert">{err}</p>}
+        <div className="modal-body mk-body bz-ed-body">
+          <div className="bz-ed-form">
+            <nav className="bz-ed-toc" aria-label="Sections">
+              {groups.map((g, i) => <a key={g.name || 'head'} href={`#bz-ed-${i}`} onClick={(e) => { e.preventDefault(); document.getElementById(`bz-ed-${i}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }); }}>{g.name || 'Basics'}</a>)}
+              <span className="bz-ed-fill">{filled}/{fields.length} filled</span>
+            </nav>
+            {groups.map((g, i) => (
+              <section key={g.name || 'head'} id={`bz-ed-${i}`} className="mk-section bz-ed-group">
+                <div className="mk-section-head"><p className="ui-kicker">{g.name || 'Basics'}</p></div>
+                <div className="mk-grid mk-grid-2">
+                  {g.fields.map((f) => (
+                    <div key={f.k} className={`mk-field ${isWide(f) ? 'biz-wide' : ''}`}>
+                      <label className="form-label" htmlFor={`biz-${f.k}`}>{f.label}{f.required && <span className="bz-req">required</span>}</label>
+                      <FieldInput f={f} value={form[f.k]} options={f.optionsFrom ? dyn[f.optionsFrom] : f.options} onChange={(v) => set(f.k, v)} autoFocus={f.hero && !row} />
+                      {f.hint && <p className="mk-help">{f.hint}</p>}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+            {err && <p className="biz-err" role="alert">{err}</p>}
+          </div>
+          <aside className="bz-ed-preview" aria-label="Live preview">
+            <p className="ui-kicker">Live preview</p>
+            <EditorPreview section={section} fields={fields} form={form} options={dyn} />
+          </aside>
         </div>
         <div className="modal-footer mk-foot">
           {row && onDelete && (confirmDel ? (
@@ -236,11 +248,58 @@ export function BizEditor({ section, row, defaults = {}, icon, onSave, onClose, 
           ) : (
             <button type="button" className="btn btn-ghost btn-danger-ghost bz-del" onClick={() => setConfirmDel(true)}><Trash2 size={15} /> Delete</button>
           ))}
-          {!row && <span className="mk-foot-note">Enter saves · Esc closes</span>}
+          {!row && <span className="mk-foot-note">Esc closes</span>}
           <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : row ? 'Save changes' : `Add ${noun}`}</button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// Short fields share a row; everything else gets the full width so nothing is truncated.
+const SHORT = new Set(['price', 'effort', 'platform', 'source', 'product', 'repo', 'stage', 'fit', 'role', 'readiness', 'tone', 'severity', 'status', 'goal', 'promised', 'offer_id']);
+const isWide = (f) => f.wide || f.hero || !(SHORT.has(f.k) || ['date', 'enum', 'bool', 'number'].includes(f.type));
+
+/** What the row will look like, as you type: the card it becomes in its lens. */
+function EditorPreview({ section, fields, form, options }) {
+  const hero = fields.find((f) => f.hero) || fields[0];
+  const label = (f) => {
+    const opts = f.optionsFrom ? options[f.optionsFrom] : f.options;
+    return (opts || []).find((o) => o.value === form[f.k])?.label;
+  };
+  const chips = fields.filter((f) => f.type === 'enum' && label(f) && form[f.k] !== '').map((f) => ({ k: f.k, text: label(f), tone: f.k === 'readiness' || f.k === 'tone' ? TONE_CHIP[form[f.k]] : f.k === 'fit' ? FIT[form[f.k]]?.tone : f.k === 'severity' ? (form[f.k] === 'P0' ? 'bad' : form[f.k] === 'P1' ? 'warn' : undefined) : undefined }));
+  const text = fields.filter((f) => f.type === 'textarea' && String(form[f.k] || '').trim()).slice(0, 2);
+  const ladder = section === 'offers' ? String(form.ladder || '').split('\n').filter((l) => l.trim()).map((l) => l.split('|').map((x) => x.trim())) : [];
+  const stage = section === 'leads' ? STAGES.findIndex((x) => x.value === form.stage) : -1;
+  return (
+    <div className={`bz-prev sec-${section}`}>
+      <b className="bz-prev-title">{String(form[hero.k] || '').trim() || `Untitled ${SINGULAR[section] || 'item'}`}</b>
+      {chips.length > 0 && <div className="bz-chips">{chips.map((c) => <span key={c.k} className={`ui-chip ${c.tone ? `ui-chip--${c.tone}` : ''}`}>{c.text}</span>)}</div>}
+      {stage >= 0 && <div className="bz-prev-stage" aria-label="Stage">{STAGES.slice(0, 6).map((x, i) => <i key={x.value} className={i <= stage ? 'on' : ''} title={x.label} />)}</div>}
+      {text.map((f) => <p key={f.k} className="bz-prev-text"><span>{f.label}</span>{form[f.k]}</p>)}
+      {section === 'offers' && <ValueEquation value={form.value || {}} compact />}
+      {ladder.length > 0 && <ol className="bz-prev-ladder">{ladder.map(([st, price], i) => <li key={i}><span>{st}</span><b>{price}</b></li>)}</ol>}
+    </div>
+  );
+}
+
+const LEVERS = [['dream', 'Dream outcome', 'up'], ['likelihood', 'Likelihood', 'up'], ['time', 'Time to result', 'down'], ['effort', 'Effort for them', 'down']];
+/** The value equation as a fraction: (dream × likelihood) ÷ (time × effort). Editable or a compact read. */
+export function ValueEquation({ value = {}, onChange, compact = false }) {
+  const n = LEVERS.filter(([k]) => String(value[k] || '').trim()).length;
+  const lever = ([k, label, dir]) => (
+    <label key={k} className={`bz-lever ${dir} ${String(value[k] || '').trim() ? 'set' : ''}`}>
+      <span className="bz-lever-label">{label} <em>{dir === 'up' ? '↑ raise' : '↓ shrink'}</em></span>
+      {onChange ? <textarea rows={1} value={value[k] || ''} placeholder={dir === 'up' ? 'What makes it bigger / more certain?' : 'What makes it faster / easier?'} aria-label={label} onChange={(e) => onChange({ ...value, [k]: e.target.value })} />
+        : <span className="bz-lever-text">{value[k] || '—'}</span>}
+    </label>
+  );
+  return (
+    <div className={`bz-veq ${compact ? 'compact' : ''}`}>
+      <div className="bz-veq-row">{lever(LEVERS[0])}<i className="bz-veq-op">×</i>{lever(LEVERS[1])}</div>
+      <div className="bz-veq-bar"><span>Value</span><div className="bz-meter" aria-label={`${n} of 4 levers written`}><i style={{ width: `${(n / 4) * 100}%` }} /></div><em>{n}/4 levers</em></div>
+      <div className="bz-veq-row">{lever(LEVERS[2])}<i className="bz-veq-op">×</i>{lever(LEVERS[3])}</div>
     </div>
   );
 }
@@ -257,6 +316,7 @@ function FieldInput({ f, value, options, onChange, autoFocus }) {
       </div>
     );
   }
+  if (f.type === 'pairs' && f.k === 'value') return <ValueEquation value={value || {}} onChange={onChange} />;
   if (f.type === 'pairs') {
     return (
       <div className="biz-pairs">
@@ -309,7 +369,10 @@ export function BizEmpty({ icon: Icon, title, text, onTemplate, onAdd, addLabel,
 }
 
 /** A lens header: kicker + one-line read of what this segment is doing + actions. */
-export function LensHead({ icon: Icon, kicker, title, read, children }) {
+export function LensHead({ icon: Icon, kicker, title, read, readTouch, children }) {
+  // phones / touch screens get their own instructions (no hover, no drag-with-arrows hints)
+  const touch = useMedia('(hover: none), (max-width: 900px)');
+  if (touch && readTouch) read = readTouch;
   return (
     <header className="bz-lens-head">
       <div className="bz-lens-text">

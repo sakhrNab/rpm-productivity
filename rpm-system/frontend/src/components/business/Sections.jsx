@@ -1,23 +1,26 @@
 // The arsenal lenses: Offers, Products, Channels, Fixes, Library, Content. Each one draws the links its
-// entities have — fixes wire into the offers they block, products into the offers they power, channels
-// into the pipeline stages their leads sit in — and edits where you read.
+// entities have. Wired lenses keep the linked cards in ONE column with a port on the card edge, so every
+// wire runs in the gutter between the card and its target — never under another card.
 import { useEffect, useMemo, useState } from 'react';
 import { DndContext, DragOverlay, PointerSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
 import ModalHead from '../modals/ModalHead';
 import {
   Gift, Package, Radio, Wrench, Library as LibraryIcon, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink,
-  Square, CheckSquare, Pencil, Search, Link2, ChevronDown, ShieldAlert, Users,
+  Square, CheckSquare, Pencil, Search, Link2, ChevronDown, ShieldAlert, Users, Plus, FileText, Layers,
 } from 'lucide-react';
 import Picker from '../Picker';
 import FlowLinks, { connected, useMedia } from '../FlowLinks';
 import { useToast } from '../ToastProvider';
 import DatePick from './DatePick';
-import { AddButton, BizEmpty, Bullets, Chip, Editor, LensHead, Loading, useBiz, useBizApi, useBizList, useEditor } from './bizKit';
-import { LANES, READINESS_PCT, TONE_CHIP, fmtDate, stageLabel, todayStr, toneLabel } from './bizConfig';
+import { AddButton, BizEmpty, Bullets, Chip, Editor, LensHead, Loading, ValueEquation, useBiz, useBizApi, useBizList, useEditor } from './bizKit';
+import { LANES, READINESS_PCT, TONE_CHIP, addDaysStr, fmtDate, stageLabel, todayStr, toneLabel } from './bizConfig';
 
-const STOP = new Set(['your', 'the', 'and', 'for', 'with', 'from', 'service', 'free', 'install', 'partner', 'app', 'auto', 'ai']);
+const STOP = new Set(['your', 'the', 'and', 'for', 'with', 'from', 'service', 'free', 'install', 'partner', 'app', 'auto', 'ai', 'docs', 'plan', 'notes', 'md']);
 const words = (s) => String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w));
 const shares = (a, b) => { const B = new Set(words(b)); return words(a).some((w) => B.has(w)); };
+const plural = (n, w) => `${n} ${n === 1 ? w : /(x|s|ch)$/.test(w) ? `${w}es` : `${w}s`}`;
+/** The one sentence every page uses for blockers (numbers from the backend's fixBlocks). */
+export const blockLine = (st) => `${plural(st.p0Fixes, 'P0 fix')} · ${plural(st.offersBlockedByP0, 'offer')} blocked`;
 
 /** Hover state → lit link ids + lit node ids for a wired layout. */
 function useWires(links) {
@@ -28,12 +31,18 @@ function useWires(links) {
     for (const l of links) if (hot.has(l.id)) { s.add(l.from); s.add(l.to); }
     return s;
   }, [hot, hover, links]);
-  const bind = (id) => ({
-    'data-node': id,
-    onMouseEnter: () => setHover(id), onMouseLeave: () => setHover(null), onFocus: () => setHover(id), onBlur: () => setHover(null),
-  });
+  const on = (id) => ({ onMouseEnter: () => setHover(id), onMouseLeave: () => setHover(null), onFocus: () => setHover(id), onBlur: () => setHover(null) });
+  const bind = (id) => ({ 'data-node': id, ...on(id) });
   const cls = (id) => (lit.size ? (lit.has(id) ? 'is-hot' : 'is-dim') : '');
-  return { hot: hot.size ? hot : null, bind, cls };
+  return { hot: hot.size ? hot : null, bind, on, cls };
+}
+/** The visible connection point on a card's edge; wires attach here, not to the card's middle. */
+const Port = ({ id, side = 'right', live = true }) => <span className={`bz-port ${side} ${live ? '' : 'idle'}`} data-node={id} aria-hidden="true" />;
+
+/** Blocker facts from the summary — the one backend answer every page shares (businessMoves.fixBlocks). */
+export function useBlocks() {
+  const L = useBiz()?.sum?.flow?.links || {};
+  return { fixOffers: L.fixOffers || {}, offerBlockers: L.offerBlockers || {}, stats: L.blockStats || { p0Fixes: 0, offersBlockedByP0: 0, openFixes: 0, offersBlocked: 0 } };
 }
 
 // ───────────────────────── Offers ─────────────────────────
@@ -45,33 +54,29 @@ export function Offers() {
   const [root, setRoot] = useState(null);
   const phone = useMedia('(max-width: 900px)');
   const focus = ctx.params.get('focus');
-  const L = ctx.sum?.flow?.links?.fixOffers || {};
+  const { fixOffers, offerBlockers, stats } = useBlocks();
   const leads = ctx.sum?.flow?.leads || [];
 
   // deep link: /business/offers?edit=<id> opens the editor
   const editId = ctx.params.get('edit');
   useEffect(() => { const r = editId && (list.rows || []).find((o) => o.id === editId); if (r) ed.open(r); }, [editId, list.rows]); // eslint-disable-line react-hooks/exhaustive-deps
-  const blockers = useMemo(() => (fixes.rows || []).filter((f) => !f.done && (f.offer_id || L[f.id]))
-    .sort((a, b) => a.severity.localeCompare(b.severity)), [fixes.rows, L]);
-  const links = useMemo(() => {
-    const out = [];
-    for (const f of blockers) {
-      const ids = f.offer_id ? [f.offer_id] : (L[f.id]?.offers || []);
-      // drawn only for the hovered / focused item; offers carry a blocker count instead
-      for (const oid of ids) out.push({ id: `${f.id}>${oid}`, from: `fx:${f.id}`, to: `of:${oid}`, tone: f.severity === 'P0' ? 'bad' : f.severity === 'P1' ? 'warn' : 'info', dashed: !f.offer_id, hoverOnly: true, weight: f.severity === 'P0' ? 3 : 2 });
-    }
-    return out;
-  }, [blockers, L]);
+  const byId = useMemo(() => Object.fromEntries((fixes.rows || []).map((f) => [f.id, f])), [fixes.rows]);
+  const blockers = useMemo(() => (fixes.rows || []).filter((f) => !f.done && fixOffers[f.id]).sort((a, b) => a.severity.localeCompare(b.severity)), [fixes.rows, fixOffers]);
+  const links = useMemo(() => blockers.flatMap((f) => fixOffers[f.id].offers.map((oid) => ({
+    id: `${f.id}>${oid}`, from: `fx:${f.id}`, to: `of:${oid}`, tone: f.severity === 'P0' ? 'bad' : f.severity === 'P1' ? 'warn' : 'info',
+    dashed: !fixOffers[f.id].explicit, hoverOnly: true, weight: f.severity === 'P0' ? 3 : 2,
+  }))), [blockers, fixOffers]);
   const w = useWires(links);
   if (!list.rows || !fixes.rows) return <Loading />;
   const ready = list.rows.filter((o) => o.readiness === 'ok').length;
-  const blockersOf = (oid) => links.filter((l) => l.to === `of:${oid}`).map((l) => blockers.find((f) => `fx:${f.id}` === l.from)).filter(Boolean);
+  const blockersOf = (oid) => (offerBlockers[oid]?.fixIds || []).map((id) => byId[id]).filter(Boolean);
   const interested = (o) => leads.filter((l) => l.offer && (shares(l.offer, o.name) || shares(l.offer, o.product))).length;
 
   return (
     <section className="bz-lens bz-offers">
-      <LensHead icon={Gift} kicker="Offers" title={`${list.rows.length} offer${list.rows.length === 1 ? '' : 's'} · ${ready} ready to sell`}
-        read={blockers.length ? `${blockers.length} open fix${blockers.length === 1 ? '' : 'es'} block these offers. Hover a blocker or an offer to see what connects — dashed = guessed from the product name.` : 'Nothing blocks these offers.'}>
+      <LensHead icon={Gift} kicker="Offers" title={`${plural(list.rows.length, 'offer')} · ${ready} ready to sell`}
+        read={stats.openFixes ? `${blockLine(stats)}. Hover a blocker or an offer to light what connects — dashed = guessed from the product name.` : 'Nothing blocks these offers.'}
+        readTouch={stats.openFixes ? `${blockLine(stats)}. Each offer lists its blockers.` : 'Nothing blocks these offers.'}>
         <AddButton onClick={() => ed.open()} label="Add offer" />
       </LensHead>
       {list.rows.length === 0 ? (
@@ -86,8 +91,9 @@ export function Offers() {
                 <div key={f.id} {...w.bind(`fx:${f.id}`)} tabIndex={0} className={`bz-node kind-fix sev-${f.severity} ${w.cls(`fx:${f.id}`)}`}>
                   <em className={`bz-sev sev-${f.severity}`}>{f.severity}</em>
                   <span className="bz-node-name">{f.text}</span>
-                  {!f.offer_id && (L[f.id]?.offers || []).length === 1 && (
-                    <button type="button" className="bz-mini" onClick={() => fixes.update(f.id, { offer_id: L[f.id].offers[0] }, { undoLabel: 'Linked fix to offer' }).then(() => ctx.changed()).catch(() => {})}><Link2 size={12} /> Confirm link</button>
+                  {fixOffers[f.id].offers.length > 1 && <small className="bz-node-sub">blocks {fixOffers[f.id].offers.length} offers</small>}
+                  {!fixOffers[f.id].explicit && fixOffers[f.id].offers.length === 1 && (
+                    <button type="button" className="bz-guess" onClick={() => fixes.update(f.id, { offer_id: fixOffers[f.id].offers[0] }, { undoLabel: 'Linked fix to offer' }).then(() => ctx.changed()).catch(() => {})}><Link2 size={12} /> guessed · Confirm</button>
                   )}
                 </div>
               ))}
@@ -137,9 +143,7 @@ function OfferSheet({ o, head, cls, focus, blockers, showBlockers, interested, o
       {hasMore && (
         <details className="bz-more">
           <summary><ChevronDown size={14} /> The full offer</summary>
-          {o.value && Object.values(o.value).some(Boolean) && (
-            <dl className="bz-value">{[['dream', 'Dream'], ['likelihood', 'Likelihood'], ['time', 'Time'], ['effort', 'Effort']].map(([k, label]) => o.value[k] && <div key={k}><dt>{label}</dt><dd>{o.value[k]}</dd></div>)}</dl>
-          )}
+          {o.value && Object.values(o.value).some(Boolean) && <ValueEquation value={o.value} compact />}
           {o.guarantee && <p className="bz-text"><b>Guarantee:</b> {o.guarantee}</p>}
           {o.bonuses?.length > 0 && <><p className="ui-kicker">Bonuses</p><Bullets items={o.bonuses} /></>}
           {o.deliverables?.length > 0 && <><p className="ui-kicker">Deliverables</p><ul className="bz-deliv">{o.deliverables.map((d, i) => <li key={i}><span>{d.when}</span><b>{d.what}</b>{d.form && <small>{d.form}</small>}</li>)}</ul></>}
@@ -170,40 +174,48 @@ export function Products() {
   if (!list.rows) return <Loading />;
   const powered = offers.filter((o) => links.some((l) => l.to === `po:${o.id}`));
   const blocked = list.rows.filter((p) => p.blocker).length;
+  const wired = powered.length > 0 && !phone;
 
   return (
     <section className="bz-lens bz-products">
-      <LensHead icon={Package} kicker="Products" title={`${list.rows.length} product${list.rows.length === 1 ? '' : 's'}${blocked ? ` · ${blocked} blocked` : ''}`}
-        read={powered.length ? 'Lines show which offer each product powers.' : 'What you have built, what blocks it, and the next step.'}>
+      <LensHead icon={Package} kicker="Products" title={`${plural(list.rows.length, 'product')}${blocked ? ` · ${blocked} blocked` : ''}`}
+        read={powered.length ? 'Each product wires from its port into the offers it powers. Hover one to light its path.' : 'What you have built, what blocks it, and the next step.'}
+        readTouch="What you have built, what blocks it, and the offers it powers.">
         <AddButton onClick={() => ed.open()} label="Add product" />
       </LensHead>
       {list.rows.length === 0 ? (
         <BizEmpty icon={Package} title="No products yet" text="Everything you have built: what it does, its role, what blocks it and the next step." onAdd={() => ed.open()} addLabel="Add a product" onTemplate={list.template} />
       ) : (
-        <div className={`bz-wired ${powered.length && !phone ? 'two rev' : ''}`} ref={setRoot}>
-          {!phone && <FlowLinks root={root} links={links} active={w.hot} />}
-          <div className="bz-wired-main bz-prod-grid">
-            {list.rows.map((p) => (
-              <article key={p.id} className={`bz-prod role-${p.role} ${p.blocker ? 'blocked' : ''}`}>
-                <header {...w.bind(`pr:${p.id}`)} tabIndex={0} className={`bz-prod-head bz-node kind-prod ${w.cls(`pr:${p.id}`)}`}>
-                  <span className="bz-prod-name">{p.name}</span>
-                  <Chip tone={p.role === 'paid' ? 'good' : p.role === 'park' ? 'bad' : 'info'}>{p.role}</Chip>
-                  <button type="button" className="bz-icon-btn" aria-label={`Edit ${p.name}`} onClick={() => ed.open(p)}><Pencil size={15} /></button>
-                </header>
-                {p.what && <p className="bz-text">{p.what}</p>}
-                <div className="bz-chips">{p.promised && <Chip tone="ai">Promised</Chip>}{p.price && <Chip>{p.price}</Chip>}</div>
-                {p.status && <p className="bz-muted">{p.status}</p>}
-                {p.blocker && <p className="bz-blocker-line"><ShieldAlert size={14} /> {p.blocker}</p>}
-                {(p.next_step || p.next_date) && (
-                  <div className="bz-nextline">
-                    <span>{p.next_step || 'Next step'}</span>
-                    <DatePick compact value={p.next_date} label="Next step date" onChange={(v) => list.update(p.id, { next_date: v }, { undoLabel: 'Date changed' }).catch(() => {})} tone={p.next_date && p.next_date < today ? 'late' : ''} />
+        <div className={`bz-wired ${wired ? 'two rev' : ''}`} ref={setRoot}>
+          {wired && <FlowLinks root={root} links={links} active={w.hot} />}
+          <div className="bz-wired-main bz-rows">
+            {list.rows.map((p) => {
+              const powers = offers.filter((o) => links.some((l) => l.from === `pr:${p.id}` && l.to === `po:${o.id}`));
+              return (
+                <article key={p.id} {...w.on(`pr:${p.id}`)} tabIndex={0} className={`bz-prod bz-row role-${p.role} ${p.blocker ? 'blocked' : ''} ${w.cls(`pr:${p.id}`)}`}>
+                  <div className="bz-row-id">
+                    <span className="bz-prod-name">{p.name}</span>
+                    <span className="bz-chips"><Chip tone={p.role === 'paid' ? 'good' : p.role === 'park' ? 'bad' : 'info'}>{p.role}</Chip>{p.promised && <Chip tone="ai">Promised</Chip>}{p.price && <Chip>{p.price}</Chip>}</span>
                   </div>
-                )}
-              </article>
-            ))}
+                  <div className="bz-row-body">
+                    {p.what && <p className="bz-text">{p.what}</p>}
+                    {p.status && <p className="bz-muted">{p.status}</p>}
+                    {p.blocker && <p className="bz-blocker-line"><ShieldAlert size={14} /> {p.blocker}</p>}
+                    {(p.next_step || p.next_date) && (
+                      <div className="bz-nextline">
+                        <span>{p.next_step || 'Next step'}</span>
+                        <DatePick compact value={p.next_date} label="Next step date" onChange={(v) => list.update(p.id, { next_date: v }, { undoLabel: 'Date changed' }).catch(() => {})} tone={p.next_date && p.next_date < today ? 'late' : ''} />
+                      </div>
+                    )}
+                    {!wired && powers.length > 0 && <p className="bz-muted"><Gift size={12} /> Powers {powers.map((o) => o.name).join(', ')}</p>}
+                  </div>
+                  <button type="button" className="bz-icon-btn bz-row-edit" aria-label={`Edit ${p.name}`} onClick={() => ed.open(p)}><Pencil size={15} /></button>
+                  {wired && powers.length > 0 && <Port id={`pr:${p.id}`} />}
+                </article>
+              );
+            })}
           </div>
-          {powered.length > 0 && !phone && (
+          {wired && (
             <div className="bz-wired-side">
               <p className="bz-col-title"><Gift size={13} /> Powers</p>
               {powered.map((o) => (
@@ -250,58 +262,62 @@ export function Channels() {
     for (const [cid, st] of Object.entries(guess)) for (const [stage, n] of Object.entries(st)) out.push({ id: `${cid}~${stage}`, from: `ch:${cid}`, to: `cs:${stage}`, tone: 'flow', dashed: true, weight: 1.6 + Math.log2(n + 1) * 1.7 });
     return out;
   }, [per, guess]);
+  const w = useWires(links);
   const confirm = async (c) => {
     try {
       for (const id of guessIds[c.id] || []) await biz.current.update('leads', id, { source: c.name });
-      showToast(`${(guessIds[c.id] || []).length} leads now come from “${c.name}”`, 'success');
+      showToast(`${plural((guessIds[c.id] || []).length, 'lead')} now come from “${c.name}”`, 'success');
       ctx.changed({ lists: true });
     } catch (e) { showToast(e.message, 'error'); }
   };
-  const w = useWires(links);
   if (!list.rows) return <Loading />;
   const stageTotals = {};
   for (const st of [...Object.values(per), ...Object.values(guess)]) for (const [k, n] of Object.entries(st)) stageTotals[k] = (stageTotals[k] || 0) + n;
   const usedStages = LANES.filter((s) => stageTotals[s]);
   const total = (cid) => [...Object.values(per[cid] || {}), ...Object.values(guess[cid] || {})].reduce((a, b) => a + b, 0);
+  const wired = usedStages.length > 0 && !phone;
 
   return (
     <section className="bz-lens bz-channels">
-      <LensHead icon={Radio} kicker="Channels" title={`${list.rows.length} channel${list.rows.length === 1 ? '' : 's'}`}
-        read={links.length ? 'Lines show where each channel’s leads sit in the pipeline right now.' : 'Where buyers can find you, the numbers today, and the next moves.'}>
+      <LensHead icon={Radio} kicker="Channels" title={plural(list.rows.length, 'channel')}
+        read={links.length ? 'Each channel wires from its port to the pipeline stages its leads sit in. Dashed = matched by a shared word — confirm it.' : 'Where buyers can find you, the numbers today, and the next moves.'}
+        readTouch="Where buyers find you, the leads each channel brought, and the next moves.">
         <AddButton onClick={() => ed.open()} label="Add channel" />
       </LensHead>
       {list.rows.length === 0 ? (
         <BizEmpty icon={Radio} title="No channels yet" text="Where buyers can find you, what the numbers are today, and the next moves per channel." onAdd={() => ed.open()} addLabel="Add a channel" onTemplate={list.template} />
       ) : (
-        <div className={`bz-wired ${usedStages.length && !phone ? 'two rev' : ''}`} ref={setRoot}>
-          {!phone && <FlowLinks root={root} links={links} active={w.hot} />}
-          <div className="bz-wired-main bz-chan-list">
+        <div className={`bz-wired ${wired ? 'two rev' : ''}`} ref={setRoot}>
+          {wired && <FlowLinks root={root} links={links} active={w.hot} />}
+          <div className="bz-wired-main bz-rows">
             {list.rows.map((c) => (
-              <article key={c.id} className={`bz-chan tone-${c.tone} ${focus === c.id ? 'flash' : ''}`}>
-                <header {...w.bind(`ch:${c.id}`)} tabIndex={0} className={`bz-chan-head bz-node kind-src ${w.cls(`ch:${c.id}`)}`}>
-                  <i className={`bz-dot tone-${TONE_CHIP[c.tone] || 'info'}`} aria-hidden="true" />
-                  <span className="bz-chan-name">{c.name}</span>
-                  {total(c.id) > 0 && <b className="bz-node-n">{total(c.id)} lead{total(c.id) === 1 ? '' : 's'}</b>}
-                  <button type="button" className="bz-icon-btn" aria-label={`Edit ${c.name}`} onClick={() => ed.open(c)}><Pencil size={15} /></button>
-                </header>
-                {guessIds[c.id]?.length > 0 && (
-                  <p className="bz-guessline">{guessIds[c.id].length} lead{guessIds[c.id].length === 1 ? '' : 's'} matched by a shared word (dashed)
-                    <button type="button" className="bz-guess" onClick={() => confirm(c)}>Confirm link</button></p>
-                )}
-                {c.stat && <p className="bz-chan-stat">{c.stat}</p>}
-                {c.verdict && <p className="bz-text"><Chip tone={TONE_CHIP[c.tone]}>{toneLabel(c.tone)}</Chip> {c.verdict}</p>}
-                {c.audience && <p className="bz-muted">{c.audience}</p>}
-                {(c.gaps?.length > 0 || c.moves?.length > 0) && (
-                  <details className="bz-more">
-                    <summary><ChevronDown size={14} /> {c.gaps?.length || 0} gaps · {c.moves?.length || 0} moves</summary>
-                    {c.gaps?.length > 0 && <><p className="ui-kicker">Gaps</p><Bullets items={c.gaps} className="warn" /></>}
-                    {c.moves?.length > 0 && <><p className="ui-kicker">Moves</p><Bullets items={c.moves} className="good" /></>}
-                  </details>
-                )}
+              <article key={c.id} {...w.on(`ch:${c.id}`)} tabIndex={0} className={`bz-chan bz-row tone-${c.tone} ${focus === c.id ? 'flash' : ''} ${w.cls(`ch:${c.id}`)}`}>
+                <div className="bz-row-id">
+                  <span className="bz-chan-name"><i className={`bz-dot tone-${TONE_CHIP[c.tone] || 'info'}`} aria-hidden="true" /> {c.name}</span>
+                  {total(c.id) > 0 && <b className="bz-node-n">{plural(total(c.id), 'lead')}</b>}
+                  {c.stat && <span className="bz-chan-stat">{c.stat}</span>}
+                </div>
+                <div className="bz-row-body">
+                  {guessIds[c.id]?.length > 0 && (
+                    <p className="bz-guessline">{plural(guessIds[c.id].length, 'lead')} matched by a shared word
+                      <button type="button" className="bz-guess" onClick={() => confirm(c)}>guessed · Confirm</button></p>
+                  )}
+                  {c.verdict && <p className="bz-text"><Chip tone={TONE_CHIP[c.tone]}>{toneLabel(c.tone)}</Chip> {c.verdict}</p>}
+                  {c.audience && <p className="bz-muted">{c.audience}</p>}
+                  {(c.gaps?.length > 0 || c.moves?.length > 0) && (
+                    <details className="bz-more">
+                      <summary><ChevronDown size={14} /> {c.gaps?.length || 0} gaps · {c.moves?.length || 0} moves</summary>
+                      {c.gaps?.length > 0 && <><p className="ui-kicker">Gaps</p><Bullets items={c.gaps} className="warn" /></>}
+                      {c.moves?.length > 0 && <><p className="ui-kicker">Moves</p><Bullets items={c.moves} className="good" /></>}
+                    </details>
+                  )}
+                </div>
+                <button type="button" className="bz-icon-btn bz-row-edit" aria-label={`Edit ${c.name}`} onClick={() => ed.open(c)}><Pencil size={15} /></button>
+                {wired && total(c.id) > 0 && <Port id={`ch:${c.id}`} />}
               </article>
             ))}
           </div>
-          {usedStages.length > 0 && !phone && (
+          {wired && (
             <div className="bz-wired-side">
               <p className="bz-col-title"><Users size={13} /> In the pipeline</p>
               {usedStages.map((s) => (
@@ -319,8 +335,9 @@ export function Channels() {
 }
 
 // ───────────────────────── Fixes ─────────────────────────
-// Fixes live in OFFER LANES: each lane is an offer, holding the fixes that block it (P0 first). Drag a fix
-// into another lane to re-link it; a guessed lane (matched by product name) shows dashed until confirmed.
+// Fixes live in OFFER LANES: each lane is an offer and the fixes standing between it and money (P0 first).
+// Lanes come from the backend's fixBlocks — the same answer Overview and Offers use — so a fix that blocks
+// three offers appears in all three lanes ("also blocks …"). Drag a fix into a lane to pin it to that offer.
 const SEV = [['P0', 'blocks money'], ['P1', 'soon'], ['P2', 'later']];
 export function Fixes() {
   const list = useBizList('fixes');
@@ -328,33 +345,32 @@ export function Fixes() {
   const biz = useBizApi();
   const { showToast } = useToast();
   const ed = useEditor();
+  const touch = useMedia('(hover: none), (max-width: 900px)');
   const [sev, setSev] = useState(() => (['P0', 'P1', 'P2'].includes(ctx.params.get('filter')) ? ctx.params.get('filter') : 'all'));
   const [showDone, setShowDone] = useState(false);
   const [openId, setOpenId] = useState(() => ctx.params.get('focus'));
   const [dragId, setDragId] = useState(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 6 } }));
   const offers = ctx.sum?.flow?.offers || [];
-  const L = ctx.sum?.flow?.links?.fixOffers || {};
-  // lanes depend on the offer links in the summary: wait for both so lanes never re-order under you
+  const { fixOffers, offerBlockers, stats } = useBlocks();
+  // lanes depend on the summary's blocker map: wait for both so lanes never re-order under you
   if (!list.rows || !ctx.sum) return <Loading />;
   const rows = list.rows;
+  const byId = Object.fromEntries(rows.map((f) => [f.id, f]));
   const open = rows.filter((f) => !f.done);
   const done = rows.filter((f) => f.done);
-  const laneOf = (f) => f.offer_id || L[f.id]?.offers?.[0] || 'none';
-  const guessed = (f) => !f.offer_id && !!L[f.id];
-  const shown = open.filter((f) => sev === 'all' || f.severity === sev);
-  const byLane = {};
-  for (const f of shown) (byLane[laneOf(f)] ||= []).push(f);
-  for (const k of Object.keys(byLane)) byLane[k].sort((a, b) => a.severity.localeCompare(b.severity));
-  const p0 = (k) => (byLane[k] || []).filter((f) => f.severity === 'P0').length;
-  const lanes = [...offers.filter((o) => byLane[o.id]).sort((a, b) => p0(b.id) - p0(a.id) || byLane[b.id].length - byLane[a.id].length).map((o) => o.id), ...(byLane.none ? ['none'] : [])];
+  const pass = (f) => f && !f.done && (sev === 'all' || f.severity === sev);
   const offerOf = (id) => offers.find((o) => o.id === id);
-  const blockedOffers = lanes.filter((k) => k !== 'none' && p0(k)).length;
+  const lanes = offers.filter((o) => (offerBlockers[o.id]?.fixIds || []).some((id) => pass(byId[id])))
+    .sort((a, b) => (offerBlockers[b.id].P0 - offerBlockers[a.id].P0) || (offerBlockers[b.id].fixIds.length - offerBlockers[a.id].fixIds.length))
+    .map((o) => ({ id: o.id, offer: o, fixes: offerBlockers[o.id].fixIds.map((id) => byId[id]).filter(pass).sort((a, b) => a.severity.localeCompare(b.severity)) }));
+  const loose = open.filter((f) => pass(f) && !fixOffers[f.id]);
+  if (loose.length) lanes.push({ id: 'none', fixes: loose });
 
   const relink = (f, lane) => {
     const v = lane === 'none' ? null : lane;
-    if ((f.offer_id || null) === v && !guessed(f)) return;
-    list.update(f.id, { offer_id: v }, { undoLabel: v ? `Linked to ${offerOf(v)?.name}` : 'Unlinked from offers' }).then(() => ctx.changed()).catch(() => {});
+    if ((f.offer_id || null) === v) return;
+    list.update(f.id, { offer_id: v }, { undoLabel: v ? `Pinned to ${offerOf(v)?.name}` : 'Unlinked from offers' }).then(() => ctx.changed()).catch(() => {});
   };
   const toRpm = async (f) => {
     try {
@@ -364,14 +380,16 @@ export function Fixes() {
       showToast(`On your RPM list: “${r.action.title}”`, 'success');
     } catch (e) { showToast(e.message, 'error'); }
   };
-  const toggleDone = (f) => list.update(f.id, { done: !f.done }, { undoLabel: f.done ? 'Reopened fix' : 'Fix done' }).catch(() => {});
-  const opened = openId ? rows.find((f) => f.id === openId) : null;
-  const dragFix = dragId ? rows.find((f) => f.id === dragId) : null;
+  const toggleDone = (f) => list.update(f.id, { done: !f.done }, { undoLabel: f.done ? 'Reopened fix' : 'Fix done' }).then(() => ctx.changed()).catch(() => {});
+  const opened = openId ? byId[openId] : null;
+  const dragFix = dragId ? byId[dragId] : null;
+  const also = (f, laneId) => (fixOffers[f.id]?.offers || []).filter((id) => id !== laneId).map((id) => offerOf(id)?.name).filter(Boolean);
 
   return (
     <section className="bz-lens bz-fixes">
-      <LensHead icon={Wrench} kicker="Fixes" title={open.length ? `${open.filter((f) => f.severity === 'P0').length} P0 fixes block ${blockedOffers} offer${blockedOffers === 1 ? '' : 's'}` : 'All clear'}
-        read="Each lane is an offer and the fixes standing between it and money. Drag a fix to another lane to re-link it; dashed = guessed from the product name.">
+      <LensHead icon={Wrench} kicker="Fixes" title={open.length ? blockLine(stats) : 'All clear'}
+        read="Each lane is an offer and the fixes standing between it and money. A fix that blocks several offers shows in each lane. Drag a fix into a lane to pin it to that offer; dashed = guessed from the product name."
+        readTouch="Each lane is an offer and the fixes blocking it — swipe across lanes. Tap a fix to pin it to an offer, send it to RPM or close it.">
         <AddButton onClick={() => ed.open()} label="Add fix" />
       </LensHead>
       {rows.length === 0 ? (
@@ -386,60 +404,60 @@ export function Fixes() {
             </div>
             {done.length > 0 && <button type="button" className={`bz-toggle ${showDone ? 'on' : ''}`} aria-pressed={showDone} onClick={() => setShowDone((v) => !v)}><CheckSquare size={14} /> Done · {done.length}</button>}
           </div>
-          <DndContext sensors={sensors} onDragStart={(e) => setDragId(e.active.id)} onDragCancel={() => setDragId(null)}
-            onDragEnd={(e) => { setDragId(null); if (e.over) relink(rows.find((f) => f.id === e.active.id), e.over.id); }}>
+          <DndContext sensors={sensors} onDragStart={(e) => setDragId(String(e.active.id).split('@')[0])} onDragCancel={() => setDragId(null)}
+            onDragEnd={(e) => { setDragId(null); if (e.over) relink(byId[String(e.active.id).split('@')[0]], e.over.id); }}>
             <div className="bz-board bz-offerlanes">
-              {lanes.map((k) => (
-                <OfferLane key={k} id={k} offer={offerOf(k)} fixes={byLane[k]} dragging={!!dragId}>
-                  {byLane[k].map((f) => <FixCard key={f.id} f={f} guessed={guessed(f)} focus={openId === f.id} onOpen={() => setOpenId(f.id)} onDone={() => toggleDone(f)}
-                    onConfirm={() => relink(f, laneOf(f))} />)}
+              {lanes.map((ln) => (
+                <OfferLane key={ln.id} id={ln.id} offer={ln.offer} counts={ln.id === 'none' ? null : offerBlockers[ln.id]} n={ln.fixes.length} dragging={!!dragId}>
+                  {ln.fixes.map((f) => <FixCard key={`${f.id}@${ln.id}`} dragKey={`${f.id}@${ln.id}`} f={f} guessed={!!fixOffers[f.id] && !fixOffers[f.id].explicit} also={also(f, ln.id)}
+                    focus={openId === f.id} onOpen={() => setOpenId(f.id)} onDone={() => toggleDone(f)} onConfirm={() => relink(f, ln.id)} />)}
                 </OfferLane>
               ))}
-              {dragId && offers.filter((o) => !byLane[o.id]).map((o) => <OfferLane key={o.id} id={o.id} offer={o} fixes={[]} dragging />)}
-              {dragId && !byLane.none && <OfferLane id="none" fixes={[]} dragging />}
+              {dragId && offers.filter((o) => !lanes.some((l) => l.id === o.id)).map((o) => <OfferLane key={o.id} id={o.id} offer={o} n={0} dragging />)}
+              {dragId && !loose.length && <OfferLane id="none" n={0} dragging />}
             </div>
-            <DragOverlay dropAnimation={null}>{dragFix ? <FixCard f={dragFix} guessed={guessed(dragFix)} overlay /> : null}</DragOverlay>
+            <DragOverlay dropAnimation={null}>{dragFix ? <FixCard f={dragFix} overlay /> : null}</DragOverlay>
           </DndContext>
+          {touch && <p className="bz-muted">Tap a fix to change the offer it blocks.</p>}
           {showDone && (
             <section className="bz-postgroup" aria-label="Done fixes">
               <p className="ui-kicker">Done · {done.length}</p>
-              <div className="bz-postgrid">{done.map((f) => <FixCard key={f.id} f={f} onOpen={() => setOpenId(f.id)} onDone={() => toggleDone(f)} />)}</div>
+              <div className="bz-postgrid">{done.map((f) => <FixCard key={f.id} dragKey={f.id} f={f} onOpen={() => setOpenId(f.id)} onDone={() => toggleDone(f)} />)}</div>
             </section>
           )}
         </>
       )}
-      {opened && <FixSheet f={opened} offers={offers} suggested={L[opened.id]?.offers || []} onClose={() => setOpenId(null)}
+      {opened && <FixSheet f={opened} offers={offers} blocks={fixOffers[opened.id]} onClose={() => setOpenId(null)}
         onRelink={(v) => relink(opened, v || 'none')} onRpm={() => toRpm(opened)} onDone={() => toggleDone(opened)} onEdit={() => { setOpenId(null); ed.open(opened); }} />}
       <Editor section="fixes" icon={Wrench} ed={ed} list={list} defaults={{ severity: 'P1' }} />
     </section>
   );
 }
 
-function OfferLane({ id, offer, fixes, dragging, children }) {
+function OfferLane({ id, offer, counts, n, dragging, children }) {
   const { setNodeRef, isOver } = useDroppable({ id });
-  const counts = SEV.map(([k]) => [k, fixes.filter((f) => f.severity === k).length]).filter(([, n]) => n);
   return (
     <div ref={setNodeRef} className={`bz-lane bz-olane ${id === 'none' ? 'none' : `ready-${offer?.readiness}`} ${isOver ? 'over' : ''} ${dragging ? 'dropping' : ''}`}
       role="group" aria-label={id === 'none' ? 'Not tied to an offer' : `Blocks ${offer?.name}`}>
       <header className="bz-olane-head">
-        {id === 'none' ? <b className="bz-olane-name">Not tied to an offer</b> : (
+        {id === 'none' ? <><span className="bz-olane-cap"><Layers size={12} /> loose</span><b className="bz-olane-name">Not tied to an offer</b><span className="bz-olane-meta"><em className="bz-olane-n">{n}</em></span></> : (
           <>
             <span className="bz-olane-cap"><Gift size={12} /> blocks</span>
             <b className="bz-olane-name">{offer?.name}</b>
             <span className="bz-olane-meta">
               <span className={`ui-chip ui-chip--${TONE_CHIP[offer?.readiness] || 'info'}`}>{toneLabel(offer?.readiness)}</span>
-              {counts.map(([k, n]) => <em key={k} className={`bz-sev sev-${k}`}>{n} {k}</em>)}
+              {counts && SEV.map(([k]) => counts[k] > 0 && <em key={k} className={`bz-sev sev-${k}`}>{counts[k]} {k}</em>)}
             </span>
           </>
         )}
       </header>
-      <div className="bz-lane-body">{children}{!fixes.length && <p className="bz-lane-empty">Drop here</p>}</div>
+      <div className="bz-lane-body">{children}{!n && <p className="bz-lane-empty">Drop here</p>}</div>
     </div>
   );
 }
 
-function FixCard({ f, guessed, focus, onOpen, onDone, onConfirm, overlay = false }) {
-  const drag = useDraggable({ id: f.id, disabled: overlay || f.done });
+function FixCard({ f, dragKey, guessed, also = [], focus, onOpen, onDone, onConfirm, overlay = false }) {
+  const drag = useDraggable({ id: dragKey || f.id, disabled: overlay || f.done });
   return (
     <div ref={overlay ? undefined : drag.setNodeRef} className={`bz-fixcard sev-${f.severity} ${guessed ? 'guessed' : ''} ${f.done ? 'done' : ''} ${drag.isDragging ? 'ghost' : ''} ${overlay ? 'overlay' : ''} ${focus ? 'flash' : ''}`}>
       <button type="button" className="bz-check" aria-pressed={!!f.done} aria-label={f.done ? `Mark “${f.text}” not done` : `Mark “${f.text}” done`} onClick={onDone}>
@@ -448,29 +466,35 @@ function FixCard({ f, guessed, focus, onOpen, onDone, onConfirm, overlay = false
       <button type="button" className="bz-fixcard-main" onClick={onOpen} {...(overlay || f.done ? {} : drag.listeners)} {...(overlay || f.done ? {} : drag.attributes)} aria-label={`${f.severity}: ${f.text}`}>
         <span className="bz-fixcard-top"><em className={`bz-sev sev-${f.severity}`}>{f.severity}</em>{f.effort && <span className="bz-fixcard-eff">{f.effort}</span>}{f.action_id && <CheckCircle2 size={13} className="bz-card-rpm" aria-label="In RPM" />}</span>
         <span className="bz-fixcard-text">{f.text}</span>
+        {also.length > 0 && <span className="bz-fixcard-also">also blocks {also.join(', ')}</span>}
       </button>
-      {guessed && onConfirm && <button type="button" className="bz-guess" onClick={onConfirm} title="Matched by product name — confirm this offer">guessed · Confirm</button>}
+      {guessed && onConfirm && <button type="button" className="bz-guess" onClick={onConfirm} title="Matched by product name — pin it to this offer">guessed · Confirm</button>}
     </div>
   );
 }
 
-function FixSheet({ f, offers, suggested, onClose, onRelink, onRpm, onDone, onEdit }) {
+function FixSheet({ f, offers, blocks, onClose, onRelink, onRpm, onDone, onEdit }) {
   useEffect(() => {
     const k = (e) => { if (e.key === 'Escape' && !document.querySelector('.picker-menu')) onClose(); };
     document.addEventListener('keydown', k);
     return () => document.removeEventListener('keydown', k);
   }, [onClose]);
-  const guess = !f.offer_id && suggested.length;
+  const ids = blocks?.offers || [];
+  const guess = ids.length && !blocks.explicit;
   return (
     <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal biz-modal" role="dialog" aria-modal="true" aria-label={`Fix: ${f.text}`}>
         <ModalHead icon={Wrench} title={f.text} subtitle={`${f.severity} · ${SEV.find(([k]) => k === f.severity)?.[1]}${f.effort ? ` · ${f.effort}` : ''}${f.done ? ' · done' : ''}`} onClose={onClose} />
         <div className="modal-body mk-body">
           {f.detail && <p className="bz-text">{f.detail}</p>}
+          <div className="bz-fixsheet-blocks">
+            <span className="form-label">Blocks {guess ? <em className="bz-req">guessed from the product name</em> : null}</span>
+            <div className="bz-chips">{ids.length ? ids.map((id) => <Chip key={id} tone={guess ? 'warn' : 'info'}>{offers.find((o) => o.id === id)?.name}</Chip>) : <Chip>No offer</Chip>}</div>
+          </div>
           <div className="mk-field">
-            <span className="form-label">Blocks offer {guess ? <em className="bz-req">guessed — confirm or change</em> : null}</span>
-            <Picker value={f.offer_id || (guess ? suggested[0] : '')} header="Blocks which offer?" onChange={(v) => onRelink(v)}
-              options={[{ value: '', label: 'Not tied to an offer' }, ...offers.map((o) => ({ value: o.id, label: o.name, hint: suggested.includes(o.id) && !f.offer_id ? 'suggested' : '' }))]} />
+            <span className="form-label">Pin to one offer</span>
+            <Picker value={blocks?.explicit ? ids[0] : ''} header="Pin to which offer?" onChange={(v) => onRelink(v)} placeholder={guess ? 'Keep the guess, or pick one…' : 'Pick an offer…'}
+              options={[{ value: '', label: 'Not tied to an offer' }, ...offers.map((o) => ({ value: o.id, label: o.name, hint: ids.includes(o.id) && guess ? 'guessed' : '' }))]} />
           </div>
         </div>
         <div className="modal-footer mk-foot">
@@ -486,25 +510,48 @@ function FixSheet({ f, offers, suggested, onClose, onRelink, onRpm, onDone, onEd
 }
 
 // ───────────────────────── Library ─────────────────────────
+// A knowledge map: documents grouped under the product or offer they feed (matched by name — shown as a
+// guess), each cluster a branch with its documents hanging off it. Status cycles in place.
 const isUrl = (s) => /^https?:\/\//i.test(s || '');
 const STATUS = ['current', 'superseded', 'obsolete', 'archive'];
 const STATUS_TONE = { current: 'good', superseded: 'warn', obsolete: 'bad', archive: undefined };
 
 export function Library() {
   const list = useBizList('docs');
+  const products = useBizList('products');
+  const ctx = useBiz();
   const ed = useEditor();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('current');
+  const offers = ctx.sum?.flow?.offers || [];
+  const clusters = useMemo(() => {
+    const targets = [
+      ...(products.rows || []).map((p) => ({ key: `p:${p.id}`, kind: 'product', name: p.name, match: p.name, go: () => ctx.go('products') })),
+      ...offers.map((o) => ({ key: `o:${o.id}`, kind: 'offer', name: o.name, match: `${o.name}`, go: () => ctx.go('offers', { focus: o.id }) })),
+    ];
+    const map = new Map();
+    for (const d of list.rows || []) {
+      const t = targets.find((x) => shares(`${d.path} ${d.note}`, x.match));
+      const key = t ? t.key : 'general';
+      if (!map.has(key)) map.set(key, { ...(t || { key: 'general', kind: 'general', name: 'General — plans & research' }), docs: [] });
+      map.get(key).docs.push(d);
+    }
+    return [...map.values()].sort((a, b) => (a.kind === 'general') - (b.kind === 'general') || b.docs.length - a.docs.length);
+  }, [list.rows, products.rows, offers]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!list.rows) return <Loading />;
   const counts = Object.fromEntries(STATUS.map((s) => [s, list.rows.filter((d) => d.status === s).length]));
-  const rows = list.rows.filter((d) => (status === 'all' || d.status === status) && (!q || `${d.path} ${d.note}`.toLowerCase().includes(q.toLowerCase())));
+  const keep = (d) => (status === 'all' || d.status === status) && (!q || `${d.path} ${d.note}`.toLowerCase().includes(q.toLowerCase()));
+  const cycle = (d) => list.update(d.id, { status: STATUS[(STATUS.indexOf(d.status) + 1) % STATUS.length] }, { undoLabel: 'Status changed' }).catch(() => {});
+  const shown = clusters.map((c) => ({ ...c, docs: c.docs.filter(keep) })).filter((c) => c.docs.length);
+  const fed = clusters.filter((c) => c.kind !== 'general').length;
   return (
     <section className="bz-lens bz-library">
-      <LensHead icon={LibraryIcon} kicker="Library" title={`${counts.current} current · ${list.rows.length - counts.current} older`} read="Research, plans and notes — where they live and whether they still hold.">
+      <LensHead icon={LibraryIcon} kicker="Library" title={`${counts.current} current · ${list.rows.length - counts.current} older`}
+        read={`Documents grouped by the product or offer they feed (${fed} branch${fed === 1 ? '' : 'es'}, matched by name). Tap a status to move it on.`}>
         <AddButton onClick={() => ed.open()} label="Add document" />
       </LensHead>
       {list.rows.length === 0 ? (
-        <BizEmpty icon={LibraryIcon} title="No documents yet" text="Research, plans and notes: where they live and whether they are still current." onAdd={() => ed.open()} addLabel="Add a document" onTemplate={list.template} />
+        <BizEmpty icon={LibraryIcon} title="No documents yet" text="Research, plans and notes: where they live, what they feed and whether they still hold." onAdd={() => ed.open()} addLabel="Add a document" onTemplate={list.template} />
       ) : (
         <>
           <div className="bz-toolbar" role="toolbar" aria-label="Filter documents">
@@ -515,22 +562,36 @@ export function Library() {
               ))}
             </div>
           </div>
-          <ul className="bz-docs">
-            {rows.map((d) => (
-              <li key={d.id} className={`bz-doc st-${d.status}`}>
-                <i className={`bz-dot tone-${STATUS_TONE[d.status] || 'info'}`} aria-hidden="true" />
-                <div className="bz-doc-body">
-                  {isUrl(d.path) ? <a href={d.path} target="_blank" rel="noopener noreferrer" className="bz-doc-path">{d.path} <ExternalLink size={12} /></a>
-                    : <span className="bz-doc-path mono">{d.path}</span>}
-                  {d.note && <span className="bz-muted">{d.note}</span>}
-                </div>
-                {d.date && <span className="bz-doc-date">{fmtDate(d.date)}</span>}
-                <div className="bz-doc-status"><Picker value={d.status} header="Status" options={STATUS.map((s) => ({ value: s, label: s }))} onChange={(v) => list.update(d.id, { status: v }, { undoLabel: `Marked ${v}` }).catch(() => {})} /></div>
-                <button type="button" className="bz-icon-btn" aria-label={`Edit ${d.path}`} onClick={() => ed.open(d)}><Pencil size={15} /></button>
-              </li>
+          <div className="bz-kmap">
+            {shown.map((c) => (
+              <section key={c.key} className={`bz-branch kind-${c.kind}`} aria-label={c.name}>
+                <header className="bz-branch-head">
+                  <span className="bz-branch-ic" aria-hidden="true">{c.kind === 'product' ? <Package size={15} /> : c.kind === 'offer' ? <Gift size={15} /> : <Layers size={15} />}</span>
+                  {c.go ? <button type="button" className="bz-branch-name" onClick={c.go}>{c.name}</button> : <b className="bz-branch-name">{c.name}</b>}
+                  <span className="bz-branch-n">{plural(c.docs.length, 'doc')}</span>
+                  {c.kind !== 'general' && <span className="bz-branch-guess">matched by name</span>}
+                </header>
+                <ul className="bz-twigs">
+                  {c.docs.map((d) => (
+                    <li key={d.id} className={`bz-twig st-${d.status}`}>
+                      <FileText size={14} aria-hidden="true" className="bz-twig-ic" />
+                      <div className="bz-twig-body">
+                        {isUrl(d.path) ? <a href={d.path} target="_blank" rel="noopener noreferrer" className="bz-doc-path">{d.path} <ExternalLink size={12} /></a>
+                          : <span className="bz-doc-path mono">{d.path}</span>}
+                        {d.note && <span className="bz-twig-note">{d.note}</span>}
+                      </div>
+                      <span className="bz-twig-meta">
+                        <button type="button" className={`ui-chip ${STATUS_TONE[d.status] ? `ui-chip--${STATUS_TONE[d.status]}` : ''} bz-chip-btn`} title="Next status" onClick={() => cycle(d)}>{d.status}</button>
+                        {d.date && <span className="bz-doc-date">{fmtDate(d.date)}</span>}
+                        <button type="button" className="bz-icon-btn" aria-label={`Edit ${d.path}`} onClick={() => ed.open(d)}><Pencil size={14} /></button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ))}
-            {rows.length === 0 && <li className="bz-muted bz-pad">No documents match.</li>}
-          </ul>
+            {!shown.length && <p className="bz-muted bz-pad">No documents match.</p>}
+          </div>
         </>
       )}
       <Editor section="docs" icon={LibraryIcon} ed={ed} list={list} defaults={{ status: 'current', date: todayStr() }} />
@@ -539,59 +600,71 @@ export function Library() {
 }
 
 // ───────────────────────── Content ─────────────────────────
+// A channel × day board: rows are your channels, columns the next 14 days. Every cell is a slot — click it
+// to plan a post for that channel on that day. Posts cycle idea → draft → ready → published in place.
 const CONTENT_STATUS = ['idea', 'draft', 'ready', 'published'];
 const CONTENT_TONE = { idea: undefined, draft: 'warn', ready: 'info', published: 'good' };
-const addDays = (iso, n) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 export function Content() {
   const list = useBizList('content');
+  const ctx = useBiz();
   const ed = useEditor();
+  const [defaults, setDefaults] = useState({ status: 'idea', date: todayStr() });
   const today = todayStr();
+  const channels = ctx.sum?.flow?.channels || [];
   if (!list.rows) return <Loading />;
-  const days = Array.from({ length: 14 }, (_, i) => addDays(today, i));
-  const inStrip = new Set(days);
-  const later = list.rows.filter((c) => c.date && c.date > days[13]);
-  const past = list.rows.filter((c) => c.date && c.date < today && c.status !== 'published');
-  const unscheduled = list.rows.filter((c) => !c.date);
-  const next = list.rows.filter((c) => c.date && c.date >= today && c.status !== 'published').sort((a, b) => a.date.localeCompare(b.date))[0];
+  const days = Array.from({ length: 14 }, (_, i) => addDaysStr(today, i));
+  const rowOf = (c) => channels.find((ch) => c.platform && (shares(c.platform, ch.name) || c.platform.toLowerCase() === ch.name.toLowerCase()))?.id || 'other';
+  const rows = [...channels.map((ch) => ({ id: ch.id, name: ch.name, tone: TONE_CHIP[ch.tone] || 'info' })), { id: 'other', name: 'Other / no channel', tone: 'info' }];
+  const inWindow = list.rows.filter((c) => c.date && c.date >= today && c.date <= days[13]);
+  const outside = { overdue: list.rows.filter((c) => c.date && c.date < today && c.status !== 'published'), later: list.rows.filter((c) => c.date && c.date > days[13]), none: list.rows.filter((c) => !c.date) };
+  const next = inWindow.filter((c) => c.status !== 'published').sort((a, b) => a.date.localeCompare(b.date))[0];
   const cycle = (c) => list.update(c.id, { status: CONTENT_STATUS[(CONTENT_STATUS.indexOf(c.status) + 1) % CONTENT_STATUS.length] }, { undoLabel: 'Status changed' }).catch(() => {});
+  const plan = (date, channel) => { setDefaults({ status: 'idea', date, platform: channel === 'Other / no channel' ? '' : channel }); ed.open(); };
   const Post = ({ c }) => (
     <div className={`bz-post st-${c.status}`}>
       <button type="button" className="bz-post-title" onClick={() => ed.open(c)}>{c.title}</button>
-      <span className="bz-post-meta">
-        <button type="button" className={`ui-chip ${CONTENT_TONE[c.status] ? `ui-chip--${CONTENT_TONE[c.status]}` : ''} bz-chip-btn`} title="Next status" onClick={() => cycle(c)}>{c.status} ›</button>
-        {c.platform && <Chip>{c.platform}</Chip>}
-        <DatePick compact value={c.date} label="Post date" onChange={(v) => list.update(c.id, { date: v }, { undoLabel: v ? `Moved to ${fmtDate(v)}` : 'Unscheduled' }).catch(() => {})} />
-      </span>
+      <button type="button" className={`ui-chip ${CONTENT_TONE[c.status] ? `ui-chip--${CONTENT_TONE[c.status]}` : ''} bz-chip-btn`} title="Next status" onClick={() => cycle(c)}>{c.status} ›</button>
     </div>
   );
   return (
     <section className="bz-lens bz-content">
-      <LensHead icon={CalendarDays} kicker="Content" title={next ? `Next: ${next.title}` : `${list.rows.length} post${list.rows.length === 1 ? '' : 's'}`}
-        read={next ? `${fmtDate(next.date)}${next.platform ? ` · ${next.platform}` : ''} — click a status to move it forward.` : 'A simple content calendar: what goes out when, where, and why.'}>
-        <AddButton onClick={() => ed.open()} label="Plan a post" />
+      <LensHead icon={CalendarDays} kicker="Content" title={next ? `Next: ${next.title}` : list.rows.length ? plural(list.rows.length, 'post') : 'Nothing planned yet'}
+        read={next ? `${fmtDate(next.date)}${next.platform ? ` · ${next.platform}` : ''}. Every cell is a slot — click one to plan a post on that channel that day.` : 'Rows are your channels, columns the next two weeks. Click any slot to plan a post there.'}
+        readTouch="Rows are your channels, columns the next two weeks — swipe across, tap a slot to plan a post.">
+        <AddButton onClick={() => plan(today, '')} label="Plan a post" />
       </LensHead>
-      {list.rows.length === 0 ? (
-        <BizEmpty icon={CalendarDays} title="No posts planned" text="What goes out when, where, and why (proof or community). Posts you publish show up as outcomes." onAdd={() => ed.open()} addLabel="Plan your first post" onTemplate={list.template} />
-      ) : (
-        <>
-          <div className="bz-strip" role="list" aria-label="Next 14 days">
-            {days.map((d) => {
-              const items = list.rows.filter((c) => c.date === d);
-              return (
-                <div key={d} role="listitem" className={`bz-day ${d === today ? 'today' : ''} ${items.length ? 'has' : ''}`}>
-                  <p className="bz-day-head">{d === today ? 'Today' : fmtDate(d)}</p>
-                  {items.map((c) => <Post key={c.id} c={c} />)}
-                </div>
-              );
-            })}
-          </div>
-          {[['Overdue — not published', past], ['Later', later], ['Not scheduled', unscheduled]].map(([label, items]) => items.length > 0 && (
-            <section key={label} className="bz-postgroup"><p className="ui-kicker">{label} · {items.length}</p><div className="bz-postgrid">{items.filter((c) => !inStrip.has(c.date)).map((c) => <Post key={c.id} c={c} />)}</div></section>
+      <div className="bz-cal-wrap">
+        <div className="bz-cal" style={{ '--days': days.length }} role="grid" aria-label="Posts by channel and day">
+          <div className="bz-cal-corner" role="columnheader">Channel</div>
+          {days.map((d) => <div key={d} role="columnheader" className={`bz-cal-day ${d === today ? 'today' : ''}`}>{d === today ? 'Today' : fmtDate(d)}</div>)}
+          {rows.map((r) => (
+            <div key={r.id} className="bz-cal-row" role="row">
+              <div className="bz-cal-chan" role="rowheader"><i className={`bz-dot tone-${r.tone}`} aria-hidden="true" /> {r.name}</div>
+              {days.map((d) => {
+                const items = inWindow.filter((c) => c.date === d && rowOf(c) === r.id);
+                return (
+                  <div key={d} role="gridcell" className={`bz-cal-cell ${d === today ? 'today' : ''}`}>
+                    {items.map((c) => <Post key={c.id} c={c} />)}
+                    <button type="button" className="bz-cal-add" aria-label={`Plan a post on ${r.name}, ${fmtDate(d)}`} onClick={() => plan(d, r.name)}><Plus size={13} /></button>
+                  </div>
+                );
+              })}
+            </div>
           ))}
-        </>
-      )}
-      <Editor section="content" icon={CalendarDays} ed={ed} list={list} defaults={{ status: 'idea', date: today }} />
+        </div>
+        {list.rows.length === 0 && (
+          <div className="bz-cal-empty">
+            <b>No posts planned</b>
+            <p>Click any slot to plan one there, or seed a few sample posts.</p>
+            <button type="button" className="btn btn-secondary" onClick={list.template}>Start from template</button>
+          </div>
+        )}
+      </div>
+      {[['Overdue — not published', outside.overdue], ['Later', outside.later], ['Not scheduled', outside.none]].map(([label, items]) => items.length > 0 && (
+        <section key={label} className="bz-postgroup"><p className="ui-kicker">{label} · {items.length}</p><div className="bz-postgrid">{items.map((c) => <Post key={c.id} c={c} />)}</div></section>
+      ))}
+      <Editor section="content" icon={CalendarDays} ed={ed} list={list} defaults={defaults} />
     </section>
   );
 }

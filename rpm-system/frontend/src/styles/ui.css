@@ -102,6 +102,9 @@
 .ui-links .hot .ui-wire-flow { opacity: 1; animation-duration: 0.9s; }
 .ui-links .idle .ui-wire-flow { display: none; }
 @keyframes ui-wire-flow { to { stroke-dashoffset: -28; } }
+/* dev-only invariant from FlowLinks: a wire that runs under another card */
+.ui-links .occluded .ui-wire { stroke: #ff2d2d !important; stroke-width: 4px; opacity: 1; }
+.ui-links-occluded { position: absolute; top: 4px; right: 4px; z-index: 5; padding: 2px 8px; border-radius: 6px; background: #ff2d2d; color: #fff; font: 700 0.72rem 'Space Grotesk', sans-serif; }
 /* a node that has links: hover/focus lights its paths (FlowLinks reads data-node) */
 [data-node].is-hot { box-shadow: var(--ui-glow); }
 [data-node].is-dim { opacity: 0.45; }

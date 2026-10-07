@@ -102,7 +102,32 @@ export default function FlowLinks({ root, links, active = null, simplify = false
           const bend = Math.max(18, Math.abs(y2 - y1) * 0.5) * (down ? 1 : -1);
           d = `M ${x1} ${y1} C ${x1} ${y1 + bend}, ${x2} ${y2 - bend}, ${x2} ${y2}`;
         }
-        out.push({ ...l, d, x1, y1, x2, y2 });
+        out.push({ ...l, d, x1, y1, x2, y2, a, b });
+      }
+      // Generic invariant (dev builds): a wire may only pass over empty space, the gutter, or its own two
+      // ends. Sample points along each path; if the topmost element there belongs to some OTHER card or
+      // node, the wire runs under content — paint it red and count it (shown as a badge on the root).
+      if (import.meta.env.DEV) {
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const probe = document.createElementNS(svgNS, 'path');
+        const own = (el, p) => el && (p.a.contains(el) || p.b.contains(el) || el.contains(p.a) || el.contains(p.b));
+        let bad = 0;
+        for (const p of out) {
+          probe.setAttribute('d', p.d);
+          const len = probe.getTotalLength ? (() => { const tmp = document.createElementNS(svgNS, 'svg'); tmp.style.cssText = 'position:absolute;width:0;height:0'; tmp.appendChild(probe); document.body.appendChild(tmp); const n = probe.getTotalLength(); return { n, tmp }; })() : null;
+          if (!len) continue;
+          let hit = false;
+          for (let i = 1; i < 10 && !hit; i++) {
+            const pt = probe.getPointAtLength((len.n * i) / 10);
+            const el = document.elementFromPoint(box.left + pt.x, box.top + pt.y);
+            if (!el || !root.contains(el)) continue;
+            const card = el.closest('[data-node], .bz-card, .bz-offer, .bz-prod, .bz-chan, .bz-job, .bz-run, .bz-fixcard, .bz-rev-row, article');
+            if (card && root.contains(card) && !own(card, p) && card !== root) hit = true;
+          }
+          len.tmp.remove();
+          p.occluded = hit; if (hit) bad += 1;
+        }
+        root.dataset.occludedWires = String(bad);
       }
       setPaths(out);
     };
@@ -123,8 +148,11 @@ export default function FlowLinks({ root, links, active = null, simplify = false
 
   if (!paths.length) return null;
   const uid = idRef.current;
+  const occluded = paths.filter((p) => p.occluded).length;
   const hotSet = active && active.size ? active : null;
   return (
+    <>
+    {occluded > 0 && <span className="ui-links-occluded" role="status">{occluded} wire{occluded === 1 ? '' : 's'} under content</span>}
     <svg className={`ui-links ${className}`} aria-hidden="true">
       <defs>
         {paths.map((p, i) => {
@@ -139,7 +167,7 @@ export default function FlowLinks({ root, links, active = null, simplify = false
       </defs>
       {paths.map((p, i) => {
         const hot = hotSet && (hotSet.has(p.id) || (p.members || []).some((m) => hotSet.has(m)));
-        const cls = `${hotSet ? (hot ? 'hot' : 'dim') : ''} ${p.idle ? 'idle' : ''}`;
+        const cls = `${hotSet ? (hot ? 'hot' : 'dim') : ''} ${p.idle ? 'idle' : ''} ${p.occluded ? 'occluded' : ''}`;
         const w = `${Math.max(1.5, Math.min(9, p.weight || 2))}px`;
         return (
           <g key={p.id} className={cls} style={{ '--w': w }}>
@@ -151,5 +179,6 @@ export default function FlowLinks({ root, links, active = null, simplify = false
         );
       })}
     </svg>
+    </>
   );
 }

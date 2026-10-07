@@ -11,7 +11,6 @@ import DatePick from './DatePick';
 import { BizEmpty, LensHead, Loading, useBiz, useBizApi, useBizList } from './bizKit';
 import { RESULT_TYPES, fmtDate, money, resultLabel, todayStr } from './bizConfig';
 
-const STEPS = [['sent', 'Sent'], ['reply', 'Replies'], ['call', 'Calls'], ['proof', 'Proof'], ['won', 'Won']];
 const ROLE = { dm_sent: 'sent', proposal: 'sent', reply: 'reply', call: 'call', delivered: 'proof', case_study: 'proof', won: 'won', lost: 'lost', content: 'content', note: 'note' };
 const weekOf = (iso) => { const d = new Date(`${iso}T12:00:00Z`); const day = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - day); return d.toISOString().slice(0, 10); };
 
@@ -55,14 +54,26 @@ export default function Results() {
     if (role === 'won') { totals.won += 1; totals.cash += Number(r.value_eur) || 0; }
     else if (totals[role] !== undefined) totals[role] += r.count || 1;
   }
-  const rate = (a, b) => (totals[a] > 0 ? Math.round((totals[b] / totals[a]) * 100) : null);
-  const links = [
-    ...STEPS.slice(0, -1).map(([k], i) => {
-      const nx = STEPS[i + 1][0];
-      return { id: `${k}>${nx}`, from: `f:${k}`, to: `f:${nx}`, tone: totals[nx] ? 'flow' : 'dim', dashed: !totals[nx], idle: !totals[nx], weight: totals[nx] ? 2 + Math.log2(totals[nx] + 1) * 1.5 : 1.4 };
-    }),
-    { id: 'won>cash', from: 'f:won', to: 'f:cash', tone: totals.cash ? 'good' : 'dim', dashed: !totals.cash, idle: !totals.cash, weight: totals.cash ? 4 : 1.4 },
-  ];
+  const model = settings?.revenue_model || [];
+  const chanLabel = (ch) => { const id = ctx.sum?.flow?.links?.resultModel?.[ch]; return model.find((m) => m.id === id)?.name || ch; };
+  const OUT_LABEL = { sent: 'Sent', reply: 'Replies', call: 'Calls', proof: 'Proof', won: 'Won', lost: 'Lost', content: 'Content', note: 'Notes' };
+  const ORDER = ['sent', 'reply', 'call', 'proof', 'won', 'lost', 'content', 'note'];
+  const agg = {}; const src = {};
+  for (const r of list.rows) {
+    const role = ROLE[r.type]; const key = r.channel ? chanLabel(r.channel) : '-';
+    const n = role === 'won' || role === 'content' || role === 'note' ? 1 : r.count || 1;
+    agg[`${key}|${role}`] = (agg[`${key}|${role}`] || 0) + n;
+    src[key] = (src[key] || 0) + n;
+  }
+  const sources = Object.entries(src).map(([key, n]) => ({ key, label: key === '-' ? 'No channel' : key, n })).sort((a, b) => b.n - a.n);
+  const roleN = {}; for (const [k, n] of Object.entries(agg)) { const role = k.split('|')[1]; roleN[role] = (roleN[role] || 0) + n; }
+  const prev = { reply: 'sent', call: 'reply', proof: 'call', won: 'proof' };
+  const outs = ORDER.filter((r) => roleN[r]).map((role) => {
+    const of = prev[role] && roleN[prev[role]] ? prev[role] : null;
+    return { role, label: OUT_LABEL[role], n: roleN[role], rate: of ? Math.round((roleN[role] / roleN[of]) * 100) : null, of: of && OUT_LABEL[of].toLowerCase() };
+  });
+  const TONE = { won: 'good', lost: 'bad', note: 'dim', content: 'info' };
+  const links = Object.entries(agg).map(([k, n]) => { const [key, role] = k.split('|'); return { id: k, from: `rc:${key}`, to: `ro:${role}`, tone: TONE[role] || 'flow', weight: 1.8 + Math.log2(n + 1) * 1.8 }; });
 
   const submit = async (e) => {
     e.preventDefault();
@@ -101,26 +112,8 @@ export default function Results() {
 
   return (
     <section className="bz-lens bz-results">
-      <LensHead icon={BarChart3} kicker="Outcomes" title={totals.sent ? `${totals.sent} sent · ${totals.reply} replies · ${totals.won} won` : 'Your real funnel'}
-        read="Every message, reply, call and deal you log becomes a live connector here and on the mission flow." />
-
-      {/* funnel as a flow */}
-      <div className="bz-funnel" ref={setRoot}>
-        <FlowLinks root={root} links={links} simplify={false} version={`${list.rows.length}-${phone}`} />
-        {STEPS.map(([k, label], i) => (
-          <div key={k} className="bz-funnel-step">
-            <div data-node={`f:${k}`} className={`bz-node kind-out ${totals[k] ? '' : 'quiet'}`}>
-              <span className="bz-node-name">{label}</span><b className="bz-node-n">{totals[k] || '—'}</b>
-            </div>
-            {i > 0 && rate(STEPS[i - 1][0], k) !== null && <span className="bz-rate">{rate(STEPS[i - 1][0], k)}%</span>}
-          </div>
-        ))}
-        <div className="bz-funnel-step">
-          <div data-node="f:cash" className={`bz-node kind-cash ${totals.cash ? '' : 'quiet'}`}>
-            <Wallet size={14} aria-hidden="true" /><span className="bz-node-name">{totals.cash ? money(totals.cash, cur) : 'Cash'}</span>
-          </div>
-        </div>
-      </div>
+      <LensHead icon={BarChart3} kicker="Outcomes" title={totals.sent ? `${totals.sent} sent · ${totals.reply} replies · ${totals.won} won` : list.rows.length ? `${list.rows.length} logged · nothing sent yet` : 'Your real funnel'}
+        read="Log what happened in one line. Each entry lands on the timeline and wires the channel it came from into what it became." />
 
       {/* log bar */}
       <form className="bz-logbar" onSubmit={submit} aria-label="Log a result" ref={logRef}>
@@ -158,31 +151,58 @@ export default function Results() {
       )}
 
       {list.rows.length === 0 ? (
-        <BizEmpty icon={BarChart3} title="Nothing logged yet" text="Log the first message you send today. Ten seconds per entry; the funnel above fills itself." />
+        <BizEmpty icon={BarChart3} title="Nothing logged yet" text="Log the first message you send today. Each entry lands on the timeline and wires its channel into the outcome it produced." />
       ) : (
-        <div className="bz-ledger">
-          {weeks.map((g) => (
-            <section key={g.w} className="bz-week" aria-label={`Week of ${fmtDate(g.w)}`}>
-              <p className="bz-week-head">Week of {fmtDate(g.w)}<span>{g.rows.reduce((s, r) => s + (ROLE[r.type] === 'sent' ? r.count || 1 : 0), 0) || ''}{g.rows.some((r) => ROLE[r.type] === 'sent') ? ' sent' : ''}</span></p>
-              <ul>
-                {g.rows.map((r) => (
-                  <li key={r.id} className={`bz-entry role-${ROLE[r.type]}`}>
-                    <span className="bz-entry-date">{fmtDate(r.date)}</span>
-                    <span className="bz-entry-body">
-                      <b>{r.count > 1 ? `${r.count}× ` : ''}{resultLabel(r.type)}</b>
-                      {r.type === 'won' && r.value_eur != null && <em className="bz-entry-cash">{money(r.value_eur, cur)}</em>}
-                      {r.views != null && <span> · {Number(r.views).toLocaleString()} views</span>}
-                      {r.channel && <span className="bz-entry-chan">{r.channel}</span>}
-                      {r.lead_id && leadName(r.lead_id) && <span className="bz-entry-lead">→ {leadName(r.lead_id)}</span>}
-                      {r.note && <small>{r.note}</small>}
-                    </span>
-                    <button type="button" className="bz-icon-btn" aria-label={`Delete ${resultLabel(r.type)} on ${fmtDate(r.date)}`} onClick={() => list.remove(r.id, resultLabel(r.type))}><Trash2 size={15} /></button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
+        <>
+          {/* where results come from → what they became (zero is silent: only what was logged) */}
+          <div className="bz-sankey" ref={setRoot}>
+            <FlowLinks root={root} links={links} simplify={phone} version={`${list.rows.length}-${phone}`} />
+            <div className="bz-sankey-col" data-node-group="from">
+              <p className="bz-col-title">From channel</p>
+              {sources.map((c) => (
+                <div key={c.key} data-node={`rc:${c.key}`} className={`bz-node kind-src ${c.key === '-' ? 'quiet' : ''}`}>
+                  <span className="bz-node-name">{c.label}</span><b className="bz-node-n">{c.n}</b>
+                </div>
+              ))}
+            </div>
+            <div className="bz-sankey-col" data-node-group="to">
+              <p className="bz-col-title">Became</p>
+              {outs.map((o) => (
+                <div key={o.role} data-node={`ro:${o.role}`} className={`bz-node kind-out role-${o.role}`}>
+                  <span className="bz-node-name">{o.label}</span><b className="bz-node-n">{o.role === 'won' && totals.cash ? money(totals.cash, cur) : o.n}</b>
+                  {o.rate != null && <small className="bz-node-sub">{o.rate}% of {o.of}</small>}
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* the timeline: every entry on one spine, newest first, grouped by week */}
+          <ol className="bz-timeline" aria-label="Results timeline">
+            {weeks.map((g) => (
+              <li key={g.w} className="bz-tl-week">
+                <p className="bz-tl-mark">Week of {fmtDate(g.w)}</p>
+                <ul>
+                  {g.rows.map((r) => (
+                    <li key={r.id} className={`bz-tl-entry role-${ROLE[r.type]}`}>
+                      <i className="bz-tl-dot" aria-hidden="true" />
+                      <div className="bz-tl-card">
+                        <span className="bz-tl-top"><b>{r.count > 1 ? `${r.count}× ` : ''}{resultLabel(r.type)}</b>
+                          {r.type === 'won' && r.value_eur != null && <em className="bz-entry-cash">{money(r.value_eur, cur)}</em>}
+                          {r.views != null && <span> · {Number(r.views).toLocaleString()} views</span>}
+                          <span className="bz-tl-date">{fmtDate(r.date)}</span></span>
+                        <span className="bz-tl-meta">
+                          {r.channel && <span className="bz-entry-chan">from {chanLabel(r.channel)}</span>}
+                          {r.lead_id && leadName(r.lead_id) && <span className="bz-entry-lead">→ {leadName(r.lead_id)}</span>}
+                        </span>
+                        {r.note && <small>{r.note}</small>}
+                      </div>
+                      <button type="button" className="bz-icon-btn" aria-label={`Delete ${resultLabel(r.type)} on ${fmtDate(r.date)}`} onClick={() => list.remove(r.id, resultLabel(r.type))}><Trash2 size={15} /></button>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        </>
       )}
     </section>
   );
