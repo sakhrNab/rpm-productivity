@@ -372,8 +372,11 @@ function createBusinessRouter({ pool }) {
   // so pressing it twice never duplicates anything.
   router.post('/template', wrap(async (req, res) => {
     const want = req.body?.section || 'all';
-    const sections = want === 'all' ? Object.keys(TEMPLATES) : [want];
-    if (!sections.every((sct) => TEMPLATES[sct])) throw new Invalid(`section must be one of: all, ${Object.keys(TEMPLATES).join(', ')}`);
+    // 'revenue' only seeds the revenue model in settings.
+    const sections = want === 'all' ? Object.keys(TEMPLATES) : want === 'revenue' ? [] : [want];
+    if (!sections.every((sct) => Object.prototype.hasOwnProperty.call(TEMPLATES, sct))) {
+      throw new Invalid(`section must be one of: all, revenue, ${Object.keys(TEMPLATES).join(', ')}`);
+    }
     const created = {};
     for (const sct of sections) {
       const cfg = TABLES[sct];

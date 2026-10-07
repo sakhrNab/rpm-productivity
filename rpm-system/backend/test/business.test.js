@@ -169,6 +169,8 @@ test('input validation: required fields, enums, length caps, bad ids, unknown se
     assert.equal((await call(U1, 'GET', '/leads/not-a-uuid')).status, 404);
     assert.equal((await call(U1, 'GET', '/users')).status, 404);
     assert.equal((await call(U1, 'GET', '/__proto__')).status, 404);
+    assert.equal((await call(U1, 'POST', '/template', { section: 'users' })).status, 400);
+    assert.equal((await call(U1, 'POST', '/template', { section: 'constructor' })).status, 400);
     // user_id in the body is ignored, the row is still mine.
     const r = await call(U1, 'POST', '/docs', { path: 'p', user_id: U2 });
     assert.equal(r.status, 201); assert.equal(r.body.user_id, U1);
