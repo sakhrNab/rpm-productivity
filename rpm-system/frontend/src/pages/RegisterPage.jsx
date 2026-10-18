@@ -1,16 +1,17 @@
 import { useState, useContext, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext, API_BASE } from '../App';
+import { getProviders } from '../utils/socialAuth';
 import { Mail, Lock, User, Eye, EyeOff, AlertCircle, KeyRound, Send, MailCheck, Sparkles, MessageSquare } from 'lucide-react';
 import './RegisterPage.css';
 
 // RPM is invite-only. You get in with an invite link (from the admin or someone who added you as a
 // contact), a registration code, or by requesting access — the admin approves it and you get a link.
-const OAUTH_ERRORS = {
-  invite_required: 'RPM is invite-only. Enter a registration code, use your invite link, or request access.',
+// Shown when Google/Microsoft sign-in on the login page found no account and no invite.
+const ENTRY_ERRORS = {
+  invite_required: 'No RPM account for that email yet, and RPM is invite-only. Enter a registration code and press Google/Microsoft again, or request access.',
   invite_invalid: 'This invite link has expired or was already used. Use a code or request access.',
   code_invalid: "That registration code isn't valid — it may be used up, expired or revoked.",
-  no_email: "Your account didn't share an email address, so we can't sign you up with it.",
 };
 
 function RegisterPage() {
@@ -24,14 +25,17 @@ function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [code, setCode] = useState(params.get('code') || '');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState(OAUTH_ERRORS[params.get('error')] || '');
+  const [error, setError] = useState(ENTRY_ERRORS[params.get('error')] || '');
   const [errorCode, setErrorCode] = useState(params.get('error') || '');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [website, setWebsite] = useState('');          // honeypot
   const [requested, setRequested] = useState(null);    // the email a request was sent for
-  const { register, api } = useContext(AuthContext);
+  const [socialReady, setSocialReady] = useState(false);
+  const { register, socialLogin, api } = useContext(AuthContext);
   const navigate = useNavigate();
+
+  useEffect(() => { getProviders(API_BASE).then(p => setSocialReady(!!p.firebase)); }, []);
 
   useEffect(() => {
     if (!inviteToken) return;
@@ -97,13 +101,19 @@ function RegisterPage() {
     }
   };
 
-  // Social sign-up carries the invite/code through the provider round-trip.
-  const social = (provider) => {
-    const q = new URLSearchParams();
-    if (validInvite) q.set('invite', inviteToken);
-    if (code.trim()) q.set('code', code.trim());
-    const qs = q.toString();
-    window.location.href = `${API_BASE}/auth/${provider}${qs ? `?${qs}` : ''}`;
+  // Google / Microsoft: the invite link or code on this page admits the new account.
+  const social = async (provider) => {
+    setError(''); setErrorCode('');
+    setLoading(true);
+    try {
+      await socialLogin(provider, { invite: validInvite ? inviteToken : undefined, code: code.trim() || undefined });
+      navigate('/', { replace: true });
+    } catch (err) {
+      setError(err.message || 'Sign-in failed');
+      setErrorCode(err.code || '');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const title = mode === 'request' ? 'Request access' : validInvite ? "You're invited" : 'Create Account';
@@ -309,12 +319,13 @@ function RegisterPage() {
               </button>
             </form>
 
+            {socialReady && (<>
             <div className="auth-divider">
-              <span>or continue with</span>
+              <span>{validInvite || code.trim() ? 'or join with' : 'or continue with'}</span>
             </div>
 
             <div className="oauth-buttons">
-              <button type="button" className="oauth-btn google" onClick={() => social('google')}>
+              <button type="button" className="oauth-btn google" onClick={() => social('google')} disabled={loading}>
                 <svg viewBox="0 0 24 24" width="20" height="20">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -324,7 +335,7 @@ function RegisterPage() {
                 <span>Google</span>
               </button>
 
-              <button type="button" className="oauth-btn microsoft" onClick={() => social('microsoft')}>
+              <button type="button" className="oauth-btn microsoft" onClick={() => social('microsoft')} disabled={loading}>
                 <svg viewBox="0 0 24 24" width="20" height="20">
                   <path fill="#F25022" d="M1 1h10v10H1z"/>
                   <path fill="#00A4EF" d="M1 13h10v10H1z"/>
@@ -334,6 +345,7 @@ function RegisterPage() {
                 <span>Microsoft</span>
               </button>
             </div>
+            </>)}
           </>
         )}
 

@@ -23,7 +23,8 @@ const { getRoadmap } = require('./roadmap');
 const inbox = require('./inbox');
 const { rateLimit } = require('./ratelimit');
 const { securityEvent, setSink: setSecuritySink } = require('./securityEvent');
-const { createAccount, AdmissionDenied, inviteByToken, isAdmin, encodeSignupState, decodeSignupState, norm: normEmail, EMAIL_RE } = require('./access');
+const { createAccount, AdmissionDenied, inviteByToken, isAdmin, norm: normEmail, EMAIL_RE } = require('./access');
+const firebaseAuth = require('./firebaseAuth');
 const { createAdminRouter, requireAdmin, createInvite } = require('./admin');
 const pat = require('./pat');
 const { firstForeignId } = require('./ownership');
@@ -41,9 +42,6 @@ const notifications = require('./notifications');
 const telegram = require('./telegram');
 const push = require('./push');
 const jwt = require('jsonwebtoken');
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const MicrosoftStrategy = require('passport-microsoft').Strategy;
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -63,10 +61,6 @@ if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || !proces
 const JWT_EXPIRES_IN = '1h';
 
 // OAuth Configuration
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const MICROSOFT_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID || '';
-const MICROSOFT_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3012';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3013';
 
@@ -104,7 +98,6 @@ app.options('*', (req, res) => {
 // Raised from the 100kb default: cover/inspiration images are stored as base64
 // data URIs in JSON bodies (client-compressed to ~500kb, 2mb gives headroom).
 app.use(express.json({ limit: '2mb' }));
-app.use(passport.initialize());
 app.use('/uploads', express.static('uploads', {
   setHeaders: (res) => { res.set('X-Content-Type-Options', 'nosniff'); res.set('Content-Security-Policy', "default-src 'none'; sandbox"); },
 }));
@@ -176,59 +169,6 @@ const aiLimiter = (req, res, next) => {
   if (req.patScopes) return res.status(403).json({ error: 'This route is not available to access tokens' });
   return aiRateLimit(req, res, next);
 };
-
-// Passport Strategies
-// One verify for every provider: link by provider id, else by email, else create the account through the
-// same admission rules as the sign-up form (the invite/code ride along in the OAuth `state`).
-const socialVerify = (provider, avatarOf) => async (req, accessToken, refreshToken, profile, done) => {
-  try {
-    const email = profile.emails?.[0]?.value;
-    let result = await pool.query('SELECT * FROM users WHERE provider = $1 AND provider_id = $2', [provider, profile.id]);
-    let user = result.rows[0];
-    if (!user && email) {
-      result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
-      user = result.rows[0];
-      if (user) await pool.query('UPDATE users SET provider = $1, provider_id = $2 WHERE id = $3', [provider, profile.id, user.id]);
-    }
-    if (user) {
-      if (user.disabled_at) return done(null, false, { message: 'disabled' });
-      return done(null, user);
-    }
-    if (!email) return done(null, false, { message: 'no_email' });
-    try {
-      const { user: created } = await createAccount(pool, {
-        email, name: profile.displayName || email.split('@')[0], avatar: avatarOf(profile), provider, providerId: profile.id,
-        emailVerified: true, ...decodeSignupState(req.query.state),
-      });
-      securityEvent('signup', { user: created.email, ip: req.ip, reason: 'created' });
-      sendWelcome({ to: created.email, name: created.name, appUrl: FRONTEND_URL }).catch(e => console.error('welcome email:', e));
-      return done(null, created);
-    } catch (err) {
-      if (!(err instanceof AdmissionDenied)) throw err;
-      securityEvent('signup', { user: email, ip: req.ip, reason: err.reason });
-      return done(null, false, { message: err.reason });
-    }
-  } catch (error) { done(error, null); }
-};
-
-if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
-  passport.use(new GoogleStrategy({
-    clientID: GOOGLE_CLIENT_ID,
-    clientSecret: GOOGLE_CLIENT_SECRET,
-    callbackURL: `${BACKEND_URL}/api/auth/google/callback`,
-    passReqToCallback: true,
-  }, socialVerify('google', (p) => p.photos?.[0]?.value || '')));
-}
-
-if (MICROSOFT_CLIENT_ID && MICROSOFT_CLIENT_SECRET) {
-  passport.use(new MicrosoftStrategy({
-    clientID: MICROSOFT_CLIENT_ID,
-    clientSecret: MICROSOFT_CLIENT_SECRET,
-    callbackURL: `${BACKEND_URL}/api/auth/microsoft/callback`,
-    scope: ['user.read'],
-    passReqToCallback: true,
-  }, socialVerify('microsoft', () => '')));
-}
 
 // AUTH ROUTES
 app.post('/api/auth/register', authLimiter, async (req, res) => {
@@ -401,32 +341,67 @@ app.put('/api/auth/me', authenticateToken, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to update user' }); }
 });
 
-// Social sign-in. The start URL may carry ?invite=…&code=… from the sign-up page; they travel in `state`.
-// Failures land on a page that says why (invite-only, disabled) instead of a generic "OAuth failed".
-const OAUTH_FAIL_PAGE = { invite_required: 'register', invite_invalid: 'register', code_invalid: 'register' };
-const socialStart = (provider, scope) => (req, res, next) =>
-  passport.authenticate(provider, { scope, session: false, state: encodeSignupState({ invite: req.query.invite, code: req.query.code }) })(req, res, next);
-const socialCallback = (provider) => (req, res, next) =>
-  passport.authenticate(provider, { session: false }, async (err, user, info) => {
-    const fail = (reason) => {
-      const page = OAUTH_FAIL_PAGE[reason] || 'login';
-      const back = page === 'register' ? (() => { const st = decodeSignupState(req.query.state); return st.invite ? `&invite=${encodeURIComponent(st.invite)}` : ''; })() : '';
-      res.redirect(`${FRONTEND_URL}/${page}?error=${encodeURIComponent(reason || `${provider}_failed`)}${back}`);
-    };
-    if (err || !user) return fail(info?.message && typeof info.message === 'string' ? info.message : `${provider}_failed`);
-    try {
-      const { accessToken, refreshToken } = generateTokens(user);
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, refreshToken, expiresAt]);
-      securityEvent('login_success', { user: user.email, ip: req.ip, reason: provider });
-      res.redirect(`${FRONTEND_URL}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
-    } catch (error) { fail(`${provider}_failed`); }
-  })(req, res, next);
+// Google / Microsoft sign-in (Firebase Auth popup in the browser → ID token here; see firebaseAuth.js).
+app.get('/api/auth/providers', (req, res) => {
+  res.json({ firebase: firebaseAuth.webConfig() });
+});
 
-app.get('/api/auth/google', socialStart('google', ['profile', 'email']));
-app.get('/api/auth/google/callback', socialCallback('google'));
-app.get('/api/auth/microsoft', socialStart('microsoft', ['user.read']));
-app.get('/api/auth/microsoft/callback', socialCallback('microsoft'));
+app.post('/api/auth/firebase', authLimiter, async (req, res) => {
+  try {
+    let id;
+    try { id = await firebaseAuth.verifyIdToken(req.body?.idToken); }
+    catch (err) {
+      if (!(err instanceof firebaseAuth.FirebaseTokenError)) throw err;
+      securityEvent('login_failed', { ip: req.ip, reason: 'bad_social_token' });
+      return res.status(401).json({ error: 'That sign-in could not be verified. Please try again.' });
+    }
+    if (!id.email) return res.status(400).json({ error: "Your account didn't share an email address, so we can't sign you in with it.", code: 'no_email' });
+
+    // Already linked to this provider account, else the account with this email.
+    const found = await pool.query(
+      `SELECT * FROM users WHERE (provider = $1 AND provider_id = $2) OR LOWER(email) = LOWER($3)
+        ORDER BY (provider = $1 AND provider_id = $2) DESC LIMIT 1`, [id.provider, id.uid, id.email]);
+    let user = found.rows[0];
+    if (user) {
+      const linked = user.provider === id.provider && user.provider_id === id.uid;
+      // An email the provider didn't verify must never unlock someone else's account.
+      if (!linked && !id.emailVerified) {
+        securityEvent('login_failed', { user: id.email, ip: req.ip, reason: 'unverified_social_email' });
+        return res.status(409).json({ error: `${id.provider === 'microsoft' ? 'Microsoft' : 'Google'} didn't confirm this email, so it can't open the existing account. Sign in with your password instead.`, code: 'email_unverified' });
+      }
+      if (user.disabled_at) {
+        securityEvent('login_failed', { user: user.email, ip: req.ip, reason: 'disabled' });
+        return res.status(403).json({ error: 'This account has been disabled. Contact the admin if you think this is a mistake.', code: 'disabled' });
+      }
+      // Social-only accounts follow the provider they last used; password accounts keep their password login.
+      if (!linked && user.provider !== 'local') {
+        await pool.query('UPDATE users SET provider = $1, provider_id = $2 WHERE id = $3', [id.provider, id.uid, user.id]);
+      }
+    } else {
+      try {
+        ({ user } = await createAccount(pool, {
+          email: id.email, name: id.name || id.email.split('@')[0], avatar: id.picture, provider: id.provider, providerId: id.uid,
+          emailVerified: id.emailVerified, trustEmail: id.emailVerified, invite: req.body?.invite, code: req.body?.code,
+        }));
+      } catch (err) {
+        if (!(err instanceof AdmissionDenied)) throw err;
+        securityEvent('signup', { user: id.email, ip: req.ip, reason: err.reason });
+        return res.status(403).json({ error: err.message, code: err.reason });
+      }
+      securityEvent('signup', { user: user.email, ip: req.ip, reason: 'created' });
+      sendWelcome({ to: user.email, name: user.name, appUrl: FRONTEND_URL }).catch(e => console.error('welcome email:', e));
+    }
+
+    const { accessToken, refreshToken } = generateTokens(user);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, refreshToken, expiresAt]);
+    securityEvent('login_success', { user: user.email, ip: req.ip, reason: id.provider });
+    res.json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, role: user.role }, accessToken, refreshToken });
+  } catch (error) {
+    console.error('Social sign-in error:', error);
+    res.status(500).json({ error: 'Sign-in failed' });
+  }
+});
 
 // CATEGORIES
 app.get('/api/categories', authenticateToken, async (req, res) => {

@@ -52,8 +52,10 @@ async function codeByValue(db, code) {
 }
 
 /** May this email create an account? → { ok: true, via, invitationId?, codeId? } | { ok: false, reason }.
- *  reason: invite_invalid | code_invalid | invite_required. Reads only; createAccount claims. */
-async function findAdmission(db, { email, invite, code }) {
+ *  reason: invite_invalid | code_invalid | invite_required. Reads only; createAccount claims.
+ *  trustEmail=false (a social login whose provider didn't verify the email): only an invite link or a
+ *  code admits — never "this email was invited" or the allow-list, which anyone could claim. */
+async function findAdmission(db, { email, invite, code, trustEmail = true }) {
   const e = norm(email);
   if (invite) {
     const inv = await inviteByToken(db, invite);
@@ -63,9 +65,11 @@ async function findAdmission(db, { email, invite, code }) {
     const c = await codeByValue(db, code);
     if (c) return { ok: true, via: 'code', codeId: c.id };
   }
-  const pending = await db.query(`SELECT id FROM invitations WHERE LOWER(email) = $1 AND ${LIVE_INVITE} LIMIT 1`, [e]);
-  if (pending.rows[0]) return { ok: true, via: 'invite', invitationId: pending.rows[0].id };
-  if (registrationAllowed(e)) return { ok: true, via: 'allowlist' };
+  if (trustEmail) {
+    const pending = await db.query(`SELECT id FROM invitations WHERE LOWER(email) = $1 AND ${LIVE_INVITE} LIMIT 1`, [e]);
+    if (pending.rows[0]) return { ok: true, via: 'invite', invitationId: pending.rows[0].id };
+    if (registrationAllowed(e)) return { ok: true, via: 'allowlist' };
+  }
   const any = await db.query('SELECT 1 FROM users LIMIT 1');
   if (!any.rows.length) return { ok: true, via: 'bootstrap' };
   if (invite) return { ok: false, reason: 'invite_invalid' };
@@ -86,11 +90,11 @@ class AdmissionDenied extends Error {
 /** Create an account if admission allows it, all in one transaction: the user row, the claimed invite/code,
  *  the default categories, and links from contacts that already have this email ("own account + linked").
  *  Throws AdmissionDenied when not allowed. Returns the new user row. */
-async function createAccount(pool, { email, name, passwordHash = null, provider = 'local', providerId = null, avatar = '', emailVerified = false, invite, code }) {
+async function createAccount(pool, { email, name, passwordHash = null, provider = 'local', providerId = null, avatar = '', emailVerified = false, trustEmail = true, invite, code }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const adm = await findAdmission(client, { email, invite, code });
+    const adm = await findAdmission(client, { email, invite, code, trustEmail });
     if (!adm.ok) throw new AdmissionDenied(adm.reason);
 
     if (adm.via === 'code') {
@@ -126,20 +130,6 @@ async function createAccount(pool, { email, name, passwordHash = null, provider 
   }
 }
 
-/** The invite/code a social sign-up carries through the provider round-trip (OAuth `state`). */
-const encodeSignupState = ({ invite, code } = {}) => {
-  const s = {};
-  if (invite) s.i = String(invite).slice(0, 64);
-  if (code) s.c = normCode(code).slice(0, 40);
-  return Object.keys(s).length ? Buffer.from(JSON.stringify(s)).toString('base64url') : undefined;
-};
-const decodeSignupState = (state) => {
-  try {
-    const s = JSON.parse(Buffer.from(String(state || ''), 'base64url').toString('utf8'));
-    return { invite: typeof s.i === 'string' ? s.i : undefined, code: typeof s.c === 'string' ? s.c : undefined };
-  } catch { return {}; }
-};
-
 async function isAdmin(db, userId) {
   const { rows } = await db.query('SELECT role, disabled_at FROM users WHERE id = $1', [userId]);
   return rows[0]?.role === 'admin' && !rows[0].disabled_at;
@@ -147,5 +137,5 @@ async function isAdmin(db, userId) {
 
 module.exports = {
   canUseServerKeys, registrationAllowed, findAdmission, createAccount, AdmissionDenied, inviteByToken, isAdmin,
-  makeCode, normCode, makeInviteToken, encodeSignupState, decodeSignupState, INVITE_DAYS, EMAIL_RE, norm,
+  makeCode, normCode, makeInviteToken, INVITE_DAYS, EMAIL_RE, norm,
 };
