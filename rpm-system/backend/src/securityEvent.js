@@ -10,8 +10,12 @@
 const APP = 'rpm';
 const EVENTS = new Set([
   'login_success', 'login_failed', 'login_rate_limited', 'password_reset_requested',
-  'signup', 'access_denied', 'webhook_rejected',
+  'signup', 'access_denied', 'webhook_rejected', 'access_requested', 'admin_action',
 ]);
+
+// Optional second destination (the app stores events for the admin's Security view). Must not throw.
+let sink = null;
+const setSink = (fn) => { sink = typeof fn === 'function' ? fn : null; };
 
 function securityEvent(event, fields = {}) {
   try {
@@ -27,7 +31,8 @@ function securityEvent(event, fields = {}) {
       ...(f.reason !== undefined && f.reason !== null && { reason: String(f.reason).slice(0, 60) }),
     };
     console.log(`SECURITY_EVENT ${JSON.stringify(line)}`);
+    if (sink) Promise.resolve().then(() => sink(line)).catch(() => {});
   } catch { /* never let logging break the request */ }
 }
 
-module.exports = { securityEvent, APP, EVENTS };
+module.exports = { securityEvent, setSink, APP, EVENTS };

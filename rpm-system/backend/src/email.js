@@ -29,7 +29,14 @@ function escapeHtml(s = '') {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function invitationHtml({ recipientName, inviterName, joinUrl }) {
+// Why the invite came: a contact added you (default), the admin invited you, or your access request was approved.
+const INVITE_REASONS = {
+  person: (from) => `You received this because ${from} added you as a contact in RPM. If this wasn't expected, you can safely ignore it — no account is created until you sign up.`,
+  admin: (from) => `You received this because ${from} invited you to RPM. This invite link is personal — it works once and expires in 30 days.`,
+  request: () => `You asked for access to RPM and it was approved. This link is personal — it works once and expires in 30 days.`,
+};
+
+function invitationHtml({ recipientName, inviterName, joinUrl, source = 'person' }) {
   const hi = recipientName ? `Hi ${escapeHtml(recipientName)},` : 'Hi there,';
   const from = inviterName ? escapeHtml(inviterName) : 'A friend';
   return `<!doctype html>
@@ -62,7 +69,7 @@ function invitationHtml({ recipientName, inviterName, joinUrl }) {
           or copy this link:<br><a href="${joinUrl}" style="color:#4ecdc4;word-break:break-all;">${joinUrl}</a>
         </td></tr>
         <tr><td style="padding:18px 40px 30px;border-top:1px solid rgba(255,255,255,0.07);color:#66728a;font-size:12px;line-height:1.6;">
-          You received this because ${from} added you as a contact in RPM. If this wasn't expected, you can safely ignore it — no account is created until you sign up.
+          ${(INVITE_REASONS[source] || INVITE_REASONS.person)(from)}
         </td></tr>
       </table>
       <div style="max-width:560px;color:#4a5568;font-size:11px;padding:16px 8px;">© AI Waverider · RPM</div>
@@ -73,15 +80,17 @@ function invitationHtml({ recipientName, inviterName, joinUrl }) {
 }
 
 // Fire-and-forget; never throws to the caller.
-async function sendInvitation({ to, recipientName, inviterName, joinUrl }) {
+async function sendInvitation({ to, recipientName, inviterName, joinUrl, source = 'person' }) {
   const t = getTransporter();
   if (!t) { console.warn('[email] SMTP not configured — skipping invitation to', to); return { sent: false, reason: 'not_configured' }; }
   try {
     await t.sendMail({
       from: `"${SMTP.fromName}" <${SMTP.fromEmail}>`,
       to,
-      subject: `${inviterName || 'A friend'} invited you to RPM — design your life on purpose`,
-      html: invitationHtml({ recipientName, inviterName, joinUrl }),
+      subject: source === 'request'
+        ? 'Your RPM access is approved — create your account'
+        : `${inviterName || 'A friend'} invited you to RPM — design your life on purpose`,
+      html: invitationHtml({ recipientName, inviterName, joinUrl, source }),
       text: `${recipientName ? 'Hi ' + recipientName + ',' : 'Hi there,'}\n\n${inviterName || 'A friend'} is using RPM — a results-focused planning method — and invited you to join.\n\nRPM helps you get clear on the Result you want, your Purpose for wanting it, and the Massive Action Plan to get there — across health, wealth, relationships and more.\n\nStart your first plan: ${joinUrl}\n\n— AI Waverider · RPM`,
     });
     return { sent: true };
@@ -356,4 +365,26 @@ async function sendCoachMessage({ to, name, coachName, emoji, heading, text, fol
   return sendGeneric({ to, subject: `${emoji || '🧭'} ${coachName}: ${heading}`, html, text: `${heading}\n\n${text || ''}\n\n${ctaUrl}` });
 }
 
-module.exports = { sendInvitation, sendWelcome, sendContactAdded, sendAccountability, sendDigest, sendReminder, sendChiefBriefing, sendCoachMessage };
+// Tell the admins someone asked to join. Never throws.
+async function sendAccessRequestNotice({ to, name, email, message, adminUrl }) {
+  const t = getTransporter();
+  if (!t || !to.length) return { sent: false, reason: 'not_configured' };
+  try {
+    await t.sendMail({
+      from: `"${SMTP.fromName}" <${SMTP.fromEmail}>`,
+      to: to.join(', '),
+      subject: `RPM access request: ${name} <${email}>`,
+      html: `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.6;color:#1a2233">
+        <p><strong>${escapeHtml(name)}</strong> (${escapeHtml(email)}) asked for access to RPM.</p>
+        ${message ? `<blockquote style="margin:0 0 14px;padding:8px 14px;border-left:3px solid #4ecdc4;color:#44506a">${escapeHtml(message)}</blockquote>` : ''}
+        <p><a href="${adminUrl}" style="color:#0f8f86;font-weight:700">Review it in the admin dashboard →</a></p></div>`,
+      text: `${name} (${email}) asked for access to RPM.\n\n${message ? message + '\n\n' : ''}Review: ${adminUrl}`,
+    });
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Failed to send access-request notice', err.message);
+    return { sent: false, reason: 'send_error' };
+  }
+}
+
+module.exports = { sendAccessRequestNotice, sendInvitation, sendWelcome, sendContactAdded, sendAccountability, sendDigest, sendReminder, sendChiefBriefing, sendCoachMessage };

@@ -4,7 +4,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const { sendInvitation, sendWelcome, sendContactAdded, sendAccountability } = require('./email');
+const { sendWelcome, sendContactAdded, sendAccountability, sendAccessRequestNotice } = require('./email');
 const aiRegistry = require('./ai/registry');
 const aiKeys = require('./ai/keys');
 const { isConfigured: aiKeysConfigured } = require('./ai/crypto');
@@ -22,8 +22,9 @@ const capacity = require('./capacity');
 const { getRoadmap } = require('./roadmap');
 const inbox = require('./inbox');
 const { rateLimit } = require('./ratelimit');
-const { securityEvent } = require('./securityEvent');
-const { registrationAllowed } = require('./access');
+const { securityEvent, setSink: setSecuritySink } = require('./securityEvent');
+const { createAccount, AdmissionDenied, inviteByToken, isAdmin, encodeSignupState, decodeSignupState, norm: normEmail, EMAIL_RE } = require('./access');
+const { createAdminRouter, requireAdmin, createInvite } = require('./admin');
 const pat = require('./pat');
 const { firstForeignId } = require('./ownership');
 const { createBusinessRouter } = require('./business');
@@ -177,36 +178,46 @@ const aiLimiter = (req, res, next) => {
 };
 
 // Passport Strategies
+// One verify for every provider: link by provider id, else by email, else create the account through the
+// same admission rules as the sign-up form (the invite/code ride along in the OAuth `state`).
+const socialVerify = (provider, avatarOf) => async (req, accessToken, refreshToken, profile, done) => {
+  try {
+    const email = profile.emails?.[0]?.value;
+    let result = await pool.query('SELECT * FROM users WHERE provider = $1 AND provider_id = $2', [provider, profile.id]);
+    let user = result.rows[0];
+    if (!user && email) {
+      result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+      user = result.rows[0];
+      if (user) await pool.query('UPDATE users SET provider = $1, provider_id = $2 WHERE id = $3', [provider, profile.id, user.id]);
+    }
+    if (user) {
+      if (user.disabled_at) return done(null, false, { message: 'disabled' });
+      return done(null, user);
+    }
+    if (!email) return done(null, false, { message: 'no_email' });
+    try {
+      const { user: created } = await createAccount(pool, {
+        email, name: profile.displayName || email.split('@')[0], avatar: avatarOf(profile), provider, providerId: profile.id,
+        emailVerified: true, ...decodeSignupState(req.query.state),
+      });
+      securityEvent('signup', { user: created.email, ip: req.ip, reason: 'created' });
+      sendWelcome({ to: created.email, name: created.name, appUrl: FRONTEND_URL }).catch(e => console.error('welcome email:', e));
+      return done(null, created);
+    } catch (err) {
+      if (!(err instanceof AdmissionDenied)) throw err;
+      securityEvent('signup', { user: email, ip: req.ip, reason: err.reason });
+      return done(null, false, { message: err.reason });
+    }
+  } catch (error) { done(error, null); }
+};
+
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   passport.use(new GoogleStrategy({
     clientID: GOOGLE_CLIENT_ID,
     clientSecret: GOOGLE_CLIENT_SECRET,
-    callbackURL: `${BACKEND_URL}/api/auth/google/callback`
-  }, async (accessToken, refreshToken, profile, done) => {
-    try {
-      let result = await pool.query('SELECT * FROM users WHERE provider = $1 AND provider_id = $2', ['google', profile.id]);
-      let user;
-      if (result.rows.length === 0) {
-        result = await pool.query('SELECT * FROM users WHERE email = $1', [profile.emails[0].value]);
-        if (result.rows.length > 0) {
-          user = result.rows[0];
-          await pool.query('UPDATE users SET provider = $1, provider_id = $2 WHERE id = $3', ['google', profile.id, user.id]);
-        } else {
-          if (!registrationAllowed(profile.emails[0].value)) return done(null, false, { message: 'invite-only' });
-          result = await pool.query(
-            `INSERT INTO users (email, name, avatar, provider, provider_id, email_verified) VALUES ($1, $2, $3, 'google', $4, true) RETURNING *`,
-            [profile.emails[0].value, profile.displayName, profile.photos?.[0]?.value || '', profile.id]
-          );
-          user = result.rows[0];
-          await pool.query('SELECT create_default_categories_for_user($1)', [user.id]);
-          sendWelcome({ to: user.email, name: user.name, appUrl: FRONTEND_URL }).catch(e => console.error('welcome email:', e));
-        }
-      } else {
-        user = result.rows[0];
-      }
-      done(null, user);
-    } catch (error) { done(error, null); }
-  }));
+    callbackURL: `${BACKEND_URL}/api/auth/google/callback`,
+    passReqToCallback: true,
+  }, socialVerify('google', (p) => p.photos?.[0]?.value || '')));
 }
 
 if (MICROSOFT_CLIENT_ID && MICROSOFT_CLIENT_SECRET) {
@@ -214,58 +225,36 @@ if (MICROSOFT_CLIENT_ID && MICROSOFT_CLIENT_SECRET) {
     clientID: MICROSOFT_CLIENT_ID,
     clientSecret: MICROSOFT_CLIENT_SECRET,
     callbackURL: `${BACKEND_URL}/api/auth/microsoft/callback`,
-    scope: ['user.read']
-  }, async (accessToken, refreshToken, profile, done) => {
-    try {
-      let result = await pool.query('SELECT * FROM users WHERE provider = $1 AND provider_id = $2', ['microsoft', profile.id]);
-      let user;
-      if (result.rows.length === 0) {
-        result = await pool.query('SELECT * FROM users WHERE email = $1', [profile.emails[0].value]);
-        if (result.rows.length > 0) {
-          user = result.rows[0];
-          await pool.query('UPDATE users SET provider = $1, provider_id = $2 WHERE id = $3', ['microsoft', profile.id, user.id]);
-        } else {
-          if (!registrationAllowed(profile.emails[0].value)) return done(null, false, { message: 'invite-only' });
-          result = await pool.query(
-            `INSERT INTO users (email, name, avatar, provider, provider_id, email_verified) VALUES ($1, $2, $3, 'microsoft', $4, true) RETURNING *`,
-            [profile.emails[0].value, profile.displayName, '', profile.id]
-          );
-          user = result.rows[0];
-          await pool.query('SELECT create_default_categories_for_user($1)', [user.id]);
-          sendWelcome({ to: user.email, name: user.name, appUrl: FRONTEND_URL }).catch(e => console.error('welcome email:', e));
-        }
-      } else {
-        user = result.rows[0];
-      }
-      done(null, user);
-    } catch (error) { done(error, null); }
-  }));
+    scope: ['user.read'],
+    passReqToCallback: true,
+  }, socialVerify('microsoft', () => '')));
 }
 
 // AUTH ROUTES
 app.post('/api/auth/register', authLimiter, async (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { password, invite, code } = req.body;
+    const email = String(req.body.email || '').trim();
+    const name = String(req.body.name || '').trim();
     if (!email || !password || !name) return res.status(400).json({ error: 'Email, password, and name are required' });
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid email' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    if (!registrationAllowed(email)) {
-      securityEvent('signup', { user: email, ip: req.ip, reason: 'invite_only' });
-      return res.status(403).json({ error: 'Sign-ups are invite-only right now. Ask the owner to add your email.' });
-    }
 
-    const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const existingUser = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
     if (existingUser.rows.length > 0) {
       securityEvent('signup', { user: email, ip: req.ip, reason: 'email_taken' });
-      return res.status(400).json({ error: 'Email already registered' });
+      return res.status(400).json({ error: 'Email already registered — sign in instead', code: 'email_taken' });
     }
-    
+
     const passwordHash = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-      `INSERT INTO users (email, password_hash, name, provider) VALUES ($1, $2, $3, 'local') RETURNING id, email, name, avatar`,
-      [email, passwordHash, name]
-    );
-    const user = result.rows[0];
-    await pool.query('SELECT create_default_categories_for_user($1)', [user.id]);
+    let user;
+    try {
+      ({ user } = await createAccount(pool, { email, name: name.slice(0, 100), passwordHash, provider: 'local', invite, code }));
+    } catch (err) {
+      if (!(err instanceof AdmissionDenied)) throw err;
+      securityEvent('signup', { user: email, ip: req.ip, reason: err.reason });
+      return res.status(403).json({ error: err.message, code: err.reason });
+    }
     sendWelcome({ to: user.email, name: user.name, appUrl: FRONTEND_URL }).catch(e => console.error('welcome email:', e));
 
     const { accessToken, refreshToken } = generateTokens(user);
@@ -277,6 +266,46 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// What an invite link is for, so the sign-up page can greet the person and fill in their email.
+app.get('/api/auth/invite/:token', authLimiter, async (req, res) => {
+  try {
+    const inv = await inviteByToken(pool, req.params.token);
+    if (!inv) return res.status(404).json({ error: 'This invite link has expired or was already used.' });
+    res.json({ email: inv.email, name: inv.name || '', inviterName: inv.inviter_name || '' });
+  } catch (error) { res.status(500).json({ error: 'Failed to check invite' }); }
+});
+
+// "Let me in": anyone can ask; an admin approves it in the dashboard, which emails them an invite link.
+app.post('/api/auth/request-access', authLimiter, async (req, res) => {
+  try {
+    if (req.body.website) return res.status(201).json({ status: 'pending' });   // honeypot: bots fill every field
+    const email = normEmail(req.body.email);
+    const name = String(req.body.name || '').trim().slice(0, 100);
+    const message = String(req.body.message || '').trim().slice(0, 1000);
+    if (!name) return res.status(400).json({ error: 'Your name is required' });
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid email' });
+
+    const member = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1', [email]);
+    if (member.rows.length) return res.status(409).json({ error: 'That email already has an account — sign in instead.', code: 'already_member' });
+    const invited = await pool.query(`SELECT 1 FROM invitations WHERE status = 'pending' AND (expires_at IS NULL OR expires_at > NOW()) AND LOWER(email) = $1`, [email]);
+    if (invited.rows.length) return res.json({ status: 'already_invited' });
+
+    const ins = await pool.query(
+      `INSERT INTO access_requests (email, name, message, ip) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (LOWER(email)) WHERE status = 'pending' DO NOTHING RETURNING id`,
+      [email, name, message || null, String(req.ip || '').slice(0, 64)]);
+    if (!ins.rows.length) return res.json({ status: 'pending' });
+    securityEvent('access_requested', { user: email, ip: req.ip });
+    const admins = await pool.query(`SELECT email FROM users WHERE role = 'admin' AND disabled_at IS NULL`);
+    sendAccessRequestNotice({ to: admins.rows.map(a => a.email), name, email, message, adminUrl: `${FRONTEND_URL}/admin/requests` })
+      .catch(e => console.error('access-request notice:', e));
+    res.status(201).json({ status: 'pending' });
+  } catch (error) {
+    console.error('Request access error:', error);
+    res.status(500).json({ error: 'Could not send your request' });
   }
 });
 
@@ -302,13 +331,17 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       securityEvent('login_failed', { user: email, ip: req.ip, reason: 'bad_password' });
       return res.status(401).json({ error: 'Invalid email or password' });
     }
+    if (user.disabled_at) {
+      securityEvent('login_failed', { user: email, ip: req.ip, reason: 'disabled' });
+      return res.status(403).json({ error: 'This account has been disabled. Contact the admin if you think this is a mistake.' });
+    }
 
     const { accessToken, refreshToken } = generateTokens(user);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, refreshToken, expiresAt]);
     securityEvent('login_success', { user: user.email, ip: req.ip });
 
-    res.json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar }, accessToken, refreshToken });
+    res.json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, role: user.role }, accessToken, refreshToken });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
@@ -329,6 +362,7 @@ app.post('/api/auth/refresh', async (req, res) => {
     
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [decoded.userId]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'User not found' });
+    if (userResult.rows[0].disabled_at) return res.status(401).json({ error: 'Account disabled' });
     
     const tokens = generateTokens(userResult.rows[0]);
     await pool.query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
@@ -352,8 +386,9 @@ app.post('/api/auth/logout', authenticateToken, async (req, res) => {
 
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, email, name, avatar, provider, created_at FROM users WHERE id = $1', [req.userId]);
+    const result = await pool.query('SELECT id, email, name, avatar, provider, role, disabled_at, created_at FROM users WHERE id = $1', [req.userId]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    if (result.rows[0].disabled_at) return res.status(403).json({ error: 'Account disabled', code: 'ACCOUNT_DISABLED' });
     res.json(result.rows[0]);
   } catch (error) { res.status(500).json({ error: 'Failed to get user' }); }
 });
@@ -366,27 +401,32 @@ app.put('/api/auth/me', authenticateToken, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to update user' }); }
 });
 
-app.get('/api/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-app.get('/api/auth/google/callback', passport.authenticate('google', { session: false, failureRedirect: `${FRONTEND_URL}/login?error=google_failed` }), async (req, res) => {
-  try {
-    const { accessToken, refreshToken } = generateTokens(req.user);
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [req.user.id, refreshToken, expiresAt]);
-    securityEvent('login_success', { user: req.user.email, ip: req.ip, reason: 'google' });
-    res.redirect(`${FRONTEND_URL}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
-  } catch (error) { res.redirect(`${FRONTEND_URL}/login?error=google_failed`); }
-});
+// Social sign-in. The start URL may carry ?invite=…&code=… from the sign-up page; they travel in `state`.
+// Failures land on a page that says why (invite-only, disabled) instead of a generic "OAuth failed".
+const OAUTH_FAIL_PAGE = { invite_required: 'register', invite_invalid: 'register', code_invalid: 'register' };
+const socialStart = (provider, scope) => (req, res, next) =>
+  passport.authenticate(provider, { scope, session: false, state: encodeSignupState({ invite: req.query.invite, code: req.query.code }) })(req, res, next);
+const socialCallback = (provider) => (req, res, next) =>
+  passport.authenticate(provider, { session: false }, async (err, user, info) => {
+    const fail = (reason) => {
+      const page = OAUTH_FAIL_PAGE[reason] || 'login';
+      const back = page === 'register' ? (() => { const st = decodeSignupState(req.query.state); return st.invite ? `&invite=${encodeURIComponent(st.invite)}` : ''; })() : '';
+      res.redirect(`${FRONTEND_URL}/${page}?error=${encodeURIComponent(reason || `${provider}_failed`)}${back}`);
+    };
+    if (err || !user) return fail(info?.message && typeof info.message === 'string' ? info.message : `${provider}_failed`);
+    try {
+      const { accessToken, refreshToken } = generateTokens(user);
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, refreshToken, expiresAt]);
+      securityEvent('login_success', { user: user.email, ip: req.ip, reason: provider });
+      res.redirect(`${FRONTEND_URL}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
+    } catch (error) { fail(`${provider}_failed`); }
+  })(req, res, next);
 
-app.get('/api/auth/microsoft', passport.authenticate('microsoft', { scope: ['user.read'] }));
-app.get('/api/auth/microsoft/callback', passport.authenticate('microsoft', { session: false, failureRedirect: `${FRONTEND_URL}/login?error=microsoft_failed` }), async (req, res) => {
-  try {
-    const { accessToken, refreshToken } = generateTokens(req.user);
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [req.user.id, refreshToken, expiresAt]);
-    securityEvent('login_success', { user: req.user.email, ip: req.ip, reason: 'microsoft' });
-    res.redirect(`${FRONTEND_URL}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
-  } catch (error) { res.redirect(`${FRONTEND_URL}/login?error=microsoft_failed`); }
-});
+app.get('/api/auth/google', socialStart('google', ['profile', 'email']));
+app.get('/api/auth/google/callback', socialCallback('google'));
+app.get('/api/auth/microsoft', socialStart('microsoft', ['user.read']));
+app.get('/api/auth/microsoft/callback', socialCallback('microsoft'));
 
 // CATEGORIES
 app.get('/api/categories', authenticateToken, async (req, res) => {
@@ -1110,38 +1150,22 @@ app.post('/api/persons', authenticateToken, async (req, res) => {
     const result = await pool.query('INSERT INTO persons (user_id, name, email, phone, avatar, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.userId, name, email || '', phone || '', avatar || '', notes || '']);
     const person = result.rows[0];
 
-    // If this person has an email and isn't already an RPM user, invite them once.
+    // If this person has an email and isn't already an RPM user, invite them once (the link admits them).
     // inviteStatus tells the UI exactly what happened so "add person" isn't silent:
     //   no_email | already_member | already_invited | sent | send_failed
     let inviteStatus = 'no_email';
-    const cleanEmail = (email || '').trim().toLowerCase();
-    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanEmail)) {
+    const cleanEmail = normEmail(email);
+    if (EMAIL_RE.test(cleanEmail)) {
       try {
-        const existingUser = await pool.query('SELECT id FROM users WHERE LOWER(email) = $1', [cleanEmail]);
-        if (existingUser.rows.length > 0) {
-          // Already a member: no invite, but let them know they were added.
+        const out = await createInvite(pool, { email: cleanEmail, name, inviterId: req.userId, source: 'person', frontendUrl: FRONTEND_URL });
+        inviteStatus = out.status;
+        if (out.status === 'already_member') {
+          // Already a member: link the contact to their account, and let them know they were added.
+          await pool.query('UPDATE persons SET member_user_id = $1 WHERE id = $2', [out.userId, person.id]);
+          person.member_user_id = out.userId;
           const me = await pool.query('SELECT name FROM users WHERE id = $1', [req.userId]);
           sendContactAdded({ to: cleanEmail, recipientName: name, inviterName: me.rows[0]?.name, appUrl: FRONTEND_URL })
             .catch(err => console.error('Contact-added email error:', err));
-          inviteStatus = 'already_member';
-        } else {
-          const token = crypto.randomBytes(24).toString('hex');
-          // unique index on LOWER(email) makes this a no-op if already invited
-          const ins = await pool.query(
-            `INSERT INTO invitations (inviter_user_id, email, token) VALUES ($1, $2, $3)
-             ON CONFLICT (LOWER(email)) DO NOTHING RETURNING id`,
-            [req.userId, cleanEmail, token]
-          );
-          if (ins.rows.length === 0) {
-            inviteStatus = 'already_invited';
-          } else {
-            const me = await pool.query('SELECT name FROM users WHERE id = $1', [req.userId]);
-            const joinUrl = `${FRONTEND_URL}/?invite=${token}`;
-            // Await so we can report real delivery status back to the UI. sendInvitation
-            // never throws — it returns { sent: boolean }.
-            const result = await sendInvitation({ to: cleanEmail, recipientName: name, inviterName: me.rows[0]?.name, joinUrl });
-            inviteStatus = result && result.sent ? 'sent' : 'send_failed';
-          }
         }
       } catch (inviteErr) {
         console.error('Invitation flow error:', inviteErr);
@@ -1947,16 +1971,8 @@ app.post('/api/notifications/test-chief', authenticateToken, async (req, res) =>
 // ============================================================
 // Telegram bot (Phase 2)
 // ============================================================
-// Owner = ADMIN_EMAIL (if set) else the first-registered user.
-async function isTelegramOwner(userId) {
-  const adminEmail = process.env.ADMIN_EMAIL;
-  if (adminEmail) {
-    const r = await pool.query('SELECT 1 FROM users WHERE id = $1 AND LOWER(email) = LOWER($2)', [userId, adminEmail]);
-    return r.rows.length > 0;
-  }
-  const first = await pool.query('SELECT id FROM users ORDER BY created_at ASC LIMIT 1');
-  return first.rows[0]?.id === userId;
-}
+// Owner = an admin (users.role).
+const isTelegramOwner = (userId) => isAdmin(pool, userId);
 
 // Status for the current user (+ whether they may manage the bot token).
 app.get('/api/telegram/status', authenticateToken, async (req, res) => {
@@ -2095,6 +2111,14 @@ app.post('/api/push/unsubscribe', authenticateToken, async (req, res) => {
 app.use('/api/business/agent-runs', authenticateToken, createAgentRunsRouter({ pool, missions: createMissionHooks(pool) }));
 app.use('/api/business/missions', authenticateToken, createMissionsRouter({ pool }));
 app.use('/api/business', authenticateToken, createBusinessRouter({ pool }));
+
+// Admin dashboard: access requests, invites, registration codes, members, security log. Admins only.
+app.use('/api/admin', authenticateToken, requireAdmin(pool), createAdminRouter({ pool, frontendUrl: FRONTEND_URL }));
+
+// Keep a queryable copy of every security event for the admin's Security view (90 days).
+setSecuritySink((e) => pool.query('INSERT INTO security_events (ts, event, user_email, ip, reason) VALUES ($1, $2, $3, $4, $5)',
+  [e.ts, e.event, e.user || null, e.ip || null, e.reason || null]).catch(() => {}));
+setInterval(() => pool.query(`DELETE FROM security_events WHERE ts < NOW() - INTERVAL '90 days'`).catch(() => {}), 24 * 60 * 60 * 1000).unref();
 
 // ============================================================
 // Custom reminders (Phase 4)

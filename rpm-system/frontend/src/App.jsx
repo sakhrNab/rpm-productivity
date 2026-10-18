@@ -11,6 +11,7 @@ import PlanPage from './pages/PlanPage';
 import CoachHubPage from './pages/CoachHubPage';
 import PlanImportPage from './pages/PlanImportPage';
 import BusinessPage from './pages/BusinessPage';
+import AdminPage from './pages/AdminPage';
 import VoiceOrb from './components/VoiceOrb';
 import GlobalFileDrop from './components/GlobalFileDrop';
 import SettingsPage from './pages/SettingsPage';
@@ -21,7 +22,7 @@ import AuthCallbackPage from './pages/AuthCallbackPage';
 // API Configuration
 // In Coolify, use the backend URL from environment variable (should include /api)
 // In local dev, use /api which proxies to backend
-const API_BASE = import.meta.env.VITE_API_URL 
+export const API_BASE = import.meta.env.VITE_API_URL 
   ? import.meta.env.VITE_API_URL
   : '/api';
 // Auth Context
@@ -82,6 +83,45 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     }).then(r => r.json()),
+
+    // Public: what an invite link is for, and "request access" from the sign-up page.
+    getInvite: (token) => fetch(`${API_BASE}/auth/invite/${encodeURIComponent(token)}`).then(async r => (r.ok ? r.json() : null)),
+    requestAccess: (data) => fetch(`${API_BASE}/auth/request-access`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).then(async r => {
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) { const err = new Error(body.error || 'Could not send your request'); err.code = body.code; throw err; }
+      return body;
+    }),
+
+    // Admin dashboard (admins only): access requests, invites, codes, members, security log.
+    admin: (() => {
+      const call = (path, method = 'GET', body) => authFetch(`${API_BASE}/admin${path}`, {
+        method, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      }).then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) { const err = new Error(data.error || `Request failed (${r.status})`); err.status = r.status; throw err; }
+        return data;
+      });
+      return {
+        overview: () => call('/overview'),
+        members: () => call('/members'),
+        updateMember: (id, data) => call(`/members/${id}`, 'PATCH', data),
+        invitations: () => call('/invitations'),
+        invite: (data) => call('/invitations', 'POST', data),
+        resendInvite: (id) => call(`/invitations/${id}/resend`, 'POST'),
+        revokeInvite: (id) => call(`/invitations/${id}/revoke`, 'POST'),
+        requests: () => call('/requests'),
+        approveRequest: (id) => call(`/requests/${id}/approve`, 'POST'),
+        denyRequest: (id) => call(`/requests/${id}/deny`, 'POST'),
+        codes: () => call('/codes'),
+        createCode: (data) => call('/codes', 'POST', data),
+        revokeCode: (id) => call(`/codes/${id}/revoke`, 'POST'),
+        security: ({ days = 7, event = '', q = '' } = {}) => call(`/security?${new URLSearchParams({ days, event, q })}`),
+      };
+    })(),
 
     login: (data) => fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
@@ -466,6 +506,9 @@ function ProtectedRoute({ children }) {
   }
 
   if (!user) {
+    // Invite emails sent before 2026-10-18 link to /?invite=… — send those to the sign-up page.
+    const invite = new URLSearchParams(location.search).get('invite');
+    if (invite) return <Navigate to={`/register?invite=${encodeURIComponent(invite)}`} replace />;
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -532,9 +575,10 @@ function AuthProvider({ children }) {
     return result.user;
   };
 
-  const register = async (email, password, name) => {
-    const result = await api.register({ email, password, name });
-    if (result.error) throw new Error(result.error);
+  // extra: { invite, code } — whichever admits this sign-up.
+  const register = async (email, password, name, extra = {}) => {
+    const result = await api.register({ email, password, name, ...extra });
+    if (result.error) { const err = new Error(result.error); err.code = result.code; throw err; }
     storeTokens(result.accessToken, result.refreshToken);
     setAccessToken(result.accessToken);
     setUser(result.user);
@@ -686,12 +730,20 @@ function AppContent() {
           <Route path="/assistant" element={<RedirectTo to="/coach" />} />
           <Route path="/coaches" element={<RedirectTo to="/coach" params={{ tab: 'coaches' }} />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/admin" element={<AdminRoute />} />
+          <Route path="/admin/:tab" element={<AdminRoute />} />
         </Routes>
       </main>
       <VoiceOrb />
       <GlobalFileDrop />
     </AppContext.Provider>
   );
+}
+
+// The admin dashboard, for admins only (the API enforces it too).
+function AdminRoute() {
+  const { user } = useContext(AuthContext);
+  return user?.role === 'admin' ? <AdminPage /> : <Navigate to="/plan" replace />;
 }
 
 function App() {

@@ -2,7 +2,7 @@ import { useState, useContext, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Target, Sun, CalendarDays, Map as MapIcon, MessagesSquare, Sparkles, ChevronDown,
-  Zap, Blocks, FolderPlus, Tag, UserPlus, FileUp, Settings, Users, AlarmClock, LogOut, X, Check, Briefcase
+  Zap, Blocks, FolderPlus, Tag, UserPlus, FileUp, Settings, Users, AlarmClock, LogOut, X, Check, Briefcase, ShieldCheck
 } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreateActionModal from './modals/CreateActionModal';
@@ -223,6 +223,12 @@ function Navbar() {
                   <AlarmClock size={16} /> <span>Reminders</span>
                   {location.pathname === '/reminders' && <Check size={14} className="tn-menu-cur" />}
                 </Link>
+                {user?.role === 'admin' && (
+                  <Link to="/admin" role="menuitem" className="tn-menu-item" onClick={() => setShowUserMenu(false)}>
+                    <ShieldCheck size={16} /> <span>Admin</span>
+                    {location.pathname.startsWith('/admin') && <Check size={14} className="tn-menu-cur" />}
+                  </Link>
+                )}
                 <div className="tn-menu-sep" role="separator" />
                 <button type="button" role="menuitem" className="tn-menu-item tn-menu-danger" onClick={handleLogout}>
                   <LogOut size={16} /> <span>Log out</span>

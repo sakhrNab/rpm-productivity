@@ -1,6 +1,6 @@
 import { useState, useContext } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { AuthContext } from '../App';
+import { AuthContext, API_BASE } from '../App';
 import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 function LoginPage() {
@@ -31,16 +31,20 @@ function LoginPage() {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = '/api/auth/google';
+    window.location.href = `${API_BASE}/auth/google`;
   };
 
   const handleMicrosoftLogin = () => {
-    window.location.href = '/api/auth/microsoft';
+    window.location.href = `${API_BASE}/auth/microsoft`;
   };
 
   // Check for OAuth errors in URL
   const urlParams = new URLSearchParams(location.search);
   const oauthError = urlParams.get('error');
+  const OAUTH_ERRORS = {
+    disabled: 'This account has been disabled. Contact the admin if you think this is a mistake.',
+    no_email: "Your account didn't share an email address, so we can't sign you in with it.",
+  };
 
   return (
     <div className="auth-container">
@@ -66,7 +70,7 @@ function LoginPage() {
         {(error || oauthError) && (
           <div className="auth-error">
             <AlertCircle size={18} />
-            <span>{error || 'OAuth login failed. Please try again.'}</span>
+            <span>{error || OAUTH_ERRORS[oauthError] || 'OAuth login failed. Please try again.'}</span>
           </div>
         )}
 
@@ -140,7 +144,8 @@ function LoginPage() {
         </div>
 
         <div className="auth-footer">
-          <p>Don't have an account? <Link to="/register">Sign up</Link></p>
+          <p>Don't have an account? <Link to="/register">Sign up with an invite or code</Link></p>
+          <p className="auth-footer-sub">No invite yet? <Link to="/register?mode=request">Request access</Link></p>
         </div>
       </div>
     </div>

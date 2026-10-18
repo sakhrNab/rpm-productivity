@@ -1,0 +1,36 @@
+/* Sign-up page additions (invite banner, join-mode switch, code field, request-access form).
+   Component CSS loads before index.css, so rules are scoped under .reg-card to win. */
+.auth-card.reg-card { max-width: 460px; }
+.reg-card .reg-seg { display: flex; width: 100%; margin-bottom: var(--spacing-lg); }
+.reg-card .reg-seg > button { flex: 1; justify-content: center; }
+.reg-card .reg-note {
+  display: flex; align-items: flex-start; gap: var(--spacing-sm); padding: 12px 14px; margin-bottom: var(--spacing-lg);
+  border-radius: var(--radius-md); font-size: 0.88rem; line-height: 1.45; color: var(--text-secondary);
+}
+.reg-card .reg-note svg { flex: 0 0 auto; margin-top: 1px; }
+.reg-card .reg-note b { color: var(--text-primary); font-weight: 600; word-break: break-all; }
+.reg-card .reg-note--good { background: rgba(78, 205, 196, 0.08); border: 1px solid rgba(78, 205, 196, 0.3); }
+.reg-card .reg-note--good svg { color: var(--accent-cyan); }
+.reg-card .reg-note--warn { background: rgba(255, 183, 77, 0.08); border: 1px solid rgba(255, 183, 77, 0.32); }
+.reg-card .reg-note--warn svg { color: #ffc56e; }
+.reg-card .reg-optional { margin-left: 6px; font-size: 0.75rem; color: var(--text-muted); }
+.reg-card .reg-code { font-family: var(--ui-mono, monospace); letter-spacing: 0.08em; }
+.reg-card .reg-link {
+  padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--accent-cyan);
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.reg-card .reg-textarea > svg:first-child { top: 14px; }
+.reg-card .reg-textarea textarea {
+  width: 100%; min-height: 84px; padding: var(--spacing-md); padding-left: 44px; resize: vertical;
+  background: var(--bg-card); border: 1px solid var(--border-primary); border-radius: var(--radius-md);
+  color: var(--text-primary); font: 0.95rem var(--font-body);
+}
+.reg-card .reg-textarea textarea:focus { outline: none; border-color: var(--accent-pink); box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.1); }
+.reg-card .reg-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.reg-card .reg-done { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 8px 0 4px; }
+.reg-card .reg-done h2 { margin: 6px 0 0; font-size: 1.15rem; }
+.reg-card .reg-done p { margin: 0 0 8px; color: var(--text-secondary); font-size: 0.92rem; line-height: 1.55; }
+.reg-card .reg-done b { color: var(--text-primary); word-break: break-all; }
+@media (max-width: 480px) {
+  .reg-card .reg-seg > button { padding: 6px 8px; font-size: 0.78rem; }
+}

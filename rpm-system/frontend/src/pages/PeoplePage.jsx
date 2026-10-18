@@ -1,5 +1,5 @@
 import { useContext, useState, useEffect, useRef } from 'react';
-import { Plus, Mail, Phone, MoreVertical, User, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Mail, Phone, MoreVertical, User, Pencil, Trash2, UserCheck } from 'lucide-react';
 import { AppContext, AuthContext } from '../App';
 import CreatePersonModal from '../components/modals/CreatePersonModal';
 
@@ -103,6 +103,11 @@ function PeoplePage() {
                 </div>
 
                 <div className="person-contacts">
+                  {person.member_user_id && (
+                    <span className="ui-chip ui-chip--good person-member" title="Has their own RPM account">
+                      <UserCheck size={12} /> On RPM
+                    </span>
+                  )}
                   {person.email && (
                     <a href={`mailto:${person.email}`} className="person-contact">
                       <Mail size={14} />

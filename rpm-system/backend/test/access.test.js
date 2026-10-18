@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { canUseServerKeys, registrationAllowed } = require('../src/access');
+const { canUseServerKeys, registrationAllowed, makeCode, normCode, encodeSignupState, decodeSignupState } = require('../src/access');
 const keys = require('../src/ai/keys');
 
 const withEnv = async (env, fn) => {
@@ -44,3 +44,15 @@ test('a stranger never gets the server key; an allow-listed account does; the UI
   const owner = (await keys.listKeysMasked(pool('owner@example.com'), 'u2')).find(p => p.provider === 'deepseek');
   assert.deepEqual([owner.configured, owner.source], [true, 'env']);
 }));
+
+test('registration codes avoid look-alike characters and normalise what people type', () => {
+  for (let i = 0; i < 200; i++) assert.match(makeCode(), /^RPM-[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}$/);
+  assert.equal(normCode(' rpm-7k4q - m2xd '), 'RPM-7K4Q-M2XD');
+});
+
+test('an invite/code survives the OAuth round-trip; junk state decodes to nothing', () => {
+  assert.deepEqual(decodeSignupState(encodeSignupState({ invite: 'abc123', code: 'rpm-aaaa-bbbb' })), { invite: 'abc123', code: 'RPM-AAAA-BBBB' });
+  assert.equal(encodeSignupState({}), undefined);
+  assert.deepEqual(decodeSignupState('not-base64-json'), {});
+  assert.deepEqual(decodeSignupState(undefined), {});
+});
