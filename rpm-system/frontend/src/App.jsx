@@ -18,6 +18,7 @@ import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
+import { switchUser } from './utils/userScope';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 
@@ -547,7 +548,10 @@ function ProtectedRoute({ children }) {
 
 // Auth Provider Component
 function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUserState] = useState(null);
+  // Every sign-in / sign-out goes through here: browser data saved for a different person is removed
+  // BEFORE the app renders for this one (see utils/userScope.js).
+  const setUser = (u) => { switchUser(u?.id || null); setUserState(u); };
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState(getStoredTokens().accessToken);
 
@@ -633,6 +637,7 @@ function AuthProvider({ children }) {
     const checkAuth = async () => {
       const { accessToken: token } = getStoredTokens();
       if (!token) {
+        switchUser(null);   // nobody signed in: no one's saved data stays on this browser
         setLoading(false);
         return;
       }

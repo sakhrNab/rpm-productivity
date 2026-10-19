@@ -1,3 +1,4 @@
+import { scoped } from '../../utils/userScope';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Flame, Loader2, Wand2, X } from 'lucide-react';
@@ -13,7 +14,7 @@ const KEY = 'today.catchup';
 const MAX = 3;
 
 function readHidden(today) {
-  try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); return v?.date === today ? v.ids || [] : []; } catch { return []; }
+  try { const v = JSON.parse(localStorage.getItem(scoped(KEY)) || 'null'); return v?.date === today ? v.ids || [] : []; } catch { return []; }
 }
 
 function why(f) {
@@ -28,7 +29,7 @@ export default function CatchUp({ forecast, onPlanned }) {
   const [hidden, setHidden] = useState(() => readHidden(today));
   const hide = (id) => setHidden(prev => {
     const next = [...new Set([...prev, id])];
-    try { localStorage.setItem(KEY, JSON.stringify({ date: today, ids: next })); } catch { /* noop */ }
+    try { localStorage.setItem(scoped(KEY), JSON.stringify({ date: today, ids: next })); } catch { /* noop */ }
     return next;
   });
   // A goal you just planned a catch-up for stays off the list for today.

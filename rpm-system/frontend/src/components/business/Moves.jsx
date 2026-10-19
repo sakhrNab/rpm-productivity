@@ -1,3 +1,4 @@
+import { scoped } from '../../utils/userScope';
 // Next best moves: ranked by the server from the user's data (overdue / stuck leads, P0 blockers, cash
 // pace, model bottleneck…). Each move has ONE button that does it. Hovering a move lights the entity it
 // is about on the flow canvas (onFocus). "Not now" hides a move for today (this browser).
@@ -10,11 +11,11 @@ const ICON = { overdue: Clock, due_today: Clock, stuck: Flame, no_date: Clock, p
 const KEY = 'biz.moves.hidden';
 
 function hiddenToday() {
-  try { const v = JSON.parse(localStorage.getItem(KEY) || '{}'); return v.date === todayStr() ? new Set(v.ids || []) : new Set(); }
+  try { const v = JSON.parse(localStorage.getItem(scoped(KEY)) || '{}'); return v.date === todayStr() ? new Set(v.ids || []) : new Set(); }
   catch { return new Set(); }
 }
 function hide(id) {
-  try { const s = hiddenToday(); s.add(id); localStorage.setItem(KEY, JSON.stringify({ date: todayStr(), ids: [...s] })); } catch { /* private mode */ }
+  try { const s = hiddenToday(); s.add(id); localStorage.setItem(scoped(KEY), JSON.stringify({ date: todayStr(), ids: [...s] })); } catch { /* private mode */ }
 }
 
 export default function NextMoves({ moves, limit = 3, onFocus, compact = false, title = 'Next best moves' }) {

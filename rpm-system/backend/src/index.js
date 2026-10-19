@@ -99,6 +99,8 @@ app.options('*', (req, res) => {
 // Raised from the 100kb default: cover/inspiration images are stored as base64
 // data URIs in JSON bodies (client-compressed to ~500kb, 2mb gives headroom).
 app.use(express.json({ limit: '2mb' }));
+// API answers are one person's data: no browser or proxy may store them and hand them to someone else.
+app.use('/api', (req, res, next) => { res.set('Cache-Control', 'no-store'); res.vary('Authorization'); next(); });
 app.use('/uploads', express.static('uploads', {
   setHeaders: (res) => { res.set('X-Content-Type-Options', 'nosniff'); res.set('Content-Security-Policy', "default-src 'none'; sandbox"); },
 }));

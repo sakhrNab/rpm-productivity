@@ -1,3 +1,4 @@
+import { scoped } from '../utils/userScope';
 import { useState, useRef, useContext, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -23,7 +24,7 @@ const STOP_RE = /^\s*(stop|that'?s all|that is all|thanks?( jarvis)?|thank you|g
 const YES_RE = /^\s*(yes|yeah|yep|yup|sure|ok(ay)?|do it|go ahead|approve( it| them| all)?|confirm(ed)?|please do|sounds good|correct|right)[.!]?\s*(please)?[.!]?\s*$/i;
 const NO_RE = /^\s*(no|nope|nah|don'?t|cancel|skip( it)?|dismiss|leave it|forget it|never ?mind)[.!]?\s*$/i;
 
-const CONV_KEY = 'orb.conv';
+const CONV_KEY = 'orb.conv';   // the last conversation id — per user (userScope)
 const CONV_TTL = 12 * 3600 * 1000;   // a new conversation after 12 quiet hours
 
 // Speech-recognition languages worth offering; "Auto" follows the browser.
@@ -178,15 +179,15 @@ export default function VoiceOrb() {
     if (!open || loaded) return;
     setLoaded(true);
     let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(CONV_KEY) || 'null'); } catch { /* ignore */ }
-    if (!saved?.id || Date.now() - (saved.at || 0) > CONV_TTL) { localStorage.removeItem(CONV_KEY); return; }
+    try { saved = JSON.parse(localStorage.getItem(scoped(CONV_KEY)) || 'null'); } catch { /* ignore */ }
+    if (!saved?.id || Date.now() - (saved.at || 0) > CONV_TTL) { localStorage.removeItem(scoped(CONV_KEY)); return; }
     convId.current = saved.id;
     api.getAiConversation(saved.id)
-      .then(c => { if (c?.messages && !turnsRef.current.length) setTurns(toTurns(c.messages)); else if (!c?.messages) { convId.current = null; localStorage.removeItem(CONV_KEY); } })
+      .then(c => { if (c?.messages && !turnsRef.current.length) setTurns(toTurns(c.messages)); else if (!c?.messages) { convId.current = null; localStorage.removeItem(scoped(CONV_KEY)); } })
       .catch(() => {});
   }, [open, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const rememberConv = (id) => { convId.current = id; try { localStorage.setItem(CONV_KEY, JSON.stringify({ id, at: Date.now() })); } catch { /* noop */ } };
+  const rememberConv = (id) => { convId.current = id; try { localStorage.setItem(scoped(CONV_KEY), JSON.stringify({ id, at: Date.now() })); } catch { /* noop */ } };
 
   const flushCoachMemory = (coach) => {
     if (coach && coachMsgs.current.length >= 2) {
@@ -502,7 +503,7 @@ export default function VoiceOrb() {
   const newChat = () => {
     setTurns([]); setSuggested(null); setMicErr(null); setHeardNothing(false);
     if (activeCoach) { flushCoachMemory(activeCoach); coachMsgs.current = []; }
-    else { convId.current = null; localStorage.removeItem(CONV_KEY); }
+    else { convId.current = null; localStorage.removeItem(scoped(CONV_KEY)); }
   };
   const toggleHs = () => setHs(v => {
     const nv = !v;

@@ -2,7 +2,10 @@
 // only (a File can't survive a reload anyway); the planner takes it once on mount.
 import { prepareUpload } from './uploadPrep';
 
+import { onUserChange } from './userScope';
+
 let pending = null;
+onUserChange(() => { pending = null; });   // a dropped file never carries over to the next person
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const setPendingFile = (file) => { pending = file || null; };
 export const takePendingFile = () => { const f = pending; pending = null; return f; };
