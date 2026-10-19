@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { toEmailHtml, toPlainText } = require('./markdown');
 
 // SMTP config (Zoho by default). Values come from the app's environment.
 const SMTP = {
@@ -351,7 +352,7 @@ async function sendReminder({ to, name, title, appUrl }) {
 
 // A coach's check-in / follow-up / alert. `followups` get one-tap Done / Tomorrow / Drop links.
 async function sendCoachMessage({ to, name, coachName, emoji, heading, text, followups = [], ctaUrl }) {
-  const para = escapeHtml(text || '').split(/\n{2,}/).map(p => `<p style="margin:0 0 12px;">${p.replace(/\n/g, '<br>')}</p>`).join('');
+  const para = toEmailHtml(text || '');   // the coach writes Markdown — render it, don't show ** and #
   const btn = (href, label, bg) => `<a href="${href}" style="display:inline-block;margin:4px 6px 0 0;padding:7px 12px;border-radius:999px;background:${bg};color:#04121a;text-decoration:none;font-size:12.5px;font-weight:700;">${label}</a>`;
   const rows = followups.map(f => `<tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
     <div style="color:#ffffff;font-size:14.5px;font-weight:700;">${escapeHtml(f.title)}</div>
@@ -362,7 +363,7 @@ async function sendCoachMessage({ to, name, coachName, emoji, heading, text, fol
     bodyHtml: `<p style="margin:0 0 10px;color:#9aa7bd;font-size:13px;">${escapeHtml(coachName)}${name ? ' → ' + escapeHtml(name) : ''}</p>${para}${rows ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>` : ''}`,
     ctaUrl, ctaLabel: `Open ${coachName}`,
   });
-  return sendGeneric({ to, subject: `${emoji || '🧭'} ${coachName}: ${heading}`, html, text: `${heading}\n\n${text || ''}\n\n${ctaUrl}` });
+  return sendGeneric({ to, subject: `${emoji || '🧭'} ${coachName}: ${heading}`, html, text: `${heading}\n\n${toPlainText(text || '')}\n\n${ctaUrl}` });
 }
 
 // Tell the admins someone asked to join. Never throws.

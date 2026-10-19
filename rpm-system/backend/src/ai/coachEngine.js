@@ -12,6 +12,7 @@ const L = require('./coachLoop');
 const telegram = require('../telegram');
 const push = require('../push');
 const { sendCoachMessage } = require('../email');
+const { toTelegramHtml, toPlainText } = require('../markdown');
 
 const APP_URL = () => process.env.FRONTEND_URL || 'https://rpm.aiwaverider.com';
 const API_URL = () => process.env.BACKEND_URL || 'https://api.rpm.aiwaverider.com';
@@ -55,7 +56,7 @@ async function deliver(pool, { user, prefs, coach, heading, text, followups = []
   const out = {};
   const who = `${coach.avatar_emoji || '🧭'} ${coach.name}`;
   if (prefs.telegram_enabled && prefs.telegram_chat_id) {
-    const body = `${esc(who)} — <b>${esc(heading)}</b>\n\n${esc(text).slice(0, 3000)}${followups.length ? '' : `\n\n<a href="${url}">Reply in RPM →</a>`}`;
+    const body = `${esc(who)} — <b>${esc(heading)}</b>\n\n${toTelegramHtml(String(text || '').slice(0, 3000))}${followups.length ? '' : `\n\n<a href="${url}">Reply in RPM →</a>`}`;
     const kb = followups.map(f => [
       { text: `✅ ${f.title.length > 22 ? f.title.slice(0, 21) + '…' : f.title}`, callback_data: `cf:d:${f.id}` },
       { text: '➡️ Tomorrow', callback_data: `cf:t:${f.id}` },
@@ -69,7 +70,7 @@ async function deliver(pool, { user, prefs, coach, heading, text, followups = []
     catch (e) { console.error('[coach] email:', e.message); }
   }
   if (prefs.webpush_enabled) {
-    try { out.push = await push.sendToUser(pool, user.id, { title: `${who}: ${heading}`, body: String(text).replace(/\s+/g, ' ').slice(0, 140), url, tag: `coach-${coach.id}` }); }
+    try { out.push = await push.sendToUser(pool, user.id, { title: `${who}: ${heading}`, body: toPlainText(text || '').replace(/\s+/g, ' ').slice(0, 140), url, tag: `coach-${coach.id}` }); }
     catch (e) { console.error('[coach] push:', e.message); }
   }
   return out;
