@@ -194,3 +194,11 @@
 @media (prefers-reduced-motion: reduce) {
   .settings-page .settings-key-row, .settings-page .settings-mem-btn, .settings-page .settings-switch span, .settings-page .settings-switch span::before { transition: none; }
 }
+
+/* Security → change password */
+.settings-page .settings-pw { max-width: 440px; gap: 14px; }
+.settings-page .settings-pw-actions { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.settings-page .settings-pw-actions button { display: inline-flex; align-items: center; gap: 6px; }
+.settings-page .settings-pw-note { margin: 0; font-size: 0.84rem; color: var(--text-muted); }
+.settings-page .settings-pw-note a { color: var(--accent-cyan); }
+.settings-page .settings-pw-error { margin: 0; padding: 10px 12px; border-radius: 10px; font-size: 0.86rem; color: #ff8a9b; background: rgba(255, 107, 129, 0.08); border: 1px solid rgba(255, 107, 129, 0.3); }

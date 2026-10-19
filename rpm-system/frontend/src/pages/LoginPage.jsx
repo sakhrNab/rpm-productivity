@@ -84,7 +84,10 @@ function LoginPage() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <div className="auth-label-row">
+              <label htmlFor="password">Password</label>
+              <Link to="/forgot-password" className="auth-forgot">Forgot password?</Link>
+            </div>
             <div className="input-with-icon">
               <Lock size={18} />
               <input

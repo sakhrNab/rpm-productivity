@@ -54,8 +54,8 @@ function RegisterPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setError('Use at least 8 characters for the password');
       return;
     }
 
@@ -246,9 +246,9 @@ function RegisterPage() {
                     id="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Create a password (min 6 characters)"
+                    placeholder="Create a password (at least 8 characters)"
                     required
-                    minLength={6}
+                    minLength={8}
                   />
                   <button
                     type="button"

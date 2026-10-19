@@ -18,6 +18,8 @@ import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 // API Configuration
 // In Coolify, use the backend URL from environment variable (should include /api)
@@ -46,6 +48,17 @@ const clearTokens = () => {
   localStorage.removeItem('refreshToken');
 };
 
+// POST to a public (no-auth) endpoint; throws with the server's message on an error status.
+const publicPost = (path, body) => fetch(`${API_BASE}${path}`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+}).then(async (r) => {
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { const err = new Error(data.error || `Request failed (${r.status})`); err.code = data.code; err.status = r.status; throw err; }
+  return data;
+});
+
 // API Helper with Auth
 const createApi = (getToken, refreshTokenFn, logout) => {
   const authFetch = async (url, options = {}) => {
@@ -60,7 +73,12 @@ const createApi = (getToken, refreshTokenFn, logout) => {
 
     // If token expired, try to refresh
     if (response.status === 401) {
-      const data = await response.json();
+      const data = await response.clone().json().catch(() => ({}));
+      // The password was reset/changed elsewhere: this session is over.
+      if (data.code === 'SESSION_REVOKED') {
+        logout();
+        throw new Error(data.error || 'Please sign in again');
+      }
       if (data.code === 'TOKEN_EXPIRED') {
         const newToken = await refreshTokenFn();
         if (newToken) {
@@ -83,6 +101,18 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     }).then(r => r.json()),
+
+    // Public: forgot / reset password. Each returns the parsed body, or throws with the server's message.
+    forgotPassword: (email) => publicPost('/auth/forgot-password', { email }),
+    checkResetToken: (token) => publicPost('/auth/reset-password/check', { token }),
+    resetPassword: (token, password) => publicPost('/auth/reset-password', { token, password }),
+    changePassword: (currentPassword, newPassword) => authFetch(`${API_BASE}/auth/change-password`, {
+      method: 'POST', body: JSON.stringify({ currentPassword, newPassword }),
+    }).then(async (r) => {
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { const err = new Error(data.error || 'Could not change the password'); err.code = data.code; throw err; }
+      return data;
+    }),
 
     // Public: what an invite link is for, and "request access" from the sign-up page.
     getInvite: (token) => fetch(`${API_BASE}/auth/invite/${encodeURIComponent(token)}`).then(async r => (r.ok ? r.json() : null)),
@@ -585,6 +615,14 @@ function AuthProvider({ children }) {
     return result.user;
   };
 
+  // Settings → change password: the server signs out every other device and hands this one fresh tokens.
+  const changePassword = async (currentPassword, newPassword) => {
+    const result = await api.changePassword(currentPassword, newPassword);
+    storeTokens(result.accessToken, result.refreshToken);
+    setAccessToken(result.accessToken);
+    return result;
+  };
+
   const handleOAuthCallback = (tokens) => {
     storeTokens(tokens.accessToken, tokens.refreshToken);
     setAccessToken(tokens.accessToken);
@@ -636,7 +674,7 @@ function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, handleOAuthCallback, api }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, changePassword, handleOAuthCallback, api }}>
       {children}
     </AuthContext.Provider>
   );
@@ -753,6 +791,8 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route
             path="/*"

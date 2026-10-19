@@ -6,6 +6,7 @@ import { KeyRound, Check, Trash2, ShieldCheck, AlertTriangle, ExternalLink, Spar
 import Picker from '../components/Picker';
 import { subscribeToPush, unsubscribeFromPush, pushSupported } from '../utils/push';
 import UsageDashboard from '../components/UsageDashboard';
+import ChangePassword from '../components/ChangePassword';
 import './SettingsPage.css';
 
 const PROVIDER_LABEL = { anthropic: 'Claude', openai: 'OpenAI', zhipu: 'z.ai (GLM)', deepseek: 'DeepSeek' };
@@ -266,7 +267,19 @@ function SettingsPage() {
         <button type="button" role="tab" aria-selected={tab === 'usage'} className={tab === 'usage' ? 'on' : ''} onClick={() => setTab('usage')}>
           <BarChart3 size={15} /> Usage
         </button>
+        <button type="button" role="tab" aria-selected={tab === 'security'} className={tab === 'security' ? 'on' : ''} onClick={() => setTab('security')}>
+          <ShieldCheck size={15} /> Security
+        </button>
       </div>
+
+      {tab === 'security' && (
+        <section className="ui-card settings-section">
+          <SectionHead icon={<ShieldCheck size={20} />} title="Password">
+            Changing it signs out every other device, and we email you so a change you didn't make never goes unnoticed.
+          </SectionHead>
+          <ChangePassword />
+        </section>
+      )}
 
       {tab === 'usage' && (
         <section className="ui-card settings-section">

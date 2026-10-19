@@ -10,7 +10,7 @@
 const APP = 'rpm';
 const EVENTS = new Set([
   'login_success', 'login_failed', 'login_rate_limited', 'password_reset_requested',
-  'signup', 'access_denied', 'webhook_rejected', 'access_requested', 'admin_action',
+  'signup', 'access_denied', 'webhook_rejected', 'access_requested', 'admin_action', 'password_reset_completed', 'password_changed',
 ]);
 
 // Optional second destination (the app stores events for the admin's Security view). Must not throw.

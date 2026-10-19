@@ -1004,3 +1004,19 @@ CREATE INDEX IF NOT EXISTS idx_security_events_event_ts ON security_events (even
 ALTER TABLE persons ADD COLUMN IF NOT EXISTS member_user_id UUID REFERENCES users(id) ON DELETE SET NULL;
 UPDATE persons p SET member_user_id = u.id FROM users u
   WHERE p.member_user_id IS NULL AND p.email <> '' AND LOWER(p.email) = LOWER(u.email);
+
+-- =====================================================
+-- PASSWORD RESET — mirrors migrations/2026-10-19-password-reset.sql
+-- =====================================================
+CREATE TABLE IF NOT EXISTS password_resets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash CHAR(64) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    ip VARCHAR(64),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_password_resets_token ON password_resets (token_hash);
+CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets (user_id, created_at DESC);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ;

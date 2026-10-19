@@ -25,6 +25,7 @@ const { rateLimit } = require('./ratelimit');
 const { securityEvent, setSink: setSecuritySink } = require('./securityEvent');
 const { createAccount, AdmissionDenied, inviteByToken, isAdmin, norm: normEmail, EMAIL_RE } = require('./access');
 const { mountSocialAuth } = require('./socialAuth');
+const passwordReset = require('./passwordReset');
 const { createAdminRouter, requireAdmin, createInvite } = require('./admin');
 const pat = require('./pat');
 const { firstForeignId } = require('./ownership');
@@ -146,14 +147,24 @@ const authenticateToken = async (req, res, next) => {
     req.patScopes = found.scopes;
     return next();
   });
+  let decoded;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
+    decoded = jwt.verify(token, JWT_SECRET);
   } catch (error) {
     if (error.name === 'TokenExpiredError') return res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
     return res.status(403).json({ error: 'Invalid token' });
   }
+  // A password reset/change signs out every device: tokens issued before it stop working now, not in an hour.
+  try {
+    if (!(await passwordReset.tokenStillValid(pool, decoded.userId, decoded.iat))) {
+      return res.status(401).json({ error: 'Your password was changed — please sign in again.', code: 'SESSION_REVOKED' });
+    }
+  } catch (e) {
+    console.error('session check:', e.message);
+    return res.status(503).json({ error: 'Temporarily unavailable — try again' });
+  }
+  req.userId = decoded.userId;
+  next();
 };
 
 // Rate limits: brute-force protection on auth, and a runaway-loop guard on AI calls
@@ -178,7 +189,8 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     const name = String(req.body.name || '').trim();
     if (!email || !password || !name) return res.status(400).json({ error: 'Email, password, and name are required' });
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid email' });
-    if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    const weak = passwordReset.passwordProblem(password, email);
+    if (weak) return res.status(400).json({ error: weak, code: 'weak_password' });
 
     const existingUser = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
     if (existingUser.rows.length > 0) {
@@ -341,16 +353,19 @@ app.put('/api/auth/me', authenticateToken, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to update user' }); }
 });
 
+// A fresh access + refresh token pair for a signed-in user.
+async function issueSession(user) {
+  const tokens = generateTokens(user);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, tokens.refreshToken, expiresAt]);
+  return tokens;
+}
+
 // Google / Microsoft sign-in: our own OAuth apps, server-side (see socialAuth.js).
-mountSocialAuth(app, {
-  pool, frontendUrl: FRONTEND_URL, backendUrl: BACKEND_URL, sendWelcome,
-  issueSession: async (user) => {
-    const tokens = generateTokens(user);
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, tokens.refreshToken, expiresAt]);
-    return tokens;
-  },
-});
+mountSocialAuth(app, { pool, frontendUrl: FRONTEND_URL, backendUrl: BACKEND_URL, sendWelcome, issueSession });
+
+// Forgot / reset / change password (see passwordReset.js for the rules).
+app.use('/api/auth', passwordReset.createPasswordRouter({ pool, frontendUrl: FRONTEND_URL, authenticateToken, issueSession }));
 
 // CATEGORIES
 app.get('/api/categories', authenticateToken, async (req, res) => {

@@ -387,4 +387,68 @@ async function sendAccessRequestNotice({ to, name, email, message, adminUrl }) {
   }
 }
 
-module.exports = { sendAccessRequestNotice, sendInvitation, sendWelcome, sendContactAdded, sendAccountability, sendDigest, sendReminder, sendChiefBriefing, sendCoachMessage };
+// Short transactional mail in the RPM look (dark card, gradient bar). body: trusted HTML; cta optional.
+function plainCardHtml({ title, body, cta }) {
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a1120;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a1120;padding:32px 12px;"><tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#0f1d38;border:1px solid rgba(255,255,255,0.08);border-radius:20px;overflow:hidden;">
+      <tr><td style="background:linear-gradient(135deg,#4ecdc4,#6b8dd6 55%,#9575cd);height:6px;line-height:6px;font-size:6px;">&nbsp;</td></tr>
+      <tr><td style="padding:32px 36px 6px;"><div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#4ecdc4;font-weight:700;">AI Waverider · RPM</div>
+        <h1 style="margin:12px 0 4px;font-size:23px;line-height:1.3;color:#ffffff;font-weight:800;">${escapeHtml(title)}</h1></td></tr>
+      <tr><td style="padding:6px 36px 0;color:#c3cfe2;font-size:15px;line-height:1.65;">${body}</td></tr>
+      ${cta ? `<tr><td align="center" style="padding:22px 36px 6px;"><a href="${cta.url}" style="display:inline-block;background:linear-gradient(135deg,#4ecdc4,#6b8dd6);color:#04121a;text-decoration:none;font-weight:800;font-size:15px;padding:14px 30px;border-radius:999px;">${escapeHtml(cta.label)}</a></td></tr>
+      <tr><td align="center" style="padding:6px 36px 4px;color:#7f8ba3;font-size:12px;line-height:1.6;">or copy this link:<br><a href="${cta.url}" style="color:#4ecdc4;word-break:break-all;">${cta.url}</a></td></tr>` : ''}
+      <tr><td style="padding:22px 36px 28px;color:#66728a;font-size:12px;line-height:1.6;">If you didn't ask for this, you can ignore this email — nothing changes. If you think someone else is trying to get into your account, reply to this email.</td></tr>
+    </table></td></tr></table>
+</body></html>`;
+}
+
+// Password reset link. Never throws; the caller always answers the same way whether or not this sends.
+async function sendPasswordReset({ to, name, resetUrl, minutes }) {
+  const t = getTransporter();
+  if (!t) { console.warn('[email] SMTP not configured — skipping password reset to', to); return { sent: false }; }
+  try {
+    await t.sendMail({
+      from: `"${SMTP.fromName}" <${SMTP.fromEmail}>`,
+      to,
+      subject: 'Reset your RPM password',
+      html: plainCardHtml({
+        title: 'Reset your password',
+        body: `<p style="margin:0 0 12px;">${name ? `Hi ${escapeHtml(name)},` : 'Hi,'}</p><p style="margin:0;">Someone (hopefully you) asked to reset the password for this RPM account. The link works once and expires in ${minutes} minutes.</p>`,
+        cta: { url: resetUrl, label: 'Choose a new password →' },
+      }),
+      text: `${name ? 'Hi ' + name + ',' : 'Hi,'}\n\nReset your RPM password (works once, expires in ${minutes} minutes):\n${resetUrl}\n\nIf you didn't ask for this, ignore this email — nothing changes.\n\n— AI Waverider · RPM`,
+    });
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Failed to send password reset to', to, err.message);
+    return { sent: false };
+  }
+}
+
+// "Your password was changed" — so a takeover never goes unnoticed. Never throws.
+async function sendPasswordChanged({ to, name, appUrl, how }) {
+  const t = getTransporter();
+  if (!t) return { sent: false };
+  try {
+    await t.sendMail({
+      from: `"${SMTP.fromName}" <${SMTP.fromEmail}>`,
+      to,
+      subject: 'Your RPM password was changed',
+      html: plainCardHtml({
+        title: 'Your password was changed',
+        body: `<p style="margin:0 0 12px;">${name ? `Hi ${escapeHtml(name)},` : 'Hi,'}</p><p style="margin:0 0 12px;">The password for your RPM account was just ${how === 'reset' ? 'reset with an emailed link' : 'changed from Settings'}. Every other device has been signed out.</p><p style="margin:0;">Wasn't you? Use “Forgot password” on the sign-in page right away to take the account back, and reply to this email.</p>`,
+        cta: { url: `${appUrl}/forgot-password`, label: 'This wasn’t me — reset it' },
+      }),
+      text: `${name ? 'Hi ' + name + ',' : 'Hi,'}\n\nThe password for your RPM account was just ${how === 'reset' ? 'reset with an emailed link' : 'changed from Settings'}. Every other device has been signed out.\n\nWasn't you? Reset it now: ${appUrl}/forgot-password\n\n— AI Waverider · RPM`,
+    });
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Failed to send password-changed notice to', to, err.message);
+    return { sent: false };
+  }
+}
+
+module.exports = { sendPasswordReset, sendPasswordChanged, sendAccessRequestNotice, sendInvitation, sendWelcome, sendContactAdded, sendAccountability, sendDigest, sendReminder, sendChiefBriefing, sendCoachMessage };

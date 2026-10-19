@@ -1594,6 +1594,11 @@ input::placeholder, textarea::placeholder {
   text-decoration: underline;
 }
 
+.auth-form .auth-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--spacing-sm); margin-bottom: var(--spacing-xs); }
+.auth-form .auth-label-row label { margin-bottom: 0; }
+.auth-form .auth-forgot { font-size: 0.82rem; color: var(--accent-cyan); }
+.auth-form .auth-forgot:hover { text-decoration: underline; }
+
 .auth-footer .auth-footer-sub {
   margin-top: 6px;
   font-size: 0.85rem;
