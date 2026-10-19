@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { canUseServerKeys, registrationAllowed, makeCode, normCode, findAdmission } = require('../src/access');
-const { identityFromClaims, webConfig, FirebaseTokenError } = require('../src/firebaseAuth');
+const { decide, configured, encodeSignupState, decodeSignupState } = require('../src/socialAuth');
 const keys = require('../src/ai/keys');
 
 const withEnv = async (env, fn) => {
@@ -63,22 +63,27 @@ test('an unverified social email cannot claim an invite meant for that email', (
   assert.deepEqual(await findAdmission(admissionDb, { email: 'invited@x.io', trustEmail: false }), { ok: false, reason: 'invite_required' });
 }));
 
-const claims = (over = {}) => ({ aud: 'proj', iss: 'https://securetoken.google.com/proj', sub: 'uid1', auth_time: 100,
-  email: 'a@b.co', email_verified: true, name: 'A', firebase: { sign_in_provider: 'google.com' }, ...over });
+const acct = (over = {}) => ({ id: 'u1', provider: 'local', provider_id: null, ...over });
 
-test('firebase claims: right project + supported provider → identity', () => {
-  assert.deepEqual(identityFromClaims(claims(), 'proj', 200), { uid: 'uid1', provider: 'google', email: 'a@b.co', emailVerified: true, name: 'A', picture: '' });
-  assert.equal(identityFromClaims(claims({ firebase: { sign_in_provider: 'microsoft.com' }, email_verified: false }), 'proj', 200).emailVerified, false);
+test('social: a Google email Google did not verify never signs in', () => {
+  assert.deepEqual(decide({ provider: 'google', providerId: 'g1', email: 'a@b.co', emailVerified: false }), { action: 'deny', reason: 'email_unverified' });
 });
 
-test('firebase claims: other project, other provider, no subject are rejected', () => {
-  assert.throws(() => identityFromClaims(claims({ aud: 'other' }), 'proj', 200), FirebaseTokenError);
-  assert.throws(() => identityFromClaims(claims({ iss: 'https://securetoken.google.com/other' }), 'proj', 200), FirebaseTokenError);
-  assert.throws(() => identityFromClaims(claims({ firebase: { sign_in_provider: 'password' } }), 'proj', 200), FirebaseTokenError);
-  assert.throws(() => identityFromClaims(claims({ sub: '' }), 'proj', 200), FirebaseTokenError);
+test('social: Google-verified email opens the existing account; Microsoft never does by email', () => {
+  assert.deepEqual(decide({ provider: 'google', providerId: 'g1', email: 'a@b.co', emailVerified: true, existing: acct() }), { action: 'link' });
+  assert.deepEqual(decide({ provider: 'microsoft', providerId: 'm1', email: 'a@b.co', emailVerified: false, existing: acct() }), { action: 'deny', reason: 'existing_account' });
+  assert.deepEqual(decide({ provider: 'microsoft', providerId: 'm1', email: 'a@b.co', emailVerified: false, existing: acct({ provider: 'microsoft', provider_id: 'm1' }) }), { action: 'login' });
 });
 
-test('social sign-in is hidden until the project and web key are set', () => {
-  assert.equal(webConfig({}), null);
-  assert.deepEqual(webConfig({ FIREBASE_PROJECT_ID: 'p', FIREBASE_WEB_API_KEY: 'k' }), { apiKey: 'k', authDomain: 'p.firebaseapp.com', projectId: 'p' });
+test('social: new accounts — only Google-verified email may use an emailed invite; no email = no account', () => {
+  assert.deepEqual(decide({ provider: 'google', providerId: 'g1', email: 'a@b.co', emailVerified: true }), { action: 'create', trustEmail: true });
+  assert.deepEqual(decide({ provider: 'microsoft', providerId: 'm1', email: 'a@b.co', emailVerified: false }), { action: 'create', trustEmail: false });
+  assert.deepEqual(decide({ provider: 'microsoft', providerId: 'm1', email: '', emailVerified: false }), { action: 'deny', reason: 'no_email' });
+});
+
+test('social: an invite/code survives the OAuth round-trip; junk state decodes to nothing; unset provider hidden', () => {
+  assert.deepEqual(decodeSignupState(encodeSignupState({ invite: 'abc123', code: 'rpm-aaaa-bbbb' })), { invite: 'abc123', code: 'RPM-AAAA-BBBB' });
+  assert.equal(encodeSignupState({}), undefined);
+  assert.deepEqual(decodeSignupState('not-base64-json'), {});
+  assert.deepEqual(configured({ GOOGLE_CLIENT_ID: 'x', GOOGLE_CLIENT_SECRET: 'y' }), { google: true, microsoft: false });
 });

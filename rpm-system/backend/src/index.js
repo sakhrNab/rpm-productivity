@@ -24,7 +24,7 @@ const inbox = require('./inbox');
 const { rateLimit } = require('./ratelimit');
 const { securityEvent, setSink: setSecuritySink } = require('./securityEvent');
 const { createAccount, AdmissionDenied, inviteByToken, isAdmin, norm: normEmail, EMAIL_RE } = require('./access');
-const firebaseAuth = require('./firebaseAuth');
+const { mountSocialAuth } = require('./socialAuth');
 const { createAdminRouter, requireAdmin, createInvite } = require('./admin');
 const pat = require('./pat');
 const { firstForeignId } = require('./ownership');
@@ -341,66 +341,15 @@ app.put('/api/auth/me', authenticateToken, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to update user' }); }
 });
 
-// Google / Microsoft sign-in (Firebase Auth popup in the browser → ID token here; see firebaseAuth.js).
-app.get('/api/auth/providers', (req, res) => {
-  res.json({ firebase: firebaseAuth.webConfig() });
-});
-
-app.post('/api/auth/firebase', authLimiter, async (req, res) => {
-  try {
-    let id;
-    try { id = await firebaseAuth.verifyIdToken(req.body?.idToken); }
-    catch (err) {
-      if (!(err instanceof firebaseAuth.FirebaseTokenError)) throw err;
-      securityEvent('login_failed', { ip: req.ip, reason: 'bad_social_token' });
-      return res.status(401).json({ error: 'That sign-in could not be verified. Please try again.' });
-    }
-    if (!id.email) return res.status(400).json({ error: "Your account didn't share an email address, so we can't sign you in with it.", code: 'no_email' });
-
-    // Already linked to this provider account, else the account with this email.
-    const found = await pool.query(
-      `SELECT * FROM users WHERE (provider = $1 AND provider_id = $2) OR LOWER(email) = LOWER($3)
-        ORDER BY (provider = $1 AND provider_id = $2) DESC LIMIT 1`, [id.provider, id.uid, id.email]);
-    let user = found.rows[0];
-    if (user) {
-      const linked = user.provider === id.provider && user.provider_id === id.uid;
-      // An email the provider didn't verify must never unlock someone else's account.
-      if (!linked && !id.emailVerified) {
-        securityEvent('login_failed', { user: id.email, ip: req.ip, reason: 'unverified_social_email' });
-        return res.status(409).json({ error: `${id.provider === 'microsoft' ? 'Microsoft' : 'Google'} didn't confirm this email, so it can't open the existing account. Sign in with your password instead.`, code: 'email_unverified' });
-      }
-      if (user.disabled_at) {
-        securityEvent('login_failed', { user: user.email, ip: req.ip, reason: 'disabled' });
-        return res.status(403).json({ error: 'This account has been disabled. Contact the admin if you think this is a mistake.', code: 'disabled' });
-      }
-      // Social-only accounts follow the provider they last used; password accounts keep their password login.
-      if (!linked && user.provider !== 'local') {
-        await pool.query('UPDATE users SET provider = $1, provider_id = $2 WHERE id = $3', [id.provider, id.uid, user.id]);
-      }
-    } else {
-      try {
-        ({ user } = await createAccount(pool, {
-          email: id.email, name: id.name || id.email.split('@')[0], avatar: id.picture, provider: id.provider, providerId: id.uid,
-          emailVerified: id.emailVerified, trustEmail: id.emailVerified, invite: req.body?.invite, code: req.body?.code,
-        }));
-      } catch (err) {
-        if (!(err instanceof AdmissionDenied)) throw err;
-        securityEvent('signup', { user: id.email, ip: req.ip, reason: err.reason });
-        return res.status(403).json({ error: err.message, code: err.reason });
-      }
-      securityEvent('signup', { user: user.email, ip: req.ip, reason: 'created' });
-      sendWelcome({ to: user.email, name: user.name, appUrl: FRONTEND_URL }).catch(e => console.error('welcome email:', e));
-    }
-
-    const { accessToken, refreshToken } = generateTokens(user);
+// Google / Microsoft sign-in: our own OAuth apps, server-side (see socialAuth.js).
+mountSocialAuth(app, {
+  pool, frontendUrl: FRONTEND_URL, backendUrl: BACKEND_URL, sendWelcome,
+  issueSession: async (user) => {
+    const tokens = generateTokens(user);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, refreshToken, expiresAt]);
-    securityEvent('login_success', { user: user.email, ip: req.ip, reason: id.provider });
-    res.json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, role: user.role }, accessToken, refreshToken });
-  } catch (error) {
-    console.error('Social sign-in error:', error);
-    res.status(500).json({ error: 'Sign-in failed' });
-  }
+    await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, tokens.refreshToken, expiresAt]);
+    return tokens;
+  },
 });
 
 // CATEGORIES

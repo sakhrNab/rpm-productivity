@@ -18,7 +18,6 @@ import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
-import { socialSignIn } from './utils/socialAuth';
 
 // API Configuration
 // In Coolify, use the backend URL from environment variable (should include /api)
@@ -586,15 +585,6 @@ function AuthProvider({ children }) {
     return result.user;
   };
 
-  // Google / Microsoft (Firebase popup → RPM tokens). extra: { invite, code } for a first sign-up.
-  const socialLogin = async (provider, extra = {}) => {
-    const result = await socialSignIn(API_BASE, provider, extra);
-    storeTokens(result.accessToken, result.refreshToken);
-    setAccessToken(result.accessToken);
-    setUser(result.user);
-    return result.user;
-  };
-
   const handleOAuthCallback = (tokens) => {
     storeTokens(tokens.accessToken, tokens.refreshToken);
     setAccessToken(tokens.accessToken);
@@ -646,7 +636,7 @@ function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, socialLogin, logout, handleOAuthCallback, api }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, handleOAuthCallback, api }}>
       {children}
     </AuthContext.Provider>
   );
