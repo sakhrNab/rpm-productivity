@@ -7,6 +7,8 @@ import Picker from '../components/Picker';
 import { subscribeToPush, unsubscribeFromPush, pushSupported } from '../utils/push';
 import UsageDashboard from '../components/UsageDashboard';
 import ChangePassword from '../components/ChangePassword';
+import NotifyMatrix from '../components/settings/NotifyMatrix';
+import CoachSchedules from '../components/settings/CoachSchedules';
 import './SettingsPage.css';
 
 const PROVIDER_LABEL = { anthropic: 'Claude', openai: 'OpenAI', zhipu: 'z.ai (GLM)', deepseek: 'DeepSeek' };
@@ -40,7 +42,7 @@ const PROVIDERS = [
 ];
 
 function SettingsPage() {
-  const { api } = useContext(AuthContext);
+  const { api, user } = useContext(AuthContext);
   const { showToast } = useToast();
   const [status, setStatus] = useState({});          // provider -> { configured, source, last4 }
   const [storageEnabled, setStorageEnabled] = useState(true);
@@ -49,6 +51,7 @@ function SettingsPage() {
   const [models, setModels] = useState([]);
   const [defaultModel, setDefaultModel] = useState(localStorage.getItem('ai.modelKey') || '');
   const [prefs, setPrefs] = useState(null);
+  const [coachCount, setCoachCount] = useState(0);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [testing, setTesting] = useState(false);
   const [tgSteps, setTgSteps] = useState(false);
@@ -147,6 +150,8 @@ function SettingsPage() {
         digest_time: prefs.digest_time || '08:00', overdue_enabled: prefs.overdue_enabled,
         task_time_enabled: prefs.task_time_enabled, chief_enabled: prefs.chief_enabled,
         chief_time: prefs.chief_time || '07:30', timezone: prefs.timezone || 'UTC',
+        coach_checkins_enabled: prefs.coach_checkins_enabled, coach_followups_enabled: prefs.coach_followups_enabled,
+        coach_alerts_enabled: prefs.coach_alerts_enabled, routes: prefs.routes,
       });
       setPrefs(p => ({ ...p, ...saved }));
       showToast('Reminder settings saved', 'success');
@@ -262,7 +267,7 @@ function SettingsPage() {
           <Brain size={15} /> Memory {memories.length > 0 && <span className="settings-seg-n">{memories.length}</span>}
         </button>
         <button type="button" role="tab" aria-selected={tab === 'reminders'} className={tab === 'reminders' ? 'on' : ''} onClick={() => setTab('reminders')}>
-          <Bell size={15} /> Reminders {tg?.connected && <span className="settings-tab-dot" title="Telegram connected" />}
+          <Bell size={15} /> Notifications {tg?.connected && <span className="settings-tab-dot" title="Telegram connected" />}
         </button>
         <button type="button" role="tab" aria-selected={tab === 'usage'} className={tab === 'usage' ? 'on' : ''} onClick={() => setTab('usage')}>
           <BarChart3 size={15} /> Usage
@@ -413,89 +418,26 @@ function SettingsPage() {
 
       {tab === 'reminders' && prefs && (
         <section className="ui-card settings-section settings-reminders">
-          <SectionHead icon={<Bell size={20} />} title="Reminders &amp; channels">
-            Get a morning digest of your day and overdue tasks, and pick where each nudge lands.
+          <SectionHead icon={<Bell size={20} />} title="Notifications">
+            Everything RPM sends you, when, and where. A message reaches a channel only if that channel is on here
+            and it's ticked for that message below.
           </SectionHead>
 
-          <p className="ui-kicker settings-group-kicker">Briefings</p>
-
-          {/* Chief of Staff — proactive briefing */}
-          <div className="settings-remind-row settings-chief-row">
-            <div className="settings-remind-main">
-              <span className="settings-row-ico" aria-hidden="true"><Compass size={17} /></span>
-              <div>
-                <div className="settings-remind-title">Chief of Staff briefing</div>
-                <div className="settings-remind-sub">Each morning it messages you first — your plan plus which goals are slipping and the fix — on your enabled channels (email / Telegram / web push).</div>
-              </div>
-            </div>
-            <label className="settings-switch">
-              <input type="checkbox" role="switch" aria-label="Chief of Staff briefing" checked={!!prefs.chief_enabled} onChange={e => setPref({ chief_enabled: e.target.checked })} />
-              <span />
-            </label>
-          </div>
-          {prefs.chief_enabled && (
-            <div className="settings-remind-detail">
-              <label className="settings-remind-check">
-                Send at
-                <input type="time" className="form-input settings-time" value={prefs.chief_time || '07:30'} onChange={e => setPref({ chief_time: e.target.value })} />
-              </label>
-              <button type="button" className="btn btn-secondary" onClick={sendChiefTest} disabled={testingChief}>
-                <Send size={15} /> {testingChief ? 'Sending…' : 'Send me a test briefing now'}
-              </button>
-            </div>
-          )}
-
-          {/* Email */}
+          <p className="ui-kicker settings-group-kicker">Where we can reach you</p>
+          {/* Email — the master switch for every email (it used to be hidden behind "Email digest") */}
           <div className="settings-remind-row">
             <div className="settings-remind-main">
               <span className="settings-row-ico" aria-hidden="true"><Mail size={17} /></span>
               <div>
-                <div className="settings-remind-title">Email digest</div>
-                <div className="settings-remind-sub">A daily summary to your account email.</div>
+                <div className="settings-remind-title">Email {prefs.email_enabled && <span className="ui-chip ui-chip--good"><Check size={12} /> On</span>}</div>
+                <div className="settings-remind-sub">To {user?.email || 'your account email'}. Off = no email of any kind.</div>
               </div>
             </div>
             <label className="settings-switch">
-              <input type="checkbox" role="switch" aria-label="Email digest" checked={!!prefs.email_enabled && !!prefs.digest_enabled}
-                onChange={e => setPref({ email_enabled: e.target.checked, digest_enabled: e.target.checked })} />
+              <input type="checkbox" role="switch" aria-label="Email" checked={!!prefs.email_enabled} onChange={e => setPref({ email_enabled: e.target.checked })} />
               <span />
             </label>
           </div>
-
-          {prefs.email_enabled && prefs.digest_enabled && (
-            <div className="settings-remind-detail">
-              <label className="settings-remind-field">
-                <span>Send at</span>
-                <input type="time" className="form-input settings-time" value={prefs.digest_time || '08:00'}
-                  onChange={e => setPref({ digest_time: e.target.value })} />
-              </label>
-              <label className="settings-remind-field">
-                <span>Timezone</span>
-                <input type="text" className="form-input settings-tz" value={prefs.timezone || 'UTC'}
-                  placeholder="e.g. Europe/Berlin" onChange={e => setPref({ timezone: e.target.value })} />
-              </label>
-              <label className="settings-remind-check">
-                <input type="checkbox" checked={!!prefs.overdue_enabled} onChange={e => setPref({ overdue_enabled: e.target.checked })} />
-                Include overdue tasks
-              </label>
-            </div>
-          )}
-
-          {/* Per-task reminders (fires on whichever channels are enabled) */}
-          <div className="settings-remind-row">
-            <div className="settings-remind-main">
-              <span className="settings-row-ico" aria-hidden="true"><Clock size={17} /></span>
-              <div>
-                <div className="settings-remind-title">Remind me at each task's time</div>
-                <div className="settings-remind-sub">When a task has a scheduled time, get a nudge when it's due — on your enabled channels (email, Telegram, web push).</div>
-              </div>
-            </div>
-            <label className="settings-switch">
-              <input type="checkbox" role="switch" aria-label="Remind me at each task's time" checked={!!prefs.task_time_enabled} onChange={e => setPref({ task_time_enabled: e.target.checked })} />
-              <span />
-            </label>
-          </div>
-
-          <p className="ui-kicker settings-group-kicker">Channels</p>
           {/* Telegram */}
           <div className="settings-remind-row">
             <div className="settings-remind-main">
@@ -581,6 +523,34 @@ function SettingsPage() {
             ) : <span className="ui-chip ui-chip--warn">Not supported here</span>}
           </div>
 
+          <label className="settings-remind-field settings-tz-row">
+            <span>Your timezone (all times below)</span>
+            <input type="text" className="form-input settings-tz" value={prefs.timezone || 'UTC'}
+              placeholder="e.g. Europe/Berlin" onChange={e => setPref({ timezone: e.target.value })} />
+          </label>
+
+          <p className="ui-kicker settings-group-kicker">What we send</p>
+          <NotifyMatrix prefs={prefs} setPref={setPref} coachCount={coachCount}
+            available={{ email: !!prefs.email_enabled, telegram: !!(prefs.telegram_enabled && tg?.connected), push: !!(prefs.webpush_enabled && pushOn) }} />
+          <div className="settings-remind-actions">
+            <button className="btn btn-primary" onClick={savePrefs} disabled={savingPrefs}>{savingPrefs ? 'Saving…' : 'Save notifications'}</button>
+            <button className="btn btn-secondary" onClick={sendTest} disabled={testing}>
+              <Send size={15} /> {testing ? 'Sending…' : 'Test the digest'}
+            </button>
+            {prefs.chief_enabled && (
+              <button type="button" className="btn btn-secondary" onClick={sendChiefTest} disabled={testingChief}>
+                <Send size={15} /> {testingChief ? 'Sending…' : 'Test the briefing'}
+              </button>
+            )}
+          </div>
+
+          <p className="ui-kicker settings-group-kicker">Your coaches</p>
+          <p className="settings-remind-sub settings-coach-intro">
+            Each coach runs on its own rhythm. These change the coach right away; whether its messages go out at all,
+            and where, is set under “What we send”.
+          </p>
+          <CoachSchedules onCount={setCoachCount} />
+
           {/* Custom reminders live on their own page now */}
           <div className="settings-custom-rem">
             <h3 className="settings-subhead"><Clock size={15} /> Your reminders</h3>
@@ -591,12 +561,6 @@ function SettingsPage() {
             <Link to="/reminders" className="btn btn-secondary settings-rem-link"><Bell size={15} /> Manage reminders</Link>
           </div>
 
-          <div className="settings-remind-actions">
-            <button className="btn btn-primary" onClick={savePrefs} disabled={savingPrefs}>{savingPrefs ? 'Saving…' : 'Save reminders'}</button>
-            <button className="btn btn-secondary" onClick={sendTest} disabled={testing}>
-              <Send size={15} /> {testing ? 'Sending…' : 'Send me a test digest'}
-            </button>
-          </div>
         </section>
       )}
     </div>

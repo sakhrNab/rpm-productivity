@@ -13,6 +13,7 @@ const telegram = require('../telegram');
 const push = require('../push');
 const { sendCoachMessage } = require('../email');
 const { toTelegramHtml, toPlainText } = require('../markdown');
+const { channelsFor, typeEnabled } = require('../notifyRoutes');
 
 const APP_URL = () => process.env.FRONTEND_URL || 'https://rpm.aiwaverider.com';
 const API_URL = () => process.env.BACKEND_URL || 'https://api.rpm.aiwaverider.com';
@@ -49,13 +50,15 @@ async function threadHistory(pool, coachId, limit = 30) {
   return rows;
 }
 
-// Send one coach message on every channel the user enabled. In-app delivery is the saved row.
-async function deliver(pool, { user, prefs, coach, heading, text, followups = [], email = true }) {
+// Send one coach message to the channels Settings routes this type to. In-app delivery is the saved row.
+// type: 'coach_checkin' | 'coach_followup' | 'coach_alert' (see notifyRoutes.js).
+async function deliver(pool, { user, prefs, coach, type, heading, text, followups = [] }) {
   if (!prefs) return {};
   const url = APP_URL() + areaPath(coach);
   const out = {};
   const who = `${coach.avatar_emoji || '🧭'} ${coach.name}`;
-  if (prefs.telegram_enabled && prefs.telegram_chat_id) {
+  const ch = channelsFor(prefs, type, { hasEmail: !!user.email });
+  if (ch.telegram) {
     const body = `${esc(who)} — <b>${esc(heading)}</b>\n\n${toTelegramHtml(String(text || '').slice(0, 3000))}${followups.length ? '' : `\n\n<a href="${url}">Reply in RPM →</a>`}`;
     const kb = followups.map(f => [
       { text: `✅ ${f.title.length > 22 ? f.title.slice(0, 21) + '…' : f.title}`, callback_data: `cf:d:${f.id}` },
@@ -64,12 +67,12 @@ async function deliver(pool, { user, prefs, coach, heading, text, followups = []
     ]);
     out.telegram = kb.length ? await telegram.notifyWithButtons(pool, prefs.telegram_chat_id, body, kb) : await telegram.notify(pool, prefs.telegram_chat_id, body);
   }
-  if (email && prefs.email_enabled && user.email) {
+  if (ch.email) {
     const links = (f) => Object.fromEntries(['d', 't', 'x'].map(op => [op, `${API_URL()}/api/coach/act?t=${encodeURIComponent(L.signAction({ uid: user.id, aid: f.id, op, date: f.next_date }, SECRET()))}`]));
     try { out.email = await sendCoachMessage({ to: user.email, name: user.name, coachName: coach.name, emoji: coach.avatar_emoji, heading, text, followups: followups.map(f => ({ ...f, links: links(f) })), ctaUrl: url }); }
     catch (e) { console.error('[coach] email:', e.message); }
   }
-  if (prefs.webpush_enabled) {
+  if (ch.push) {
     try { out.push = await push.sendToUser(pool, user.id, { title: `${who}: ${heading}`, body: toPlainText(text || '').replace(/\s+/g, ' ').slice(0, 140), url, tag: `coach-${coach.id}` }); }
     catch (e) { console.error('[coach] push:', e.message); }
   }
@@ -111,7 +114,7 @@ async function runCheckin(pool, coach, { user, prefs, now, deliverIt = true }) {
   const heading = kind === 'plan' ? 'Your week ahead' : kind === 'review' ? 'Weekly review' : 'Quick check-in';
   const msg = await saveMessage(pool, coach, { role: 'assistant', kind: 'checkin', content: text.trim(), tools: tools.length ? tools : null, meta: { checkin: kind } });
   await pool.query('UPDATE coaches SET last_checkin_date = $2 WHERE id = $1', [coach.id, now.dateStr]);
-  if (deliverIt) await deliver(pool, { user, prefs, coach, heading: tools.length ? `${heading} · ${tools.length} suggestion${tools.length > 1 ? 's' : ''} to approve` : heading, text: text.trim() });
+  if (deliverIt) await deliver(pool, { user, prefs, coach, type: 'coach_checkin', heading: tools.length ? `${heading} · ${tools.length} suggestion${tools.length > 1 ? 's' : ''} to approve` : heading, text: text.trim() });
   return msg;
 }
 
@@ -130,8 +133,7 @@ async function runFollowup(pool, coach, { user, prefs, now }) {
   const followups = picks.map(t => ({ id: t.id, title: t.title, next_date: next }));
   const text = picks.length === 1 ? `Did you get “${picks[0].title}” done today?` : `Quick end-of-day check — did these get done?\n${picks.map(t => `• ${t.title}`).join('\n')}`;
   const msg = await saveMessage(pool, coach, { role: 'assistant', kind: 'followup', content: text, meta: { date: now.dateStr, actions: followups, results: {} } });
-  const tgLinked = !!(prefs && prefs.telegram_enabled && prefs.telegram_chat_id);
-  await deliver(pool, { user, prefs, coach, heading: 'Did it happen?', text, followups, email: !tgLinked });
+  await deliver(pool, { user, prefs, coach, type: 'coach_followup', heading: 'Did it happen?', text, followups });
   return msg;
 }
 
@@ -153,7 +155,7 @@ async function runAlerts(pool, coach, { user, prefs, now, force = false }) {
   const text = `Heads-up — this needs you:\n${alerts.map(a => `• ${a.text}`).join('\n')}\n\nWant me to draft a fix? Open me and tap “Fix this with me”.`;
   const msg = await saveMessage(pool, coach, { role: 'assistant', kind: 'alert', content: text, meta: { alerts } });
   await pool.query('UPDATE coaches SET last_alert_sig = $2, last_alert_at = NOW() WHERE id = $1', [coach.id, sig]);
-  await deliver(pool, { user, prefs, coach, heading: 'Something is slipping', text, email: !(prefs && prefs.telegram_enabled && prefs.telegram_chat_id) });
+  await deliver(pool, { user, prefs, coach, type: 'coach_alert', heading: 'Something is slipping', text });
   return msg;
 }
 
@@ -191,7 +193,10 @@ async function fireCoachLoop(pool, { getPrefs, nowInTz }) {
       const prefs = hasRow ? await getPrefs(pool, co.user_id) : null;
       const now = nowInTz(prefs?.timezone || 'UTC');
       const user = { id: co.user_id, email: co.email, name: co.user_name };
+      // Settings → Notifications can switch each coach message type off entirely (not even saved in-app).
+      const TYPE_OF = { checkin: 'coach_checkin', followup: 'coach_followup', alerts: 'coach_alert' };
       for (const w of L.dueWork(co, now)) {
+        if (prefs && !typeEnabled(prefs, TYPE_OF[w])) continue;
         try {
           if (w === 'checkin') await runCheckin(pool, co, { user, prefs, now });
           else if (w === 'followup') await runFollowup(pool, co, { user, prefs, now });

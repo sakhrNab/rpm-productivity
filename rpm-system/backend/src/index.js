@@ -1880,7 +1880,8 @@ app.get('/api/notifications/prefs', authenticateToken, async (req, res) => {
 
 app.put('/api/notifications/prefs', authenticateToken, async (req, res) => {
   try {
-    const allowed = ['email_enabled', 'telegram_enabled', 'webpush_enabled', 'digest_enabled', 'digest_time', 'overdue_enabled', 'task_time_enabled', 'chief_enabled', 'chief_time', 'timezone'];
+    const allowed = ['email_enabled', 'telegram_enabled', 'webpush_enabled', 'digest_enabled', 'digest_time', 'overdue_enabled', 'task_time_enabled', 'chief_enabled', 'chief_time', 'timezone',
+      'coach_checkins_enabled', 'coach_followups_enabled', 'coach_alerts_enabled', 'routes'];
     const patch = {};
     for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
     res.json(await notifications.upsertPrefs(pool, req.userId, patch));

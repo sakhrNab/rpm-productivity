@@ -7,6 +7,7 @@ const push = require('./push');
 const { pruneOldUsage } = require('./ai/usage');
 const { computeForecasts } = require('./forecast');
 
+const { channelsFor, cleanRoutes, resolvedRoutes } = require('./notifyRoutes');
 const APP_URL = () => process.env.FRONTEND_URL || 'https://rpm.aiwaverider.com';
 const DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
@@ -14,6 +15,7 @@ const DEFAULT_PREFS = {
   email_enabled: true, telegram_enabled: false, webpush_enabled: false,
   digest_enabled: true, digest_time: '08:00', overdue_enabled: true,
   task_time_enabled: false, chief_enabled: false, chief_time: '07:30', timezone: 'UTC',
+  coach_checkins_enabled: true, coach_followups_enabled: true, coach_alerts_enabled: true, routes: {},
 };
 
 // "HH:MM" -> minutes since midnight (null-safe).
@@ -40,20 +42,26 @@ function nowInTz(tz) {
 
 async function getPrefs(pool, userId) {
   const { rows } = await pool.query('SELECT * FROM notification_prefs WHERE user_id = $1', [userId]);
-  return rows[0] || { user_id: userId, ...DEFAULT_PREFS, last_digest_date: null };
+  const p = rows[0] || { user_id: userId, ...DEFAULT_PREFS, last_digest_date: null };
+  return { ...p, routes: resolvedRoutes(p.routes) };   // every type × channel spelled out for Settings
 }
 
 async function upsertPrefs(pool, userId, patch) {
   const cur = await getPrefs(pool, userId);
   const v = { ...DEFAULT_PREFS, ...cur, ...patch };
+  // routes: a patch updates only the types/channels it names.
+  const routes = cleanRoutes({ ...cleanRoutes(cur.routes), ...Object.fromEntries(Object.entries(cleanRoutes(patch.routes)).map(([t, r]) => [t, { ...(cleanRoutes(cur.routes)[t] || {}), ...r }])) });
   await pool.query(
-    `INSERT INTO notification_prefs (user_id, email_enabled, telegram_enabled, webpush_enabled, digest_enabled, digest_time, overdue_enabled, task_time_enabled, chief_enabled, chief_time, timezone, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+    `INSERT INTO notification_prefs (user_id, email_enabled, telegram_enabled, webpush_enabled, digest_enabled, digest_time, overdue_enabled, task_time_enabled, chief_enabled, chief_time, timezone,
+                                     coach_checkins_enabled, coach_followups_enabled, coach_alerts_enabled, routes, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
      ON CONFLICT (user_id) DO UPDATE SET
        email_enabled=$2, telegram_enabled=$3, webpush_enabled=$4, digest_enabled=$5,
        digest_time=$6, overdue_enabled=$7, task_time_enabled=$8, chief_enabled=$9,
-       chief_time=$10, timezone=$11, updated_at=NOW()`,
-    [userId, v.email_enabled, v.telegram_enabled, v.webpush_enabled, v.digest_enabled, v.digest_time, v.overdue_enabled, v.task_time_enabled, v.chief_enabled, v.chief_time, v.timezone]
+       chief_time=$10, timezone=$11, coach_checkins_enabled=$12, coach_followups_enabled=$13,
+       coach_alerts_enabled=$14, routes=$15, updated_at=NOW()`,
+    [userId, v.email_enabled, v.telegram_enabled, v.webpush_enabled, v.digest_enabled, v.digest_time, v.overdue_enabled, v.task_time_enabled, v.chief_enabled, v.chief_time, v.timezone,
+     v.coach_checkins_enabled !== false, v.coach_followups_enabled !== false, v.coach_alerts_enabled !== false, JSON.stringify(routes)]
   );
   return getPrefs(pool, userId);
 }
@@ -89,18 +97,19 @@ async function sendUserDigest(pool, user, prefs) {
   const { todayTasks, overdue } = await buildDigest(pool, user.id, prefs.timezone, prefs.overdue_enabled);
   const todayLabel = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: prefs.timezone || 'UTC' }).format(new Date());
   const out = {};
-  if (prefs.email_enabled && user.email) {
+  const ch = channelsFor(prefs, 'digest', { hasEmail: !!user.email });
+  if (ch.email) {
     out.email = await sendDigest({
       to: user.email, name: user.name,
       appUrl: (process.env.FRONTEND_URL || 'https://rpm.aiwaverider.com') + '/my-day',
       todayLabel, today: todayTasks, overdue,
     });
   }
-  if (prefs.telegram_enabled && prefs.telegram_chat_id) {
+  if (ch.telegram) {
     try { out.telegram = await telegram.sendDigestTelegram(pool, prefs.telegram_chat_id, { todayLabel, today: todayTasks, overdue }); }
     catch (e) { console.error('[notifications] telegram digest error:', e.message); out.telegram = { sent: false }; }
   }
-  if (prefs.webpush_enabled) {
+  if (ch.push) {
     try {
       out.push = await push.sendToUser(pool, user.id, {
         title: '📋 Your RPM day',
@@ -150,12 +159,13 @@ async function sendChiefBriefing(pool, user, prefs) {
   const url = APP_URL() + '/compass';
   const dayUrl = APP_URL() + '/my-day';
   const out = {};
+  const ch = channelsFor(prefs, 'briefing', { hasEmail: !!user.email });
 
-  if (prefs.email_enabled && user.email) {
+  if (ch.email) {
     try { out.email = await sendChiefEmail({ to: user.email, name: user.name, appUrl: url, dayUrl, todayLabel, today: todayTasks, carried, atRisk, onTrack }); }
     catch (e) { console.error('[chief] email:', e.message); }
   }
-  if (prefs.telegram_enabled && prefs.telegram_chat_id) {
+  if (ch.telegram) {
     const esc = (s) => String(s || '').replace(/[<>&]/g, '');
     const lines = [`🧭 <b>Chief of Staff — ${esc(todayLabel)}</b>`, ''];
     lines.push(`📋 <b>Today:</b> ${todayTasks.length} task${todayTasks.length === 1 ? '' : 's'} planned.`);
@@ -175,7 +185,7 @@ async function sendChiefBriefing(pool, user, prefs) {
     try { out.telegram = await telegram.notify(pool, prefs.telegram_chat_id, lines.join('\n')); }
     catch (e) { console.error('[chief] telegram:', e.message); }
   }
-  if (prefs.webpush_enabled) {
+  if (ch.push) {
     try {
       const bits = [`${todayTasks.length} today`];
       if (carried.length) bits.push(`${carried.length} carried over`);
@@ -235,16 +245,18 @@ async function updateReminder(pool, userId, id, data) {
   return r.rows[0] || null;
 }
 
-async function deliverReminder(pool, r) {
+// type: 'reminder' (your custom reminders) | 'task_time' (a task's scheduled time).
+async function deliverReminder(pool, r, type = 'reminder') {
   const prefs = await getPrefs(pool, r.user_id);
   const url = APP_URL() + '/my-day';
-  if (prefs.email_enabled && r.email) {
+  const ch = channelsFor(prefs, type, { hasEmail: !!r.email });
+  if (ch.email) {
     try { await sendReminder({ to: r.email, name: r.name, title: r.title, appUrl: url }); } catch (e) { console.error('[reminders] email:', e.message); }
   }
-  if (prefs.telegram_enabled && prefs.telegram_chat_id) {
+  if (ch.telegram) {
     try { await telegram.notify(pool, prefs.telegram_chat_id, `⏰ <b>Reminder:</b> ${String(r.title).replace(/[<>&]/g, '')}`); } catch (e) { console.error('[reminders] tg:', e.message); }
   }
-  if (prefs.webpush_enabled) {
+  if (ch.push) {
     try { await push.sendToUser(pool, r.user_id, { title: '⏰ RPM Reminder', body: r.title, url }); } catch (e) { console.error('[reminders] push:', e.message); }
   }
 }
@@ -305,7 +317,7 @@ async function fireTaskTimeReminders(pool) {
         await deliverReminder(pool, {
           user_id: p.user_id, email: p.email, name: p.name,
           title: `${a.title} — scheduled for ${String(a.scheduled_time).slice(0, 5)}`,
-        });
+        }, 'task_time');
         await pool.query('UPDATE actions SET reminded_at = NOW() WHERE id = $1', [a.id]);
       }
     } catch (e) { console.error('[reminders] task-time fire:', e.message); }
