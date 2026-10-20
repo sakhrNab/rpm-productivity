@@ -44,6 +44,10 @@ const storeTokens = (accessToken, refreshToken) => {
   localStorage.setItem('refreshToken', refreshToken);
 };
 
+// Shared by every request (see refreshTokenFn / logout in AuthProvider)
+let refreshInFlight = null;
+let logoutInFlight = null;
+
 // Clear tokens
 const clearTokens = () => {
   localStorage.removeItem('accessToken');
@@ -563,45 +567,59 @@ function AuthProvider({ children }) {
 
   const getToken = () => accessToken;
 
-  const refreshTokenFn = async () => {
-    const { refreshToken } = getStoredTokens();
-    if (!refreshToken) return null;
+  // One refresh at a time: every request that finds its token expired waits for the same refresh. Refresh tokens
+  // rotate, so parallel refreshes made all but the first fail (401), the app then logged out several times, and
+  // that burst of 401s got a real user banned by the server's brute-force protection (2026-10-20).
+  const refreshTokenFn = () => {
+    if (refreshInFlight) return refreshInFlight;
+    refreshInFlight = (async () => {
+      const { refreshToken } = getStoredTokens();
+      if (!refreshToken) return null;
 
-    try {
-      const response = await fetch(`${API_BASE}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken })
-      });
+      try {
+        const response = await fetch(`${API_BASE}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken })
+        });
 
-      if (!response.ok) return null;
+        if (!response.ok) return null;
 
-      const data = await response.json();
-      storeTokens(data.accessToken, data.refreshToken);
-      setAccessToken(data.accessToken);
-      return data.accessToken;
-    } catch {
-      return null;
-    }
+        const data = await response.json();
+        storeTokens(data.accessToken, data.refreshToken);
+        setAccessToken(data.accessToken);
+        return data.accessToken;
+      } catch {
+        return null;
+      }
+    })().finally(() => { refreshInFlight = null; });
+    return refreshInFlight;
   };
 
-  const logout = async () => {
-    const { refreshToken } = getStoredTokens();
-    try {
-      await fetch(`${API_BASE}/auth/logout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({ refreshToken })
-      });
-    } catch (e) {
-      // Ignore logout errors
-    }
-    clearTokens();
-    setAccessToken(null);
-    setUser(null);
+  // Same for logout: requests that all fail at once must sign out once, not once each.
+  const logout = () => {
+    if (logoutInFlight) return logoutInFlight;
+    logoutInFlight = (async () => {
+      const { refreshToken } = getStoredTokens();
+      if (refreshToken) {
+        try {
+          await fetch(`${API_BASE}/auth/logout`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+            },
+            body: JSON.stringify({ refreshToken })
+          });
+        } catch (e) {
+          // Ignore logout errors
+        }
+      }
+      clearTokens();
+      setAccessToken(null);
+      setUser(null);
+    })().finally(() => { logoutInFlight = null; });
+    return logoutInFlight;
   };
 
   const api = createApi(getToken, refreshTokenFn, logout);
