@@ -16,6 +16,7 @@ import VoiceOrb from './components/VoiceOrb';
 import GlobalFileDrop from './components/GlobalFileDrop';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
+import OAuthConsentPage from './pages/OAuthConsentPage';
 import RegisterPage from './pages/RegisterPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 import { switchUser } from './utils/userScope';
@@ -269,6 +270,11 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     pushSubscribe: (subscription) => authFetch(`${API_BASE}/push/subscribe`, { method: 'POST', body: JSON.stringify({ subscription }) }).then(r => r.json()),
     pushUnsubscribe: (endpoint) => authFetch(`${API_BASE}/push/unsubscribe`, { method: 'POST', body: JSON.stringify({ endpoint }) }).then(r => r.json()),
     getReminders: () => authFetch(`${API_BASE}/reminders`).then(r => r.json()),
+    // the hosted MCP connector: its consent page and Connected apps (src/mcp/router.js)
+    getOauthRequest: (params) => authFetch(`${API_BASE}/oauth/request?${new URLSearchParams(params)}`).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.message || d.error || 'This request is not valid.'); return d; }),
+    oauthConsent: (body) => authFetch(`${API_BASE}/oauth/consent`, { method: 'POST', body: JSON.stringify(body) }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.message || d.error || 'Failed'); return d; }),
+    getOauthGrants: () => authFetch(`${API_BASE}/oauth/grants`).then(r => r.json()),
+    revokeOauthGrant: (id) => authFetch(`${API_BASE}/oauth/grants/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
     createReminder: (data) => authFetch(`${API_BASE}/reminders`, { method: 'POST', body: JSON.stringify(data) }).then(r => r.json()),
     updateReminder: (id, data) => authFetch(`${API_BASE}/reminders/${id}`, { method: 'PUT', body: JSON.stringify(data) }).then(r => r.json()),
     deleteReminder: (id) => authFetch(`${API_BASE}/reminders/${id}`, { method: 'DELETE' }).then(r => r.json()),
@@ -799,6 +805,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/oauth/authorize" element={<ProtectedRoute><OAuthConsentPage /></ProtectedRoute>} />
           <Route
             path="/*"
             element={

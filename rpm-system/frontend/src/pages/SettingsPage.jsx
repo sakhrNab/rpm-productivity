@@ -9,6 +9,7 @@ import UsageDashboard from '../components/UsageDashboard';
 import ChangePassword from '../components/ChangePassword';
 import NotifyMatrix from '../components/settings/NotifyMatrix';
 import CoachSchedules from '../components/settings/CoachSchedules';
+import ConnectedApps from '../components/settings/ConnectedApps';
 import './SettingsPage.css';
 
 const PROVIDER_LABEL = { anthropic: 'Claude', openai: 'OpenAI', zhipu: 'z.ai (GLM)', deepseek: 'DeepSeek' };
@@ -382,6 +383,9 @@ function SettingsPage() {
           </div>
         </section>
       )}
+      <section className="ui-card settings-section">
+        <ConnectedApps />
+      </section>
       </>)}
 
       {tab === 'memory' && (

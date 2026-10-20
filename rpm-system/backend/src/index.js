@@ -28,6 +28,9 @@ const { mountSocialAuth } = require('./socialAuth');
 const passwordReset = require('./passwordReset');
 const { createAdminRouter, requireAdmin, createInvite } = require('./admin');
 const pat = require('./pat');
+const { DELEGATION_HEADER, verifyDelegation } = require('./mcp/delegation');
+const { patScopesOf } = require('./mcp/scopes');
+const { createMcpRouter } = require('./mcp/router');
 const { firstForeignId } = require('./ownership');
 const { createBusinessRouter } = require('./business');
 const { createAgentRunsRouter } = require('./agentRuns');
@@ -130,6 +133,20 @@ const patLimiter = rateLimit({ name: 'pat', windowMs: 60 * 1000, max: 120 });
 
 // Auth Middleware
 const authenticateToken = async (req, res, next) => {
+  // The hosted MCP endpoint's signed delegation (src/mcp): treated exactly like an access token with
+  // the granted scopes — same allowlist. Rate-limited once, per user, at /mcp itself.
+  const delegated = verifyDelegation(JWT_SECRET, req.headers[DELEGATION_HEADER]);
+  if (delegated) {
+    const scopes = patScopesOf(delegated.scopes);
+    if (!pat.patRouteAllowed(req.method, req.originalUrl, scopes)) {
+      securityEvent('access_denied', { user: delegated.userId, ip: req.ip, reason: `mcp_route ${req.method} ${req.originalUrl.split('?')[0]}` });
+      return res.status(403).json({ error: 'This route is not available to the connector' });
+    }
+    req.userId = delegated.userId;
+    req.authKind = 'mcp';
+    req.patScopes = scopes;
+    return next();
+  }
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Access token required' });
@@ -2084,6 +2101,13 @@ app.delete('/api/reminders/:id', authenticateToken, async (req, res) => {
   try { await notifications.deleteReminder(pool, req.userId, req.params.id); res.json({ success: true }); }
   catch (error) { console.error('[reminders] delete:', error); res.status(500).json({ error: 'Failed' }); }
 });
+
+// The hosted MCP connector + its OAuth server (src/mcp/router.js): /mcp, /oauth/*, /.well-known/*,
+// /api/oauth/* (consent and Connected apps, signed-in browser only).
+app.use(createMcpRouter({
+  pool, port: PORT, jwtSecret: JWT_SECRET, frontendUrl: FRONTEND_URL, authenticateToken,
+  verifyPat: pat.verifyPat, resolveTimezone, rateLimit, securityEvent,
+}));
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`RPM Backend running on port ${PORT}`);

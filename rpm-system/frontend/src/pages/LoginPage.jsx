@@ -15,7 +15,8 @@ function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = location.state?.from?.pathname || '/';
+  // back where sign-in interrupted, query included (the OAuth consent page needs its request)
+  const from = location.state?.from ? `${location.state.from.pathname}${location.state.from.search || ''}` : '/';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
