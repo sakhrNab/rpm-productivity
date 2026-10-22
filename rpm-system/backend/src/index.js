@@ -1,3 +1,5 @@
+// First: every console line must stay one log line, whatever user text it carries (see safeLog.js).
+require('./safeLog').installSafeConsole();
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');

@@ -134,7 +134,8 @@ function mountSocialAuth(app, { pool, frontendUrl, backendUrl, issueSession, sen
           const st = page === 'register' ? decodeSignupState(req.query.state) : {};
           res.redirect(`${frontendUrl}/${page}?error=${encodeURIComponent(reason)}&via=${provider}${st.invite ? `&invite=${encodeURIComponent(st.invite)}` : ''}`);
         };
-        if (err) { console.error(`[auth] ${provider} callback:`, err.message || err); return fail('provider_failed'); }
+        // err.message can come from the provider redirect (?error_description=): JSON-encode it so it stays one line.
+        if (err) { console.error(`[auth] ${provider} callback: %j`, String(err.message || err).slice(0, 300)); return fail('provider_failed'); }
         if (!user) return fail(typeof info?.message === 'string' ? info.message : 'provider_failed');
         try {
           const { accessToken, refreshToken } = await issueSession(user);
