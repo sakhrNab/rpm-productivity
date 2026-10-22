@@ -47,6 +47,7 @@ const { verifyAction, addDaysStr } = require('./ai/coachLoop');
 const notifications = require('./notifications');
 const telegram = require('./telegram');
 const push = require('./push');
+const { createSessionRouter } = require('./session');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
@@ -64,7 +65,7 @@ if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || !proces
   console.error('FATAL: JWT_SECRET and JWT_REFRESH_SECRET must be set in production.');
   process.exit(1);
 }
-const JWT_EXPIRES_IN = '1h';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';   // env only to test expiry locally
 
 // OAuth Configuration
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3012';
@@ -127,7 +128,8 @@ const upload = multer({
 // JWT Helper
 const generateTokens = (user) => ({
   accessToken: jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN }),
-  refreshToken: jwt.sign({ userId: user.id }, JWT_REFRESH_SECRET, { expiresIn: '7d' })
+  // jti: two refresh tokens for the same user in the same second were byte-identical, so rotating one deleted both.
+  refreshToken: jwt.sign({ userId: user.id, jti: crypto.randomUUID() }, JWT_REFRESH_SECRET, { expiresIn: '7d' })
 });
 
 // Personal access tokens (rpm-mcp, revenue dashboard): 120 requests/min per token-holder IP.
@@ -321,41 +323,8 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/auth/refresh', async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
-    if (!refreshToken) return res.status(400).json({ error: 'Refresh token required' });
-    
-    let decoded;
-    try { decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET); }
-    catch (error) { return res.status(401).json({ error: 'Invalid refresh token' }); }
-    
-    const tokenResult = await pool.query('SELECT * FROM refresh_tokens WHERE token = $1 AND user_id = $2 AND expires_at > NOW()', [refreshToken, decoded.userId]);
-    if (tokenResult.rows.length === 0) return res.status(401).json({ error: 'Refresh token expired or invalid' });
-    
-    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [decoded.userId]);
-    if (userResult.rows.length === 0) return res.status(401).json({ error: 'User not found' });
-    if (userResult.rows[0].disabled_at) return res.status(401).json({ error: 'Account disabled' });
-    
-    const tokens = generateTokens(userResult.rows[0]);
-    await pool.query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [decoded.userId, tokens.refreshToken, expiresAt]);
-    
-    res.json(tokens);
-  } catch (error) {
-    console.error('Refresh error:', error);
-    res.status(500).json({ error: 'Token refresh failed' });
-  }
-});
-
-app.post('/api/auth/logout', authenticateToken, async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
-    if (refreshToken) await pool.query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
-    res.json({ success: true });
-  } catch (error) { res.status(500).json({ error: 'Logout failed' }); }
-});
+// Refresh (rotation with a short reuse grace) and logout (refresh token only, always 204): see session.js.
+app.use('/api/auth', createSessionRouter({ pool, generateTokens, refreshSecret: JWT_REFRESH_SECRET }));
 
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {

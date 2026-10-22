@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import Navbar from './components/Navbar';
 import CategoryDetailPage from './pages/CategoryDetailPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
@@ -20,6 +20,7 @@ import OAuthConsentPage from './pages/OAuthConsentPage';
 import RegisterPage from './pages/RegisterPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 import { switchUser } from './utils/userScope';
+import { createAuthSession, SessionExpiredError, ACCESS_KEY, REFRESH_KEY } from './utils/authSession';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 
@@ -32,27 +33,8 @@ export const API_BASE = import.meta.env.VITE_API_URL
 // Auth Context
 export const AuthContext = createContext(null);
 
-// Get stored tokens
-const getStoredTokens = () => ({
-  accessToken: localStorage.getItem('accessToken'),
-  refreshToken: localStorage.getItem('refreshToken')
-});
-
-// Store tokens
-const storeTokens = (accessToken, refreshToken) => {
-  localStorage.setItem('accessToken', accessToken);
-  localStorage.setItem('refreshToken', refreshToken);
-};
-
-// Shared by every request (see refreshTokenFn / logout in AuthProvider)
-let refreshInFlight = null;
-let logoutInFlight = null;
-
-// Clear tokens
-const clearTokens = () => {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
-};
+// Tokens, refresh, logout and the signed-out state live in utils/authSession.js (one session per tab,
+// coordinated across tabs).
 
 // POST to a public (no-auth) endpoint; throws with the server's message on an error status.
 const publicPost = (path, body) => fetch(`${API_BASE}${path}`, {
@@ -66,39 +48,13 @@ const publicPost = (path, body) => fetch(`${API_BASE}${path}`, {
 });
 
 // API Helper with Auth
-const createApi = (getToken, refreshTokenFn, logout) => {
-  const authFetch = async (url, options = {}) => {
-    const token = getToken();
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-      ...options.headers
-    };
-
-    let response = await fetch(url, { ...options, headers });
-
-    // If token expired, try to refresh
-    if (response.status === 401) {
-      const data = await response.clone().json().catch(() => ({}));
-      // The password was reset/changed elsewhere: this session is over.
-      if (data.code === 'SESSION_REVOKED') {
-        logout();
-        throw new Error(data.error || 'Please sign in again');
-      }
-      if (data.code === 'TOKEN_EXPIRED') {
-        const newToken = await refreshTokenFn();
-        if (newToken) {
-          headers['Authorization'] = `Bearer ${newToken}`;
-          response = await fetch(url, { ...options, headers });
-        } else {
-          logout();
-          throw new Error('Session expired');
-        }
-      }
-    }
-
-    return response;
-  };
+const createApi = (session) => {
+  // Every authenticated request goes through session.authed: it refreshes BEFORE sending when the access token is
+  // about to expire, retries once on TOKEN_EXPIRED, and sends nothing once the session is over.
+  const authFetch = (url, options = {}) => session.authed((token) => fetch(url, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...options.headers },
+  }));
 
   return {
     // Auth
@@ -165,18 +121,7 @@ const createApi = (getToken, refreshTokenFn, logout) => {
       body: JSON.stringify(data)
     }).then(r => r.json()),
 
-    refreshToken: (token) => fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: token })
-    }).then(r => r.json()),
-
     getMe: () => authFetch(`${API_BASE}/auth/me`).then(r => r.json()),
-
-    logout: (refreshToken) => authFetch(`${API_BASE}/auth/logout`, {
-      method: 'POST',
-      body: JSON.stringify({ refreshToken })
-    }).then(r => r.json()),
 
     // Categories
     getCategories: () => authFetch(`${API_BASE}/categories`).then(r => r.json()),
@@ -420,36 +365,21 @@ const createApi = (getToken, refreshTokenFn, logout) => {
     deleteLeverageRequest: (id) => authFetch(`${API_BASE}/leverage-requests/${id}`, { method: 'DELETE' }).then(r => r.json()),
 
     // File → Plan: multipart upload answered with an SSE stream (returns the raw Response).
-    // Not authFetch (it forces a JSON content-type); handles token refresh itself.
-    importPlanStream: async (file, fields = {}, signal) => {
-      const send = (token) => {
-        const fd = new FormData();
-        fd.append('file', file);
-        for (const [k, v] of Object.entries(fields)) if (v != null && v !== '') fd.append(k, v);
-        return fetch(`${API_BASE}/ai/import`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd, signal });
-      };
-      let res = await send(getToken());
-      if (res.status === 401) {
-        const newToken = await refreshTokenFn();
-        if (!newToken) { logout(); throw new Error('Session expired'); }
-        res = await send(newToken);
-      }
-      return res;
-    },
+    // Not authFetch (it forces a JSON content-type), but the same session.authed token handling.
+    importPlanStream: (file, fields = {}, signal) => session.authed((token) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      for (const [k, v] of Object.entries(fields)) if (v != null && v !== '') fd.append(k, v);
+      return fetch(`${API_BASE}/ai/import`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd, signal });
+    }),
     // Read a file's text for the Assistant ("Ask about it"). Same multipart + token-refresh path as the import.
     extractFile: async (file, modelKey) => {
-      const send = (token) => {
+      const res = await session.authed((token) => {
         const fd = new FormData();
         fd.append('file', file);
         if (modelKey) fd.append('modelKey', modelKey);
-        return fetch(`${API_BASE}/ai/extract`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd });
-      };
-      let res = await send(getToken());
-      if (res.status === 401) {
-        const newToken = await refreshTokenFn();
-        if (!newToken) { logout(); throw new Error('Session expired'); }
-        res = await send(newToken);
-      }
+        return fetch(`${API_BASE}/ai/extract`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+      });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Could not read that file.');
       return body;
@@ -467,13 +397,10 @@ const createApi = (getToken, refreshTokenFn, logout) => {
 
     // Upload (multipart — do NOT use authFetch, which forces JSON content-type)
     uploadImage: async (file) => {
-      const token = getToken();
-      const formData = new FormData();
-      formData.append('image', file);
-      const res = await fetch(`${API_BASE}/upload`, {
-        method: 'POST',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        body: formData
+      const res = await session.authed((token) => {
+        const formData = new FormData();
+        formData.append('image', file);
+        return fetch(`${API_BASE}/upload`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
       });
       return res.json();
     },
@@ -563,72 +490,20 @@ function AuthProvider({ children }) {
   // BEFORE the app renders for this one (see utils/userScope.js).
   const setUser = (u) => { switchUser(u?.id || null); setUserState(u); };
   const [loading, setLoading] = useState(true);
-  const [accessToken, setAccessToken] = useState(getStoredTokens().accessToken);
 
-  const getToken = () => accessToken;
+  // One session per tab; tabs coordinate through localStorage + a Web Lock (see utils/authSession.js).
+  const sessionRef = useRef(null);
+  if (!sessionRef.current) sessionRef.current = createAuthSession({ apiBase: API_BASE, onSignedOut: () => setUser(null) });
+  const session = sessionRef.current;
 
-  // One refresh at a time: every request that finds its token expired waits for the same refresh. Refresh tokens
-  // rotate, so parallel refreshes made all but the first fail (401), the app then logged out several times, and
-  // that burst of 401s got a real user banned by the server's brute-force protection (2026-10-20).
-  const refreshTokenFn = () => {
-    if (refreshInFlight) return refreshInFlight;
-    refreshInFlight = (async () => {
-      const { refreshToken } = getStoredTokens();
-      if (!refreshToken) return null;
+  const logout = () => session.logout();
 
-      try {
-        const response = await fetch(`${API_BASE}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        });
-
-        if (!response.ok) return null;
-
-        const data = await response.json();
-        storeTokens(data.accessToken, data.refreshToken);
-        setAccessToken(data.accessToken);
-        return data.accessToken;
-      } catch {
-        return null;
-      }
-    })().finally(() => { refreshInFlight = null; });
-    return refreshInFlight;
-  };
-
-  // Same for logout: requests that all fail at once must sign out once, not once each.
-  const logout = () => {
-    if (logoutInFlight) return logoutInFlight;
-    logoutInFlight = (async () => {
-      const { refreshToken } = getStoredTokens();
-      if (refreshToken) {
-        try {
-          await fetch(`${API_BASE}/auth/logout`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-            },
-            body: JSON.stringify({ refreshToken })
-          });
-        } catch (e) {
-          // Ignore logout errors
-        }
-      }
-      clearTokens();
-      setAccessToken(null);
-      setUser(null);
-    })().finally(() => { logoutInFlight = null; });
-    return logoutInFlight;
-  };
-
-  const api = createApi(getToken, refreshTokenFn, logout);
+  const api = createApi(session);
 
   const login = async (email, password) => {
     const result = await api.login({ email, password });
     if (result.error) throw new Error(result.error);
-    storeTokens(result.accessToken, result.refreshToken);
-    setAccessToken(result.accessToken);
+    session.setTokens(result.accessToken, result.refreshToken);
     setUser(result.user);
     return result.user;
   };
@@ -637,8 +512,7 @@ function AuthProvider({ children }) {
   const register = async (email, password, name, extra = {}) => {
     const result = await api.register({ email, password, name, ...extra });
     if (result.error) { const err = new Error(result.error); err.code = result.code; throw err; }
-    storeTokens(result.accessToken, result.refreshToken);
-    setAccessToken(result.accessToken);
+    session.setTokens(result.accessToken, result.refreshToken);
     setUser(result.user);
     return result.user;
   };
@@ -646,60 +520,49 @@ function AuthProvider({ children }) {
   // Settings → change password: the server signs out every other device and hands this one fresh tokens.
   const changePassword = async (currentPassword, newPassword) => {
     const result = await api.changePassword(currentPassword, newPassword);
-    storeTokens(result.accessToken, result.refreshToken);
-    setAccessToken(result.accessToken);
+    session.setTokens(result.accessToken, result.refreshToken);
     return result;
   };
 
+  // Google / Microsoft: AuthCallbackPage hands us the pair, then reloads (checkAuth below loads the user).
   const handleOAuthCallback = (tokens) => {
-    storeTokens(tokens.accessToken, tokens.refreshToken);
-    setAccessToken(tokens.accessToken);
+    session.setTokens(tokens.accessToken, tokens.refreshToken);
+  };
+
+  // Who is signed in. A stale session costs at most ONE refresh (before /auth/me is sent); if that fails we sign
+  // out once and show the sign-in page with no further authenticated calls.
+  const checkAuth = async () => {
+    const { accessToken, refreshToken } = session.tokens();
+    if (!accessToken && !refreshToken) {
+      session.markSignedOut();
+      switchUser(null);   // nobody signed in: no one's saved data stays on this browser
+      setLoading(false);
+      return;
+    }
+    try {
+      const response = await session.authed((token) => fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } }));
+      if (response.ok) setUser(await response.json());
+      else if (response.status === 401 || response.status === 403) await session.logout();   // e.g. account disabled
+    } catch (error) {
+      // SessionExpiredError: already signed out. Anything else (offline, 5xx): keep the tokens for the next try.
+      if (!(error instanceof SessionExpiredError)) console.error('Auth check failed:', error);
+    }
+    setLoading(false);
   };
 
   // Check auth status on mount
+  useEffect(() => { checkAuth(); }, []);
+
+  // Other tabs: signing out there signs out here (no server call); signing in there signs in here.
   useEffect(() => {
-    const checkAuth = async () => {
-      const { accessToken: token } = getStoredTokens();
-      if (!token) {
-        switchUser(null);   // nobody signed in: no one's saved data stays on this browser
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch(`${API_BASE}/auth/me`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        } else if (response.status === 401) {
-          // Try to refresh
-          const newToken = await refreshTokenFn();
-          if (newToken) {
-            const retryResponse = await fetch(`${API_BASE}/auth/me`, {
-              headers: { 'Authorization': `Bearer ${newToken}` }
-            });
-            if (retryResponse.ok) {
-              const userData = await retryResponse.json();
-              setUser(userData);
-            } else {
-              clearTokens();
-            }
-          } else {
-            clearTokens();
-          }
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        clearTokens();
-      }
-
-      setLoading(false);
+    const onStorage = (e) => {
+      if (e.key !== null && e.key !== ACCESS_KEY && e.key !== REFRESH_KEY) return;
+      const change = session.syncFromStorage();
+      if (change === 'signed-out') setUser(null);
+      else if (change === 'signed-in') checkAuth();
     };
-
-    checkAuth();
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   return (
